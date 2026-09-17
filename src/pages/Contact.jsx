@@ -57,7 +57,7 @@ export default function Contact() {
     <>
       <SEO
         title="Contact"
-        description="Get in touch with Viincci Digital to start your web, automation, or AI project."
+        description="Get in touch with Viincci Digital to get a quote for your business website or WhatsApp system."
         path="/contact"
       />
 

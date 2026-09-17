@@ -5,7 +5,7 @@ export default function About() {
     <>
       <SEO
         title="About Us"
-        description="Viincci Digital is an independent studio building web apps, automation, and AI tools for businesses across South Africa and beyond."
+        description="Viincci Digital is an independent South African studio building websites and WhatsApp systems for shops, salons, clinics, consultants, and growing businesses."
         path="/about"
       />
 
@@ -13,26 +13,28 @@ export default function About() {
         <p className="eyebrow">About</p>
         <h1>Built by a developer who ships.</h1>
         <p className="lead">
-          Viincci Digital is a solo-led digital studio. No layers of account managers,
-          no bloated timelines — just working software, built and shipped by someone
-          who writes the code.
+          Viincci Digital is a solo-led digital studio based in South Africa. No layers
+          of account managers, no bloated timelines — just working websites and WhatsApp
+          systems, built and shipped by someone who writes the code.
         </p>
 
         <div className="grid grid-2 section">
           <div className="card">
-            <h3>How we work</h3>
+            <h3>Who we work with</h3>
             <p>
-              Every project starts with the smallest thing that works, then grows.
-              We favor proven tools — React, Python, Django, Flask, FastAPI — over
-              trendy stacks that add risk without adding value.
+              Shops, salons, clinics, consultants, and other small and growing
+              businesses that need a professional website and, when it makes sense,
+              a WhatsApp line their customers already trust. No hardware and no
+              in-house developer required on your side.
             </p>
           </div>
           <div className="card">
-            <h3>Where we're based</h3>
+            <h3>How we work</h3>
             <p>
-              Operating out of South Africa and working with clients globally,
-              with experience building for the local market — from bank statement
-              parsing to WhatsApp-based customer service.
+              Every project starts with the smallest thing that works — a fast,
+              secure, SEO-ready website — then grows with you. Hosting, SSL security,
+              and support are included from day one, and you can upgrade any time
+              without losing your data.
             </p>
           </div>
         </div>

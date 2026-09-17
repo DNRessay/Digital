@@ -10,7 +10,7 @@ export default function Footer() {
           <div className="brand">
             Viincci<span>Digital</span>
           </div>
-          <p>Web apps, automation & AI solutions built for real businesses.</p>
+          <p>Websites & WhatsApp systems for small and growing businesses.</p>
         </div>
 
         <nav className="footer-links" aria-label="Footer navigation">
