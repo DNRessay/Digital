@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block theme_css %}
+  <link href="{% static 'themes/local-service/css/theme.css' %}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="#">{{ site.name }}</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse justify-content-end" id="navMenu">
+      <ul class="navbar-nav gap-3">
+        <li class="nav-item"><a class="nav-link" href="#services">Services</a></li>
+        <li class="nav-item"><a class="nav-link" href="#gallery">Our Work</a></li>
+        <li class="nav-item"><a class="nav-link" href="#about">About</a></li>
+        <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<header class="ls-hero text-white text-center py-5">
+  <div class="container py-5">
+    {% if site.hero.eyebrow %}<p class="text-uppercase fw-bold small ls-accent">{{ site.hero.eyebrow }}</p>{% endif %}
+    <h1 class="display-5 fw-bold">{{ site.hero.heading }}</h1>
+    {% if site.hero.subheading %}<p class="lead col-lg-8 mx-auto">{{ site.hero.subheading }}</p>{% endif %}
+    <a href="{{ site.hero.cta_url }}" class="btn btn-lg ls-btn-primary mt-3">{{ site.hero.cta_label }}</a>
+  </div>
+</header>
+
+{% if site.services.all %}
+<section id="services" class="py-5">
+  <div class="container">
+    <h2 class="text-center mb-5">Our Services</h2>
+    <div class="row g-4">
+      {% for service in site.services.all %}
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm p-3">
+          <div class="card-body">
+            <h3 class="h5">{{ service.title }}</h3>
+            <p class="text-muted">{{ service.description }}</p>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% if site.gallery_images.all %}
+<section id="gallery" class="py-5 bg-light">
+  <div class="container">
+    <h2 class="text-center mb-5">Our Work</h2>
+    <div class="row g-3">
+      {% for image in site.gallery_images.all %}
+      <div class="col-md-4">
+        <img src="{{ image.image.url }}" alt="{{ image.caption }}" class="img-fluid rounded shadow-sm">
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% if site.about %}
+<section id="about" class="py-5">
+  <div class="container">
+    <div class="row align-items-center g-5">
+      <div class="col-lg-6">
+        <h2>{{ site.about.heading }}</h2>
+        <p class="text-muted">{{ site.about.body }}</p>
+      </div>
+      {% if site.about.image %}
+      <div class="col-lg-6">
+        <img src="{{ site.about.image.url }}" alt="{{ site.about.heading }}" class="img-fluid rounded shadow-sm">
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% if site.testimonials.all %}
+<section class="py-5 bg-light">
+  <div class="container">
+    <h2 class="text-center mb-5">What customers say</h2>
+    <div class="row g-4">
+      {% for t in site.testimonials.all %}
+      <div class="col-md-4">
+        <blockquote class="p-3">
+          <p class="fst-italic">&ldquo;{{ t.quote }}&rdquo;</p>
+          <footer class="blockquote-footer">{{ t.author_name }}{% if t.author_role %}, {{ t.author_role }}{% endif %}</footer>
+        </blockquote>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section id="contact" class="py-5 ls-contact text-white text-center">
+  <div class="container">
+    <h2>Get in touch</h2>
+    {% if site.address %}<p>{{ site.address }}</p>{% endif %}
+    <div class="d-flex justify-content-center gap-3 flex-wrap mt-3">
+      {% if site.phone %}<a href="tel:{{ site.phone }}" class="btn btn-outline-light">Call {{ site.phone }}</a>{% endif %}
+      {% if site.whatsapp_number %}<a href="https://wa.me/{{ site.whatsapp_number }}" class="btn ls-btn-primary">WhatsApp us</a>{% endif %}
+      {% if site.email %}<a href="mailto:{{ site.email }}" class="btn btn-outline-light">Email us</a>{% endif %}
+    </div>
+  </div>
+</section>
+
+<footer class="py-4 text-center text-muted small">
+  &copy; {% now "Y" %} {{ site.name }}. All rights reserved.
+</footer>
+{% endblock %}

@@ -1,0 +1,23 @@
+.ls-hero {
+  background: linear-gradient(180deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 80%, black) 100%);
+}
+
+.ls-accent {
+  color: var(--secondary);
+}
+
+.ls-btn-primary {
+  background: var(--secondary);
+  border-color: var(--secondary);
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.ls-btn-primary:hover {
+  filter: brightness(1.08);
+  color: #1a1a1a;
+}
+
+.ls-contact {
+  background: var(--primary);
+}

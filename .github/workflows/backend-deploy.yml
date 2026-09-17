@@ -1,0 +1,82 @@
+name: Backend CI & Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - ".github/workflows/backend-deploy.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Django system check
+        working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: ci-only-key
+        run: python manage.py check
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Collect static files
+        working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python manage.py collectstatic --noinput
+
+      - uses: aws-actions/setup-sam@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: sam build
+        working-directory: backend
+        run: sam build
+
+      - name: sam deploy
+        working-directory: backend
+        run: |
+          sam deploy \
+            --stack-name viincci-digital-builder \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --resolve-s3 \
+            --parameter-overrides \
+              DatabaseUrl=${{ secrets.DATABASE_URL }} \
+              DjangoSecretKey=${{ secrets.DJANGO_SECRET_KEY }} \
+              DjangoAllowedHosts=${{ secrets.DJANGO_ALLOWED_HOSTS }}

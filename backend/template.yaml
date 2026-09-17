@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Viincci Digital site-builder backend (Django + Mangum on Lambda)
+
+Parameters:
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+    Description: Neon Postgres connection string
+  DjangoSecretKey:
+    Type: String
+    NoEcho: true
+  DjangoAllowedHosts:
+    Type: String
+    Default: "*"
+  Stage:
+    Type: String
+    Default: prod
+
+Globals:
+  Function:
+    Timeout: 15
+    MemorySize: 512
+    Runtime: python3.11
+
+Resources:
+  DjangoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: config.lambda_handler.handler
+      CodeUri: .
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          DJANGO_SECRET_KEY: !Ref DjangoSecretKey
+          DJANGO_ALLOWED_HOSTS: !Ref DjangoAllowedHosts
+          DJANGO_DEBUG: "false"
+      Events:
+        RootApi:
+          Type: HttpApi
+          Properties:
+            Path: /
+            Method: ANY
+        ProxyApi:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+
+Outputs:
+  ApiUrl:
+    Description: Base URL of the deployed API
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/"
