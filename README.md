@@ -58,5 +58,11 @@ npm run build
 npx wrangler pages deploy dist --project-name=viincci-digital
 ```
 
+> Note: this project has no `wrangler.toml`. Cloudflare Pages'
+> `wrangler.toml` support doesn't allow a `[build]` command, and its mere
+> presence overrides the dashboard's build command field — so for a
+> git-integration deploy, set the build command/output directory in the
+> dashboard (Option A) instead of adding one back.
+
 `public/_redirects` (`/* /index.html 200`) is included so client-side routes
 resolve correctly on Cloudflare Pages.
