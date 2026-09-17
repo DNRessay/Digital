@@ -1,3 +1,6 @@
 name = "viincci-digital"
 pages_build_output_dir = "dist"
 compatibility_date = "2024-09-01"
+
+[build]
+command = "npm run build"
