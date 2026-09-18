@@ -1,9 +1,30 @@
 .ls-hero {
-  background: linear-gradient(180deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 80%, black) 100%);
+  background: linear-gradient(160deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 75%, black) 100%);
 }
 
 .ls-accent {
   color: var(--secondary);
+}
+
+.ls-eyebrow {
+  display: inline-block;
+  color: var(--secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  font-size: 0.8rem;
+  margin-bottom: 0.4rem;
+}
+
+.ls-badge-pill {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.35rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .ls-btn-primary {
@@ -20,4 +41,93 @@
 
 .ls-contact {
   background: var(--primary);
+}
+
+/* Icons */
+.ls-icon {
+  width: 22px;
+  height: 22px;
+  vertical-align: -4px;
+}
+
+.ls-icon-sm {
+  width: 18px;
+  height: 18px;
+  vertical-align: -3px;
+  margin-right: 0.35rem;
+}
+
+.ls-icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--secondary) 15%, white);
+  color: var(--primary);
+}
+
+.ls-icon-badge .ls-icon {
+  width: 26px;
+  height: 26px;
+}
+
+/* Hero feature row */
+.ls-feature-row {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ls-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.ls-feature-item .ls-icon {
+  color: var(--secondary);
+}
+
+@media (min-width: 992px) {
+  .ls-feature-row {
+    justify-content: flex-start;
+  }
+}
+
+/* Service cards */
+.ls-service-card {
+  transition: transform 0.15s ease;
+}
+
+.ls-service-card:hover {
+  transform: translateY(-4px);
+}
+
+/* About check list */
+.ls-check-list {
+  list-style: none;
+  padding: 0;
+  margin: 1.25rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.ls-check-list .ls-icon {
+  color: var(--secondary);
+}
+
+/* Testimonials */
+.ls-testimonial-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  height: 100%;
+  box-shadow: 0 1px 3px rgba(15, 30, 61, 0.08);
 }

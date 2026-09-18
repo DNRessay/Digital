@@ -54,10 +54,20 @@ class AboutContent(models.Model):
         return f"About — {self.site.name}"
 
 
+SERVICE_ICON_CHOICES = [
+    ("shield", "Shield"),
+    ("wrench", "Wrench"),
+    ("clock", "Clock"),
+    ("star", "Star"),
+    ("check-circle", "Checkmark"),
+]
+
+
 class Service(models.Model):
     site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="services")
     title = models.CharField(max_length=120)
     description = models.TextField(blank=True)
+    icon = models.CharField(max_length=20, choices=SERVICE_ICON_CHOICES, default="shield")
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
