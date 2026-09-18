@@ -77,6 +77,10 @@ jobs:
 
       - name: sam deploy
         working-directory: backend
+        env:
+          AWS_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AWS_DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          AWS_DJANGO_ALLOWED_HOSTS: ${{ secrets.DJANGO_ALLOWED_HOSTS }}
         run: |
           sam deploy \
             --stack-name viincci-digital-builder \
@@ -85,6 +89,33 @@ jobs:
             --no-fail-on-empty-changeset \
             --resolve-s3 \
             --parameter-overrides \
-              DatabaseUrl=${{ secrets.DATABASE_URL }} \
-              DjangoSecretKey=${{ secrets.DJANGO_SECRET_KEY }} \
-              DjangoAllowedHosts=${{ secrets.DJANGO_ALLOWED_HOSTS }}
+              "DatabaseUrl=${AWS_DATABASE_URL}" \
+              "DjangoSecretKey=${AWS_DJANGO_SECRET_KEY}" \
+              "DjangoAllowedHosts=${AWS_DJANGO_ALLOWED_HOSTS}"
+
+      - name: Verify stack actually deployed
+        working-directory: backend
+        run: |
+          set -e
+          for i in 1 2 3 4 5; do
+            STATUS=$(aws cloudformation describe-stacks \
+              --stack-name viincci-digital-builder \
+              --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "MISSING")
+            echo "Attempt $i: stack status = $STATUS"
+            case "$STATUS" in
+              CREATE_COMPLETE|UPDATE_COMPLETE) break ;;
+              *_IN_PROGRESS) sleep 15 ;;
+              *)
+                echo "::error::Stack viincci-digital-builder is not in a healthy state (status: $STATUS). sam deploy's exit code cannot be trusted alone — verifying here."
+                exit 1
+                ;;
+            esac
+          done
+          if [[ "$STATUS" != "CREATE_COMPLETE" && "$STATUS" != "UPDATE_COMPLETE" ]]; then
+            echo "::error::Stack never reached a completed state (last status: $STATUS)"
+            exit 1
+          fi
+          echo "Stack outputs:"
+          aws cloudformation describe-stacks \
+            --stack-name viincci-digital-builder \
+            --query "Stacks[0].Outputs" --output table
