@@ -55,6 +55,13 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python manage.py collectstatic --noinput
 
+      - name: Run database migrations
+        working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python manage.py migrate --noinput
+
       - uses: aws-actions/setup-sam@v2
 
       - name: Configure AWS credentials
