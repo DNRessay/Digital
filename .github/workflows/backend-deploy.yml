@@ -11,6 +11,7 @@ on:
     paths:
       - "backend/**"
       - "frontend/**"
+  workflow_dispatch: {}
 
 jobs:
   test:
@@ -34,7 +35,7 @@ jobs:
 
   deploy:
     needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && github.event_name == 'push')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
