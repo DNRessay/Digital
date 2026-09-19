@@ -1,4 +1,4 @@
-# Viincci Digital — Site Builder Backend
+# Vicinic — Site Builder Backend
 
 Django backend for the self-service website builder. Content for each client
 site (hero text, services, gallery, testimonials, colors) is edited entirely

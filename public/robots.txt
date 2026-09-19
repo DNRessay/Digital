@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://viinccidigital.com/sitemap.xml
+Sitemap: https://vicinic.com/sitemap.xml

@@ -57,7 +57,7 @@ export default function Contact() {
     <>
       <SEO
         title="Contact"
-        description="Get in touch with Viincci Digital to get a quote for your business website or WhatsApp system."
+        description="Get in touch with Vicinic to get a quote for your business website or WhatsApp system."
         path="/contact"
       />
 
@@ -69,7 +69,7 @@ export default function Contact() {
         </p>
 
         <form className="contact-form" onSubmit={handleSubmit}>
-          <input type="hidden" name="subject" value="New message from Viincci Digital site" />
+          <input type="hidden" name="subject" value="New message from Vicinic site" />
           {/* Honeypot field — hidden from real users, catches spam bots */}
           <input type="checkbox" name="botcheck" className="hidden-field" tabIndex="-1" autoComplete="off" />
 

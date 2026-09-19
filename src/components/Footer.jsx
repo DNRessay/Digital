@@ -8,7 +8,7 @@ export default function Footer() {
       <div className="footer-inner">
         <div>
           <div className="brand">
-            Viincci<span>Digital</span>
+            Vicinic
           </div>
           <p>Websites & WhatsApp systems for small and growing businesses.</p>
         </div>
@@ -22,13 +22,13 @@ export default function Footer() {
         </nav>
 
         <div className="footer-contact">
-          <a href="mailto:hello@viinccidigital.com">hello@viinccidigital.com</a>
+          <a href="mailto:hello@vicinic.com">hello@vicinic.com</a>
           <a href="https://github.com/MrViincciLeRoy" target="_blank" rel="noreferrer noopener">
             GitHub
           </a>
         </div>
       </div>
-      <p className="footer-copy">© {year} Viincci Digital. All rights reserved.</p>
+      <p className="footer-copy">© {year} Vicinic. All rights reserved.</p>
     </footer>
   )
 }

@@ -16,7 +16,7 @@ export default function Navbar() {
     <header className="navbar">
       <div className="navbar-inner">
         <NavLink to="/" className="brand" onClick={() => setOpen(false)}>
-          Viincci<span>Digital</span>
+          Vicinic
         </NavLink>
 
         <button

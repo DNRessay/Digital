@@ -1,6 +1,6 @@
-# Viincci Digital
+# Vicinic
 
-Multi-page React site for Viincci Digital, built with Vite + React Router, deployed on Cloudflare Pages.
+Multi-page React site for Vicinic, built with Vite + React Router, deployed on Cloudflare Pages.
 
 ## Pages
 
@@ -32,7 +32,7 @@ npm run dev
   card tags via `react-helmet-async` (`src/components/SEO.jsx`).
 - `Organization` JSON-LD structured data on the homepage.
 - `public/robots.txt` and `public/sitemap.xml` — update the domain in both if
-  it changes from `viinccidigital.com`.
+  it changes from `vicinic.com`.
 - Semantic headings and descriptive link/button text throughout.
 
 If you swap in a custom domain, update `SITE_URL` in `src/components/SEO.jsx`
@@ -55,7 +55,7 @@ and the URLs in `public/robots.txt` and `public/sitemap.xml`.
 
 ```bash
 npm run build
-npx wrangler pages deploy dist --project-name=viincci-digital
+npx wrangler pages deploy dist --project-name=vicinic
 ```
 
 > Note: this project has no `wrangler.toml`. Cloudflare Pages'

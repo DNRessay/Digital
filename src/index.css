@@ -96,10 +96,6 @@ p { color: var(--text-muted); }
   letter-spacing: -0.01em;
 }
 
-.brand span {
-  color: var(--gold);
-}
-
 .nav-links {
   display: flex;
   gap: 1.75rem;
@@ -535,13 +531,8 @@ input:focus, textarea:focus {
   padding: 3rem 1.5rem 1.5rem;
 }
 
-.footer .brand,
-.footer .brand span {
+.footer .brand {
   color: white;
-}
-
-.footer .brand span {
-  color: var(--gold-light);
 }
 
 .footer-inner {

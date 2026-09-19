@@ -28,7 +28,7 @@ export default function Portfolio() {
     <>
       <SEO
         title="Portfolio"
-        description="A selection of web apps, AI chatbots, and data systems built by Viincci Digital."
+        description="A selection of web apps, AI chatbots, and data systems built by Vicinic."
         path="/portfolio"
       />
 

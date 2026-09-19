@@ -4,11 +4,11 @@ import SEO, { SITE_URL } from '../components/SEO.jsx'
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
-  name: 'Viincci Digital',
+  name: 'Vicinic',
   url: SITE_URL,
   logo: `${SITE_URL}/favicon.svg`,
   description:
-    'Viincci Digital builds professional websites and WhatsApp systems for small and growing businesses across South Africa — hosted, secured, and supported.',
+    'Vicinic builds professional websites and WhatsApp systems for small and growing businesses across South Africa — hosted, secured, and supported.',
   address: {
     '@type': 'PostalAddress',
     addressCountry: 'ZA',
@@ -81,14 +81,14 @@ export default function Home() {
     <>
       <SEO
         title="Websites & WhatsApp Systems for Small Businesses"
-        description="Viincci Digital builds professional websites and optional WhatsApp systems for small and growing businesses in South Africa — hosted, secured, and supported."
+        description="Vicinic builds professional websites and optional WhatsApp systems for small and growing businesses in South Africa — hosted, secured, and supported."
         path="/"
         jsonLd={jsonLd}
       />
 
       <section className="hero">
         <div className="container">
-          <p className="eyebrow">Viincci Digital</p>
+          <p className="eyebrow">Vicinic</p>
           <h1>Websites & WhatsApp systems for small and growing businesses.</h1>
           <p className="lead">
             A professional website plus a WhatsApp line your customers already trust —
@@ -111,7 +111,7 @@ export default function Home() {
             <p className="eyebrow">About us</p>
             <h2>Built by a developer who ships.</h2>
             <p>
-              Viincci Digital is an independent South African studio building web and
+              Vicinic is an independent South African studio building web and
               WhatsApp systems for shops, salons, clinics, consultants, and other growing
               businesses. No account managers, no bloated timelines — just working
               software, live in days, not months.

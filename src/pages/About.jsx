@@ -5,7 +5,7 @@ export default function About() {
     <>
       <SEO
         title="About Us"
-        description="Viincci Digital is an independent South African studio building websites and WhatsApp systems for shops, salons, clinics, consultants, and growing businesses."
+        description="Vicinic is an independent South African studio building websites and WhatsApp systems for shops, salons, clinics, consultants, and growing businesses."
         path="/about"
       />
 
@@ -13,7 +13,7 @@ export default function About() {
         <p className="eyebrow">About</p>
         <h1>Built by a developer who ships.</h1>
         <p className="lead">
-          Viincci Digital is a solo-led digital studio based in South Africa. No layers
+          Vicinic is a solo-led digital studio based in South Africa. No layers
           of account managers, no bloated timelines — just working websites and WhatsApp
           systems, built and shipped by someone who writes the code.
         </p>
