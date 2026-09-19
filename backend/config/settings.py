@@ -98,7 +98,11 @@ STORAGES = {
 AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME", "")
 if AWS_STORAGE_BUCKET_NAME:
     AWS_S3_REGION_NAME = os.environ.get("AWS_REGION", "eu-west-1")
-    AWS_S3_FILE_OVERWRITE = False
+    # Every asset path is namespaced by Template.slug, which is DB-unique,
+    # so two templates can never collide — safe to skip the extra
+    # exists()-check HEAD request storages does per file when this is False,
+    # which matters a lot under the 29s API Gateway timeout budget.
+    AWS_S3_FILE_OVERWRITE = True
     AWS_QUERYSTRING_AUTH = False
     AWS_DEFAULT_ACL = None
     STORAGES["default"] = {"BACKEND": "storages.backends.s3.S3Storage"}

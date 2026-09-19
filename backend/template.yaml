@@ -28,8 +28,12 @@ Parameters:
 
 Globals:
   Function:
-    Timeout: 15
-    MemorySize: 512
+    # API Gateway HTTP API caps integration timeout at a hard 30s (not
+    # increasable), so 29s is the practical ceiling for any request that
+    # goes through it — including the template-upload flow (S3 upload +
+    # Templify conversion + asset ingestion), which needs the headroom.
+    Timeout: 29
+    MemorySize: 1536
     Runtime: python3.11
 
 Resources:
