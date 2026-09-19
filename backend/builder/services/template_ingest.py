@@ -15,6 +15,7 @@ import re
 import zipfile
 
 from django.core.files.base import ContentFile
+from django.db import transaction
 
 from ..models import Template, TemplateAsset, TemplatePage, TemplateSlot
 from .slot_extractor import extract_slots
@@ -60,10 +61,9 @@ def ingest_converted_zip(zip_bytes, app_name, template_name, template_slug):
     slug_by_url_name = {url_name: url_prefix.rstrip("/") for url_prefix, _stem, url_name in page_routes}
     home_url_name = next((name for prefix, _stem, name in page_routes if prefix == ""), None)
 
-    template = Template.objects.create(name=template_name, slug=template_slug, app_label=app_name, is_active=True)
-
     next_index = 1
     asset_url_cache = {}
+    template = None
 
     def resolve_asset(rel_path):
         if rel_path in asset_url_cache:
@@ -115,45 +115,58 @@ def ingest_converted_zip(zip_bytes, app_name, template_name, template_slug):
         html = URL_TAG_RE.sub(_url_sub, html)
         return html
 
-    # --- base.html: flatten blocks, protect the content-block split point,
-    #     then slot-extract the WHOLE document in one parse (so BeautifulSoup
-    #     balances tags correctly instead of us hand-splitting an incomplete
-    #     fragment, which it would "fix" by inventing closing tags). ---
-    cleaned_base = CONTENT_BLOCK_EMPTY_RE.sub(CONTENT_MARKER, base_src, count=1)
-    cleaned_base = ANY_BLOCK_RE.sub(r"\1", cleaned_base)
-    cleaned_base = LOAD_STATIC_RE.sub("", cleaned_base)
-    cleaned_base = EXTENDS_RE.sub("", cleaned_base)
+    # Everything below writes to the DB (and to S3 via TemplateAsset.file).
+    # Wrapped in one transaction so a failure partway through — including a
+    # request timeout getting the process killed outright — can never leave
+    # a half-built Template (e.g. a row with zero pages) sitting in the DB
+    # and permanently blocking retries via the slug's unique constraint.
+    with transaction.atomic():
+        # A previous attempt that died mid-ingest is the only way a Template
+        # can exist with no pages — safe to clear it and let this attempt
+        # claim the slug.
+        Template.objects.filter(slug=template_slug, pages__isnull=True).delete()
+        template = Template.objects.create(name=template_name, slug=template_slug, app_label=app_name, is_active=True)
 
-    processed_base, base_slots, next_index = extract_slots(cleaned_base, "slot", next_index)
-    if CONTENT_MARKER not in processed_base:
-        raise IngestError("Lost the content-block marker while processing base.html — aborting.")
-    header_html, footer_html = processed_base.split(CONTENT_MARKER, 1)
-    header_html = resolve_tags(header_html)
-    footer_html = resolve_tags(footer_html)
-    _create_slots(template, None, base_slots)
+        # --- base.html: flatten blocks, protect the content-block split
+        #     point, then slot-extract the WHOLE document in one parse (so
+        #     BeautifulSoup balances tags correctly instead of us
+        #     hand-splitting an incomplete fragment, which it would "fix"
+        #     by inventing closing tags). ---
+        cleaned_base = CONTENT_BLOCK_EMPTY_RE.sub(CONTENT_MARKER, base_src, count=1)
+        cleaned_base = ANY_BLOCK_RE.sub(r"\1", cleaned_base)
+        cleaned_base = LOAD_STATIC_RE.sub("", cleaned_base)
+        cleaned_base = EXTENDS_RE.sub("", cleaned_base)
 
-    order = 0
-    for url_prefix, page_stem, _url_name in page_routes:
-        page_slug = url_prefix.rstrip("/")
-        page_path = templates_prefix + f"{page_stem}.html"
-        if page_path not in names:
-            continue
-        page_src = zf.read(page_path).decode("utf-8")
+        processed_base, base_slots, next_index = extract_slots(cleaned_base, "slot", next_index)
+        if CONTENT_MARKER not in processed_base:
+            raise IngestError("Lost the content-block marker while processing base.html — aborting.")
+        header_html, footer_html = processed_base.split(CONTENT_MARKER, 1)
+        header_html = resolve_tags(header_html)
+        footer_html = resolve_tags(footer_html)
+        _create_slots(template, None, base_slots)
 
-        match = CONTENT_BLOCK_FILLED_RE.search(page_src)
-        content_src = match.group(1) if match else ""
+        order = 0
+        for url_prefix, page_stem, _url_name in page_routes:
+            page_slug = url_prefix.rstrip("/")
+            page_path = templates_prefix + f"{page_stem}.html"
+            if page_path not in names:
+                continue
+            page_src = zf.read(page_path).decode("utf-8")
 
-        content_html, content_slots, next_index = extract_slots(content_src, "slot", next_index)
-        content_html = resolve_tags(content_html)
+            match = CONTENT_BLOCK_FILLED_RE.search(page_src)
+            content_src = match.group(1) if match else ""
 
-        page = TemplatePage.objects.create(
-            template=template,
-            slug=page_slug,
-            document=header_html + content_html + footer_html,
-            order=order,
-        )
-        order += 1
-        _create_slots(template, page, content_slots)
+            content_html, content_slots, next_index = extract_slots(content_src, "slot", next_index)
+            content_html = resolve_tags(content_html)
+
+            page = TemplatePage.objects.create(
+                template=template,
+                slug=page_slug,
+                document=header_html + content_html + footer_html,
+                order=order,
+            )
+            order += 1
+            _create_slots(template, page, content_slots)
 
     return template
 

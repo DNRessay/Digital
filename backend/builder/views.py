@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.mail import BadHeaderError, send_mail
+from django.db import IntegrityError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template import engines
@@ -98,6 +99,8 @@ def template_manager(request):
                 error = f"Templify conversion failed: {exc}"
             except IngestError as exc:
                 error = f"Could not process the converted template: {exc}"
+            except IntegrityError:
+                error = f'A template named "{name}" already exists — pick a different name.'
     else:
         form = TemplateUploadForm()
 
