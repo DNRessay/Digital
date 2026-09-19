@@ -28,11 +28,12 @@ Parameters:
 
 Globals:
   Function:
-    # API Gateway HTTP API caps integration timeout at a hard 30s (not
-    # increasable), so 29s is the practical ceiling for any request that
-    # goes through it — including the template-upload flow (S3 upload +
-    # Templify conversion + asset ingestion), which needs the headroom.
-    Timeout: 29
+    # A Lambda Function URL (see DjangoFunction below) invokes synchronously
+    # via the plain Invoke API, which allows the full Lambda timeout (up to
+    # 900s) — unlike API Gateway's HTTP API, which enforces its own hard,
+    # non-increasable 30s cap regardless of this value. This is the same
+    # deployment pattern Templify itself uses.
+    Timeout: 120
     MemorySize: 1536
     Runtime: python3.11
 
@@ -84,22 +85,14 @@ Resources:
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref TemplateAssetsBucket
-      Events:
-        RootApi:
-          Type: HttpApi
-          Properties:
-            Path: /
-            Method: ANY
-        ProxyApi:
-          Type: HttpApi
-          Properties:
-            Path: /{proxy+}
-            Method: ANY
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: BUFFERED
 
 Outputs:
   ApiUrl:
-    Description: Base URL of the deployed API
-    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/"
+    Description: Base URL of the deployed API (Lambda Function URL)
+    Value: !GetAtt DjangoFunctionUrl.FunctionUrl
   TemplateAssetsBucketName:
     Description: S3 bucket storing uploaded template assets
     Value: !Ref TemplateAssetsBucket
