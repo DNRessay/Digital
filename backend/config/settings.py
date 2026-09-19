@@ -29,6 +29,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "config.request_log_middleware.RequestLogMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "config.trailing_slash_middleware.RestoreStrippedTrailingSlashMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
