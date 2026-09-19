@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Template Manager</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #16213a; }
+    h1 { margin-bottom: 0.25rem; }
+    .muted { color: #666; }
+    form { border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; margin: 1.5rem 0; }
+    label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+    input[type=text], input[type=file] { width: 100%; padding: 0.5rem; margin-bottom: 1rem; box-sizing: border-box; }
+    button { background: #0f1e3d; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .error { background: #fdecea; color: #611a15; border: 1px solid #f5c6cb; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <h1>Template Manager</h1>
+  <p class="muted">Upload a static HTML template zip. It's converted via Templify and becomes available for customer sites to use — no code deploy needed.</p>
+
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <label for="id_name">Template name</label>
+    {{ form.name }}
+    <label for="id_zip_file">Template zip</label>
+    {{ form.zip_file }}
+    <button type="submit">Convert &amp; add template</button>
+  </form>
+
+  <h2>Existing templates</h2>
+  <table>
+    <thead><tr><th>Name</th><th>Slug</th><th>Pages</th><th>Slots</th><th>Added</th></tr></thead>
+    <tbody>
+      {% for t in templates %}
+      <tr>
+        <td>{{ t.name }}</td>
+        <td>{{ t.slug }}</td>
+        <td>{{ t.pages.count }}</td>
+        <td>{{ t.slots.count }}</td>
+        <td>{{ t.created_at|date:"Y-m-d H:i" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="muted">No templates yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

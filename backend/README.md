@@ -1,9 +1,39 @@
 # Vicinic — Site Builder Backend
 
-Django backend for the self-service website builder. Content for each client
-site (hero text, services, gallery, testimonials, colors) is edited entirely
-through the stock Django admin — no custom admin UI. The theme templates in
-`../frontend/themes/<theme>/` render whatever content is stored per `Site`.
+Django backend for the self-service website builder. Templates are uploaded
+as static HTML zips, converted via [Templify](https://github.com/DNRessay/templify)
+into Django markup, then processed so every visible piece of text becomes an
+editable "slot" — customers pick a template and edit only its text; the
+markup/CSS/assets are shared and never touched per-site.
+
+## How it fits together
+
+- **Template** — one uploaded design. Its pages/assets are shared across
+  every `Site` that picks it.
+- **TemplateSlot** — one editable text node found while scanning the
+  template's HTML (`builder/services/slot_extractor.py`). `page=None` means
+  it's shared chrome (header/nav/footer); otherwise it belongs to one page.
+- **Site** — a customer's site: picks a `Template`, has its own colors/
+  contact info, and one `SiteSlotValue` per slot (blank = use the
+  template's own default text).
+- Rendering (`builder/views.render_site_page`) merges slot defaults +
+  per-site overrides into `TemplatePage.document` (a flattened, standalone
+  Django template string per page) and renders it directly — no Django app
+  registration or code deploy needed per template.
+
+## Adding a template
+
+Templates are added at **`/manage/templates/`** — a small custom page (not
+the Django admin), restricted to superusers. Upload a zip of a static HTML
+template (the usual multi-page-with-`assets/`-folder layout); it's sent to
+the deployed Templify conversion service (`TEMPLIFY_FUNCTION_URL`), then
+`builder/services/template_ingest.py` turns the result into a `Template`
+with its pages/slots/assets. No redeploy required — it's available to
+customers immediately.
+
+Editing a customer's site content (which template, colors, contact info,
+and each slot's text) is done through the **normal Django admin** at
+`/admin/` — that part is exactly as the stock admin provides.
 
 ## Local development
 
@@ -12,29 +42,20 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # defaults to SQLite if DATABASE_URL is unset
+cp .env.example .env   # defaults to SQLite + local disk storage if unset
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py runserver
 ```
 
-Visit `/admin/` to create a `Site`, fill in its Hero/About/Services/Gallery/
-Testimonials inline, mark it "is_published", then visit `/<slug>/` to view it.
-
-## Adding a new theme
-
-1. Add the theme to `THEME_CHOICES` in `builder/models.py`.
-2. Create `backend/templates/themes/<theme>/index.html` extending `base.html`.
-3. Create `frontend/themes/<theme-slug>/css/theme.css` for its look.
-
-The content model (`Site`, `HeroContent`, `AboutContent`, `Service`,
-`GalleryImage`, `Testimonial`) is shared across every theme, so switching a
-site's theme doesn't require re-entering its content.
+Visit `/manage/templates/` to upload a template, then `/admin/` to create a
+`Site` using it, fill in its slot text, mark it "is_published", and visit
+`/<slug>/` to view it.
 
 ## Deploying (AWS SAM + Lambda + Mangum)
 
 Requires the AWS SAM CLI locally, or let the `backend-deploy.yml` GitHub
-Actions workflow handle it on push to `main`.
+Actions workflow handle it on push to `main` (or manual dispatch).
 
 ```bash
 python manage.py collectstatic --noinput
@@ -44,13 +65,25 @@ sam deploy --guided   # first time only, to set up the stack config
 
 Required GitHub Actions secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
 `AWS_REGION`, `DATABASE_URL` (Neon), `DJANGO_SECRET_KEY`,
-`DJANGO_ALLOWED_HOSTS`.
+`DJANGO_ALLOWED_HOSTS`, and optionally `DEFAULT_FROM_EMAIL` /
+`CONTACT_RECIPIENT_EMAIL` for the generic contact-form handler.
+
+Template assets (CSS/JS/images/fonts) are stored in an S3 bucket created by
+`template.yaml` (`TemplateAssetsBucket`, public-read) — this is required,
+not optional, since Lambda's filesystem is ephemeral and would otherwise
+lose every uploaded template's assets between invocations.
 
 ### Known gaps (v1)
 
-- **Media uploads don't persist on Lambda.** Lambda's filesystem is
-  ephemeral, so uploaded images will vanish between invocations in
-  production. Swap `MEDIA` storage for S3 (e.g. `django-storages`) before
-  using image uploads in production.
-- **AWS credentials use long-lived access keys** in the GitHub Actions
-  workflow for simplicity. Consider moving to OIDC role assumption later.
+- **Header/nav/footer text is duplicated per page, not truly shared**, for
+  templates (like the bundled Axis example) where Templify couldn't hoist
+  the header into `base.html` because it differs slightly per page (e.g.
+  active-nav-state markup). Editing a nav label on one page won't update
+  it on others. Global slots (`page=None`) only cover what Templify's own
+  `base.html` actually contains.
+- **Per-page `<title>`/SEO metadata isn't distinct per page** — the title
+  block from `base.html`'s default is treated as one shared slot rather
+  than parameterized per page, to keep v1 scope manageable.
+- **AWS credentials in the GitHub Actions workflow use long-lived access
+  keys**, not OIDC role assumption. Works, just less secure than the
+  modern approach.

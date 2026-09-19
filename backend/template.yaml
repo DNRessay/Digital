@@ -13,6 +13,15 @@ Parameters:
   DjangoAllowedHosts:
     Type: String
     Default: "*"
+  TemplifyFunctionUrl:
+    Type: String
+    Default: "https://dmt46thjvn6fyzwxfmpfwae7li0ccmyc.lambda-url.eu-west-1.on.aws/"
+  DefaultFromEmail:
+    Type: String
+    Default: ""
+  ContactRecipientEmail:
+    Type: String
+    Default: ""
   Stage:
     Type: String
     Default: prod
@@ -24,6 +33,35 @@ Globals:
     Runtime: python3.11
 
 Resources:
+  # Template assets (CSS/JS/images/fonts uploaded via the template manager)
+  # must survive Lambda's ephemeral filesystem, and need to be reachable
+  # directly by browsers — public-read, not routed through the Lambda.
+  TemplateAssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [GET]
+            AllowedOrigins: ["*"]
+            AllowedHeaders: ["*"]
+
+  TemplateAssetsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TemplateAssetsBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "${TemplateAssetsBucket.Arn}/*"
+
   DjangoFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -35,6 +73,13 @@ Resources:
           DJANGO_SECRET_KEY: !Ref DjangoSecretKey
           DJANGO_ALLOWED_HOSTS: !Ref DjangoAllowedHosts
           DJANGO_DEBUG: "false"
+          TEMPLIFY_FUNCTION_URL: !Ref TemplifyFunctionUrl
+          DEFAULT_FROM_EMAIL: !Ref DefaultFromEmail
+          CONTACT_RECIPIENT_EMAIL: !Ref ContactRecipientEmail
+          AWS_STORAGE_BUCKET_NAME: !Ref TemplateAssetsBucket
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref TemplateAssetsBucket
       Events:
         RootApi:
           Type: HttpApi
@@ -51,3 +96,6 @@ Outputs:
   ApiUrl:
     Description: Base URL of the deployed API
     Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/"
+  TemplateAssetsBucketName:
+    Description: S3 bucket storing uploaded template assets
+    Value: !Ref TemplateAssetsBucket

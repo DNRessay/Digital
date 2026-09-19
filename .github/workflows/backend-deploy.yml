@@ -81,6 +81,8 @@ jobs:
           AWS_DATABASE_URL: ${{ secrets.DATABASE_URL }}
           AWS_DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
           AWS_DJANGO_ALLOWED_HOSTS: ${{ secrets.DJANGO_ALLOWED_HOSTS }}
+          AWS_DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
+          AWS_CONTACT_RECIPIENT_EMAIL: ${{ secrets.CONTACT_RECIPIENT_EMAIL }}
         run: |
           sam deploy \
             --stack-name viincci-digital-builder \
@@ -91,7 +93,9 @@ jobs:
             --parameter-overrides \
               "DatabaseUrl=${AWS_DATABASE_URL}" \
               "DjangoSecretKey=${AWS_DJANGO_SECRET_KEY}" \
-              "DjangoAllowedHosts=${AWS_DJANGO_ALLOWED_HOSTS}"
+              "DjangoAllowedHosts=${AWS_DJANGO_ALLOWED_HOSTS}" \
+              "DefaultFromEmail=${AWS_DEFAULT_FROM_EMAIL}" \
+              "ContactRecipientEmail=${AWS_CONTACT_RECIPIENT_EMAIL}"
 
       - name: Verify stack actually deployed
         working-directory: backend

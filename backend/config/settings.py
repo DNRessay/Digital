@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-FRONTEND_DIR = BASE_DIR.parent / "frontend"
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key")
 DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() == "true"
@@ -23,6 +22,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "storages",
     "builder",
 ]
 
@@ -82,12 +82,8 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
-STATICFILES_DIRS = [FRONTEND_DIR]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# NOTE: local disk storage only. Lambda's filesystem is ephemeral, so
-# uploaded media will not persist between invocations in production —
-# swap this for S3 storage before going live on Lambda.
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
@@ -95,5 +91,22 @@ STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
+
+# Template assets (and any other uploaded media) must survive Lambda's
+# ephemeral filesystem, so use S3 whenever a bucket is configured — falls
+# back to local disk for local development only.
+AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME", "")
+if AWS_STORAGE_BUCKET_NAME:
+    AWS_S3_REGION_NAME = os.environ.get("AWS_REGION", "eu-west-1")
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_QUERYSTRING_AUTH = False
+    AWS_DEFAULT_ACL = None
+    STORAGES["default"] = {"BACKEND": "storages.backends.s3.S3Storage"}
+
+TEMPLIFY_FUNCTION_URL = os.environ.get(
+    "TEMPLIFY_FUNCTION_URL", "https://dmt46thjvn6fyzwxfmpfwae7li0ccmyc.lambda-url.eu-west-1.on.aws/"
+)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "")
+CONTACT_RECIPIENT_EMAIL = os.environ.get("CONTACT_RECIPIENT_EMAIL", "")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
