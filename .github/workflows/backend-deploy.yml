@@ -55,6 +55,24 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python manage.py collectstatic --noinput
 
+      - name: One-time fix - reset stale builder migration history
+        working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python manage.py shell -c "
+          from django.db import connection
+          with connection.cursor() as cur:
+              cur.execute(\"SELECT to_regclass('builder_herocontent')\")
+              if cur.fetchone()[0] is not None:
+                  cur.execute('DROP TABLE IF EXISTS builder_herocontent, builder_aboutcontent, builder_service, builder_galleryimage, builder_testimonial, builder_site CASCADE')
+                  cur.execute(\"DELETE FROM django_migrations WHERE app = 'builder'\")
+                  print('Reset legacy builder schema (migration-name collision from the earlier model rewrite).')
+              else:
+                  print('No legacy builder schema found - nothing to reset.')
+          "
+
       - name: Run database migrations
         working-directory: backend
         env:
