@@ -84,18 +84,25 @@ jobs:
           AWS_DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
           AWS_CONTACT_RECIPIENT_EMAIL: ${{ secrets.CONTACT_RECIPIENT_EMAIL }}
         run: |
+          # SAM's --parameter-overrides shorthand rejects an empty value
+          # outright, so optional params (not every deploy has these
+          # secrets set) are only included when actually non-empty —
+          # otherwise CloudFormation just uses the template's own Default.
+          OVERRIDES=(
+            "DatabaseUrl=${AWS_DATABASE_URL}"
+            "DjangoSecretKey=${AWS_DJANGO_SECRET_KEY}"
+            "DjangoAllowedHosts=${AWS_DJANGO_ALLOWED_HOSTS}"
+          )
+          [ -n "${AWS_DEFAULT_FROM_EMAIL}" ] && OVERRIDES+=("DefaultFromEmail=${AWS_DEFAULT_FROM_EMAIL}")
+          [ -n "${AWS_CONTACT_RECIPIENT_EMAIL}" ] && OVERRIDES+=("ContactRecipientEmail=${AWS_CONTACT_RECIPIENT_EMAIL}")
+
           sam deploy \
             --stack-name viincci-digital-builder \
             --capabilities CAPABILITY_IAM \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --resolve-s3 \
-            --parameter-overrides \
-              "DatabaseUrl=${AWS_DATABASE_URL}" \
-              "DjangoSecretKey=${AWS_DJANGO_SECRET_KEY}" \
-              "DjangoAllowedHosts=${AWS_DJANGO_ALLOWED_HOSTS}" \
-              "DefaultFromEmail=${AWS_DEFAULT_FROM_EMAIL}" \
-              "ContactRecipientEmail=${AWS_CONTACT_RECIPIENT_EMAIL}"
+            --parameter-overrides "${OVERRIDES[@]}"
 
       - name: Verify stack actually deployed
         working-directory: backend
