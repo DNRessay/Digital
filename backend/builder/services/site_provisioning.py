@@ -2,8 +2,29 @@
 API: whenever a Site is attached to a Template (on creation, or if the
 template is switched), make sure every one of that template's slots has a
 SiteSlotValue row to edit — blank means "use the template's own default"."""
+import re
+
 from ..models import SiteSlotValue
 from .slot_extractor import slot_tag
+
+
+def _word_boundary_pattern(word):
+    return r"\b" + re.escape(word) + r"\b"
+
+
+def _contains_whole_word(text, word):
+    return re.search(_word_boundary_pattern(word), text) is not None
+
+
+def _replace_whole_word(text, old, new):
+    """A plain substring replace would also match `old` inside an
+    unrelated longer word — e.g. a site named "Tea" would match inside a
+    "Team" nav link, silently corrupting it into "Team".replace("Tea",
+    "CoffeeTea") = "CoffeeTeam". Matching only a whole word rules that
+    out while still catching the intended case (a name standing on its
+    own, e.g. inside "Index - CoreBiz Bootstrap Template")."""
+    return re.sub(_word_boundary_pattern(old), lambda _: new, text)
+
 
 # Common nav/UI text that can legitimately show up inside a <title> too
 # (e.g. a title of just "Home" for the homepage) — excluded so a page like
@@ -62,8 +83,8 @@ def _name_overrides_for(site, slots):
         text = slot.default_text
         if text.strip() == brand:
             overrides[slot.id] = site.name
-        elif brand in text:
-            overrides[slot.id] = text.replace(brand, site.name)
+        elif _contains_whole_word(text, brand):
+            overrides[slot.id] = _replace_whole_word(text, brand, site.name)
     return overrides
 
 
@@ -101,9 +122,9 @@ def rename_site_in_slots(site, old_name, new_name):
     updated = []
     for sv in slot_values:
         current = sv.value or sv.slot.default_text
-        if old_name not in current:
+        if not _contains_whole_word(current, old_name):
             continue
-        sv.value = current.replace(old_name, new_name)
+        sv.value = _replace_whole_word(current, old_name, new_name)
         updated.append(sv)
 
     if not updated:
@@ -115,8 +136,8 @@ def rename_site_in_slots(site, old_name, new_name):
                 default = sv.slot.default_text
                 if default.strip() == brand:
                     sv.value = new_name
-                elif brand in default:
-                    sv.value = default.replace(brand, new_name)
+                elif _contains_whole_word(default, brand):
+                    sv.value = _replace_whole_word(default, brand, new_name)
                 else:
                     continue
                 updated.append(sv)
