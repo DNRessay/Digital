@@ -43,10 +43,14 @@ export function listPublicTemplates() {
   return apiFetch('/api/customer/templates/')
 }
 
-export function signup(username, password, siteName, templateSlug) {
-  return apiFetch('/api/customer/signup/', {
+export function register(username, password) {
+  return apiFetch('/api/customer/register/', { method: 'POST', body: { username, password } })
+}
+
+export function createSite(siteName, templateSlug) {
+  return apiFetch('/api/customer/sites/', {
     method: 'POST',
-    body: { username, password, site_name: siteName, template_slug: templateSlug },
+    body: { site_name: siteName, template_slug: templateSlug },
   })
 }
 

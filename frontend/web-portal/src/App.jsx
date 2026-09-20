@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getSiteSlots, listPublicTemplates, listSites, login, logout, saveSiteSlots, signup, whoami } from './api.js'
+import { createSite, getSiteSlots, listPublicTemplates, listSites, login, logout, register, saveSiteSlots, whoami } from './api.js'
 
-function Login({ onLoggedIn, onSwitchToSignup }) {
+function Login({ onLoggedIn, onSwitchToRegister }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
@@ -33,18 +33,55 @@ function Login({ onLoggedIn, onSwitchToSignup }) {
         <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
         <button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
         <p className="switch-auth-mode">
-          Don't have a site yet? <button type="button" className="link-button" onClick={onSwitchToSignup}>Create one</button>
+          New here? <button type="button" className="link-button" onClick={onSwitchToRegister}>Create an account</button>
         </p>
       </form>
     </div>
   )
 }
 
-function Signup({ onSignedUp, onSwitchToLogin }) {
-  const [templates, setTemplates] = useState(null)
-  const [templatesError, setTemplatesError] = useState(null)
+function Register({ onRegistered, onSwitchToLogin }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      await register(username, password)
+      onRegistered()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="page login-prompt">
+      <form className="card" onSubmit={handleSubmit}>
+        <h1>Vicinic — Create an account</h1>
+        <p>Once you're signed in you can set up your site.</p>
+        {error && <div className="error">{error}</div>}
+        <label htmlFor="register-username">Username</label>
+        <input id="register-username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} required autoComplete="username" />
+        <label htmlFor="register-password">Password</label>
+        <input id="register-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password" />
+        <button type="submit" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</button>
+        <p className="switch-auth-mode">
+          Already have an account? <button type="button" className="link-button" onClick={onSwitchToLogin}>Sign in</button>
+        </p>
+      </form>
+    </div>
+  )
+}
+
+function CreateSite({ onCreated }) {
+  const [templates, setTemplates] = useState(null)
+  const [templatesError, setTemplatesError] = useState(null)
   const [siteName, setSiteName] = useState('')
   const [templateSlug, setTemplateSlug] = useState('')
   const [error, setError] = useState(null)
@@ -64,8 +101,8 @@ function Signup({ onSignedUp, onSwitchToLogin }) {
     setBusy(true)
     setError(null)
     try {
-      await signup(username, password, siteName, templateSlug)
-      onSignedUp()
+      await createSite(siteName, templateSlug)
+      onCreated()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -76,45 +113,34 @@ function Signup({ onSignedUp, onSwitchToLogin }) {
   const noTemplates = templates && templates.length === 0
 
   return (
-    <div className="page login-prompt">
-      <form className="card" onSubmit={handleSubmit}>
-        <h1>Vicinic — Create your site</h1>
-        <p>Pick a template and we'll set it up — every bit of its text is yours to edit right away.</p>
-        {error && <div className="error">{error}</div>}
-        {templatesError && <div className="error">Could not load templates: {templatesError}</div>}
-        {noTemplates && <div className="error">No templates are available yet — check back soon.</div>}
+    <form className="card" onSubmit={handleSubmit}>
+      <h2>Create your site</h2>
+      <p>Pick a template and we'll set it up — every bit of its text is yours to edit right away.</p>
+      {error && <div className="error">{error}</div>}
+      {templatesError && <div className="error">Could not load templates: {templatesError}</div>}
+      {noTemplates && <div className="error">No templates are available yet — check back soon.</div>}
 
-        <label htmlFor="site-name">Site name</label>
-        <input id="site-name" type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)} required />
+      <label htmlFor="site-name">Site name</label>
+      <input id="site-name" type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)} required />
 
-        <label htmlFor="template">Template</label>
-        <select
-          id="template"
-          value={templateSlug}
-          onChange={(e) => setTemplateSlug(e.target.value)}
-          required
-          disabled={!templates || noTemplates}
-        >
-          {!templates && <option value="">Loading…</option>}
-          {templates && templates.map((t) => (
-            <option key={t.slug} value={t.slug}>{t.name}</option>
-          ))}
-        </select>
+      <label htmlFor="template">Template</label>
+      <select
+        id="template"
+        value={templateSlug}
+        onChange={(e) => setTemplateSlug(e.target.value)}
+        required
+        disabled={!templates || noTemplates}
+      >
+        {!templates && <option value="">Loading…</option>}
+        {templates && templates.map((t) => (
+          <option key={t.slug} value={t.slug}>{t.name}</option>
+        ))}
+      </select>
 
-        <label htmlFor="signup-username">Username</label>
-        <input id="signup-username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} required autoComplete="username" />
-
-        <label htmlFor="signup-password">Password</label>
-        <input id="signup-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password" />
-
-        <button type="submit" disabled={busy || noTemplates || !templateSlug}>
-          {busy ? 'Creating your site…' : 'Create account & site'}
-        </button>
-        <p className="switch-auth-mode">
-          Already have an account? <button type="button" className="link-button" onClick={onSwitchToLogin}>Sign in</button>
-        </p>
-      </form>
-    </div>
+      <button type="submit" disabled={busy || noTemplates || !templateSlug}>
+        {busy ? 'Creating your site…' : 'Create site'}
+      </button>
+    </form>
   )
 }
 
@@ -231,7 +257,7 @@ function SiteEditor({ site }) {
 
 export default function App() {
   const [status, setStatus] = useState('loading') // loading | anon | ready | error
-  const [authView, setAuthView] = useState('login') // login | signup
+  const [authView, setAuthView] = useState('login') // login | register
   const [username, setUsername] = useState(null)
   const [sites, setSites] = useState([])
   const [selectedSlug, setSelectedSlug] = useState(null)
@@ -273,9 +299,9 @@ export default function App() {
 
   if (status === 'loading') return null
   if (status === 'anon') {
-    return authView === 'signup'
-      ? <Signup onSignedUp={handleAuthenticated} onSwitchToLogin={() => setAuthView('login')} />
-      : <Login onLoggedIn={handleAuthenticated} onSwitchToSignup={() => setAuthView('signup')} />
+    return authView === 'register'
+      ? <Register onRegistered={handleAuthenticated} onSwitchToLogin={() => setAuthView('login')} />
+      : <Login onLoggedIn={handleAuthenticated} onSwitchToRegister={() => setAuthView('register')} />
   }
   if (status === 'error') return <div className="page error">Could not reach the backend. {loadError}</div>
 
@@ -291,13 +317,14 @@ export default function App() {
         </div>
       </div>
 
-      {sites.length === 0 && (
-        <div className="card">No site has been set up for your account yet — get in touch with us.</div>
+      {sites.length === 0 ? (
+        <CreateSite onCreated={loadSites} />
+      ) : (
+        <>
+          <SitePicker sites={sites} selected={selectedSlug} onSelect={setSelectedSlug} />
+          {selectedSite && <SiteEditor site={selectedSite} />}
+        </>
       )}
-
-      <SitePicker sites={sites} selected={selectedSlug} onSelect={setSelectedSlug} />
-
-      {selectedSite && <SiteEditor site={selectedSite} />}
     </div>
   )
 }

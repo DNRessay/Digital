@@ -16,7 +16,7 @@ urlpatterns = [
     path("api/customer/whoami/", customer_api.api_customer_whoami, name="api-customer-whoami"),
     path("api/customer/login/", customer_api.api_customer_login, name="api-customer-login"),
     path("api/customer/logout/", customer_api.api_customer_logout, name="api-customer-logout"),
-    path("api/customer/signup/", customer_api.api_customer_signup, name="api-customer-signup"),
+    path("api/customer/register/", customer_api.api_customer_register, name="api-customer-register"),
     path("api/customer/templates/", customer_api.api_customer_templates, name="api-customer-templates"),
     path("api/customer/sites/", customer_api.api_customer_sites, name="api-customer-sites"),
     path(

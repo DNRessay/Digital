@@ -44,12 +44,15 @@ Staff can always edit the same slot values directly via the
 `SiteSlotValue` inline on the `Site` admin page too — every path writes to
 the same rows.
 
-For getting a new customer set up in the first place, **`frontend/web-portal`**'s
-own sign-up flow (`POST /api/customer/signup/`) is the normal path: a
-prospective customer picks a name for their site and one of the active
-`Template`s, and the account + `Site` + every one of that template's
-`SiteSlotValue` rows are created together in one step, then they're logged
-straight in.
+Getting a new customer set up is two separate steps, both self-serve
+through **`frontend/web-portal`**: registering an account
+(`POST /api/customer/register/`, just a username/password — no `Site`
+yet), and, once logged in, creating a `Site` of their own
+(`POST /api/customer/sites/`, picking a name and one of the active
+`Template`s — provisions every one of that template's `SiteSlotValue`
+rows). Note this is currently unrestricted — any authenticated user can
+create a site for free, there's no payment/approval check in front of
+`POST /api/customer/sites/` — see "Known gaps" below.
 
 ## Customer-facing API (`builder/customer_api.py`, `/api/customer/...`)
 
@@ -62,14 +65,16 @@ own login form (`AdminAuthenticationForm`) rejects non-staff users outright.
   endpoint the SPA calls first to pick up a CSRF cookie before logging in).
 - `POST /api/customer/login/`, `POST /api/customer/logout/`
 - `GET /api/customer/templates/` — public, no auth required: the `is_active`
-  `Template`s, for the sign-up form's picker.
-- `POST /api/customer/signup/` — public. Body: `{username, password,
-  site_name, template_slug}`. Validates the password against Django's own
-  `AUTH_PASSWORD_VALIDATORS`, slugifies `site_name` for the `Site`'s slug
-  (409 if either the username or the resulting slug is already taken),
-  creates the `User` + `Site` + its slot values in one transaction, and logs
-  the new user in — same response shape as `/login/`, plus the new `site`.
+  `Template`s, for the "create your site" form's picker.
+- `POST /api/customer/register/` — public. Body: `{username, password}`.
+  Validates the password against Django's own `AUTH_PASSWORD_VALIDATORS`
+  (409 if the username is already taken), creates just the `User`, and logs
+  them in — no `Site` yet.
 - `GET /api/customer/sites/` — the Sites owned by the current user.
+- `POST /api/customer/sites/` — authenticated. Body: `{site_name,
+  template_slug}`. Slugifies `site_name` for the `Site`'s slug (409 if it's
+  already taken, or if `template_slug` isn't an active `Template`), creates
+  the `Site` owned by the current user plus every one of its slot values.
 - `GET /api/customer/sites/<slug>/slots/` — that site's slots grouped by
   page (`page: null` first, for shared header/footer text), each with its
   current effective value (an override, or the template's default).
@@ -120,6 +125,11 @@ lose every uploaded template's assets between invocations.
 
 ### Known gaps (v1)
 
+- **`POST /api/customer/sites/` has no gate on who can create a site** —
+  any registered user can create one for free, with no payment or manual
+  approval step in between. Fine for now; add a check here (e.g. requiring
+  some staff-set flag on the `User`, or a payment record) before this is
+  exposed to the public without other controls.
 - **Header/nav/footer text is duplicated per page, not truly shared**, for
   templates (like the bundled Axis example) where Templify couldn't hoist
   the header into `base.html` because it differs slightly per page (e.g.

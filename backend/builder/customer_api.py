@@ -121,34 +121,58 @@ def api_customer_logout(request):
 @ensure_csrf_cookie
 @require_http_methods(["GET"])
 def api_customer_templates(request):
-    """Public — the signup form needs this before anyone has an account."""
+    """Public — the "create your site" form needs this to offer a picker
+    before the user necessarily has one yet."""
     templates = Template.objects.filter(is_active=True).order_by("name")
     return JsonResponse({"templates": [{"slug": t.slug, "name": t.name} for t in templates]})
 
 
 @ensure_csrf_cookie
 @require_http_methods(["POST"])
-def api_customer_signup(request):
+def api_customer_register(request):
+    """Public — creates a plain account, no Site yet. A logged-in customer
+    creates their own Site(s) afterwards via POST /api/customer/sites/."""
     body = _json_body(request)
     username = str(body.get("username", "")).strip()
     password = str(body.get("password", ""))
-    site_name = str(body.get("site_name", "")).strip()
-    template_slug = str(body.get("template_slug", "")).strip()
 
-    if not username or not password or not site_name or not template_slug:
-        return JsonResponse({"error": "Username, password, site name, and template are all required."}, status=400)
+    if not username or not password:
+        return JsonResponse({"error": "Username and password are both required."}, status=400)
 
     try:
         validate_password(password)
     except ValidationError as exc:
         return JsonResponse({"error": " ".join(exc.messages)}, status=400)
 
+    if User.objects.filter(username=username).exists():
+        return JsonResponse({"error": "That username is already taken."}, status=409)
+
+    try:
+        user = User.objects.create_user(username=username, password=password)
+    except IntegrityError:
+        return JsonResponse({"error": "That username was just taken — try again."}, status=409)
+
+    login(request, user)
+    return JsonResponse({"authenticated": True, "username": user.username}, status=201)
+
+
+@customer_login_required
+@require_http_methods(["GET", "POST"])
+def api_customer_sites(request):
+    if request.method == "GET":
+        sites = Site.objects.filter(owner=request.user).select_related("template")
+        return JsonResponse({"sites": [_serialize_site(s) for s in sites]})
+
+    body = _json_body(request)
+    site_name = str(body.get("site_name", "")).strip()
+    template_slug = str(body.get("template_slug", "")).strip()
+
+    if not site_name or not template_slug:
+        return JsonResponse({"error": "Site name and template are both required."}, status=400)
+
     template = Template.objects.filter(slug=template_slug, is_active=True).first()
     if template is None:
         return JsonResponse({"error": "That template isn't available."}, status=400)
-
-    if User.objects.filter(username=username).exists():
-        return JsonResponse({"error": "That username is already taken."}, status=409)
 
     site_slug = slugify(site_name)
     if not site_slug:
@@ -158,21 +182,12 @@ def api_customer_signup(request):
 
     try:
         with transaction.atomic():
-            user = User.objects.create_user(username=username, password=password)
-            site = Site.objects.create(name=site_name, slug=site_slug, template=template, owner=user)
+            site = Site.objects.create(name=site_name, slug=site_slug, template=template, owner=request.user)
             provision_missing_slot_values(site)
     except IntegrityError:
-        return JsonResponse({"error": "That username or site name was just taken — try again."}, status=409)
+        return JsonResponse({"error": "That site name was just taken — try again."}, status=409)
 
-    login(request, user)
-    return JsonResponse({"authenticated": True, "username": user.username, "site": _serialize_site(site)}, status=201)
-
-
-@customer_login_required
-@require_http_methods(["GET"])
-def api_customer_sites(request):
-    sites = Site.objects.filter(owner=request.user).select_related("template")
-    return JsonResponse({"sites": [_serialize_site(s) for s in sites]})
+    return JsonResponse({"site": _serialize_site(site)}, status=201)
 
 
 @customer_login_required
