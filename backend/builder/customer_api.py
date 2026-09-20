@@ -32,7 +32,7 @@ from django.views.decorators.http import require_http_methods
 
 from .models import CustomerAuthToken, Site, SiteSlotValue, Template
 from .services.payfast import PACKAGES, PayFastError, build_checkout_payload
-from .services.site_provisioning import provision_missing_slot_values, rename_site_in_slots
+from .services.site_provisioning import apply_contact_info, provision_missing_slot_values
 
 HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -262,22 +262,22 @@ def api_customer_sites(request):
 @customer_token_required
 @require_http_methods(["PATCH"])
 def api_customer_site_update(request, site_slug):
-    """Updates the Site's own profile fields — its display name, contact
-    info, and theme color override — as opposed to its page text, which
-    goes through api_customer_site_slots instead."""
+    """Updates the Site's own profile fields — contact info and theme
+    color override — as opposed to its page text, which goes through
+    api_customer_site_slots instead. The name is deliberately not
+    editable here: it's chosen once at creation (POST /sites/, which
+    seeds the logo/title/footer to match it — see
+    services.site_provisioning._name_overrides_for) and locked after
+    that, since a later rename has no reliable way to find and swap the
+    old name back out of arbitrary page text without risking a false
+    match inside an unrelated word (e.g. a site named "Tea" colliding
+    with a "Team" nav link) — simpler and safer to just not offer it."""
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
 
     body = _json_body(request)
     fields = {}
-    old_name = site.name
-
-    if "name" in body:
-        name = str(body["name"]).strip()
-        if not name:
-            return JsonResponse({"error": "Site name can't be empty."}, status=400)
-        fields["name"] = name[:120]
 
     if "tagline" in body:
         fields["tagline"] = str(body["tagline"]).strip()[:200]
@@ -310,19 +310,9 @@ def api_customer_site_update(request, site_slug):
         setattr(site, key, value)
     site.save(update_fields=list(fields.keys()))
 
-    renamed_slots = None
-    if "name" in fields:
-        renamed_slots = rename_site_in_slots(site, old_name, fields["name"])
+    apply_contact_info(site, email=fields.get("email") or None, phone=fields.get("phone") or None)
 
-    response = {"site": _serialize_site(site)}
-    if renamed_slots == 0:
-        # Nothing on the page actually said the old name — most likely an
-        # image logo, or a template _detect_brand_token couldn't
-        # confidently guess. The name itself is still saved either way;
-        # this just tells web-portal to point the owner at the Edit tab
-        # instead of leaving them wondering why nothing visibly changed.
-        response["name_change_applied_to_page"] = False
-    return JsonResponse(response)
+    return JsonResponse({"site": _serialize_site(site)})
 
 
 @require_http_methods(["GET"])

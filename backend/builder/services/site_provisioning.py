@@ -100,48 +100,42 @@ def provision_missing_slot_values(site):
     )
 
 
-def rename_site_in_slots(site, old_name, new_name):
-    """When a customer renames their Site from the profile form, carry
-    that into whichever slots currently show the old name verbatim — the
-    logo, <title>, a footer credit, wherever _name_overrides_for put it at
-    creation (or wherever it just happens to appear) — without touching
-    anything that no longer says the old name (e.g. because the customer
-    already rewrote it by hand to something else). Returns how many slots
-    changed, so callers can tell the customer when nothing did.
+EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+# A generic "digit-shaped run" candidate — filtered below by actual digit
+# count, since punctuation/length alone can't rule out e.g. "12-20" or a
+# date. Deliberately excludes ",", so "$25,000" or "February 27, 2025"
+# can't be swept in as a phone number.
+_PHONE_CANDIDATE_RE = re.compile(r"\+?\d[\d\s().-]{5,}\d")
 
-    If nothing contains the old name at all — most likely because
-    _detect_brand_token couldn't confidently guess this template's own
-    demo name back when the site was first created, so the creation-time
-    auto-fill never ran — this tries that same detection again now,
-    against whichever slots are still exactly the template's own
-    untouched default text (anything already customized by hand is left
-    alone either way)."""
-    if not old_name or old_name == new_name:
+
+def _looks_like_phone(candidate):
+    return len(re.sub(r"\D", "", candidate)) >= 7
+
+
+def apply_contact_info(site, email=None, phone=None):
+    """Best-effort: find-and-replace whatever on the page already looks
+    like an email address / phone number with the one the customer just
+    set on the profile form. Unlike the site's name (see
+    _name_overrides_for above — free text has no reliable shape, which is
+    exactly what caused a real "Tea" vs. "Team" false match), an email or
+    phone number has a distinctive enough pattern that there's no need to
+    know the *old* value, and no realistic risk of matching an unrelated
+    word — so this runs on every save, not just the first one."""
+    if not email and not phone:
         return 0
-    slot_values = list(site.slot_values.select_related("slot"))
     updated = []
-    for sv in slot_values:
+    for sv in site.slot_values.select_related("slot"):
         current = sv.value or sv.slot.default_text
-        if not _contains_whole_word(current, old_name):
-            continue
-        sv.value = _replace_whole_word(current, old_name, new_name)
-        updated.append(sv)
-
-    if not updated:
-        brand = _detect_brand_token(site.template)
-        if brand:
-            for sv in slot_values:
-                if sv.value:  # already has some override — leave it alone
-                    continue
-                default = sv.slot.default_text
-                if default.strip() == brand:
-                    sv.value = new_name
-                elif _contains_whole_word(default, brand):
-                    sv.value = _replace_whole_word(default, brand, new_name)
-                else:
-                    continue
-                updated.append(sv)
-
+        new_value = current
+        if email:
+            new_value = EMAIL_RE.sub(lambda _: email, new_value)
+        if phone:
+            new_value = _PHONE_CANDIDATE_RE.sub(
+                lambda m: phone if _looks_like_phone(m.group(0)) else m.group(0), new_value
+            )
+        if new_value != current:
+            sv.value = new_value
+            updated.append(sv)
     if updated:
         SiteSlotValue.objects.bulk_update(updated, ["value"])
     return len(updated)

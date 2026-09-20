@@ -268,7 +268,6 @@ function UpgradeCard({ site }) {
 
 function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
   const [form, setForm] = useState(() => ({
-    name: site.name,
     primary_color: site.primary_color || site.default_primary_color || '#2e8b57',
     email: site.email,
     phone: site.phone,
@@ -280,7 +279,6 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
 
   useEffect(() => {
     setForm({
-      name: site.name,
       primary_color: site.primary_color || site.default_primary_color || '#2e8b57',
       email: site.email,
       phone: site.phone,
@@ -302,7 +300,7 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
     try {
       const data = await updateSite(site.slug, form)
       onSiteUpdated(data.site)
-      setSaveState(data.name_change_applied_to_page === false ? 'saved-name-not-found' : 'saved')
+      setSaveState('saved')
     } catch (err) {
       setSaveError(err.message)
       setSaveState('error')
@@ -334,7 +332,8 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
         {saveError && <div className="error">{saveError}</div>}
 
         <label htmlFor="site-profile-name">Site name</label>
-        <input id="site-profile-name" type="text" value={form.name} onChange={(e) => setField('name', e.target.value)} required />
+        <input id="site-profile-name" type="text" value={site.name} disabled />
+        <p className="field-hint">Set once when you created the site — can't be changed here.</p>
 
         <label htmlFor="site-profile-color">Theme color</label>
         <input
@@ -367,12 +366,6 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
           </button>
           {saveState === 'saved' && <span className="save-status">Saved</span>}
         </div>
-        {saveState === 'saved-name-not-found' && (
-          <div className="notice">
-            Saved — but your old name wasn't found anywhere on the page, so nothing there updated
-            automatically. Edit the logo/heading text directly on the Edit tab instead.
-          </div>
-        )}
       </form>
     </>
   )

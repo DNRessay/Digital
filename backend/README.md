@@ -63,14 +63,34 @@ appears — the logo, the `<title>`, a footer credit — rather than leaving
 every new site showing the template author's own brand until someone
 manually finds and edits each occurrence
 (`services/site_provisioning._detect_brand_token`/`_name_overrides_for`).
-It guesses the demo name from whatever short bit of text is both repeated
-across multiple slots *and* present in the page's own `<title>` — that
-combination is what tells "CoreBiz" (the actual brand) apart from a
-generic repeated word like "Home" or "Contact" that just happens to
-appear on every page too. This only ever touches a slot's very first
-`SiteSlotValue` row (still blank, never yet given a real override), so
-it can't clobber an edit made later, and it's skipped entirely if no
-`<title>` slot is found or nothing repeats.
+It guesses the demo name from whatever slot text is present in the
+page's own `<title>` and isn't a generic word (`_GENERIC_TEXT`) that
+could coincidentally also appear in one, like "Home" or "Contact" — that
+anchor is what tells "CoreBiz" (the actual brand) apart from those. This
+only ever touches a slot's very first `SiteSlotValue` row (still blank,
+never yet given a real override), so it can't clobber an edit made
+later, and it's skipped entirely if no `<title>` slot is found or
+nothing in it looks like a name. Both this and `apply_contact_info`
+below only ever swap a *whole word* (`_contains_whole_word`/
+`_replace_whole_word`, regex `\b`-bounded) — a plain substring match
+doesn't know a word's edges, and a real report from a site named "Tea"
+proved it: `"Tea" in "Team"` is true, so the very first version of this
+silently corrupted a "Team" nav link into "CoffeeTeam" while never
+touching the actual "CoreBiz" logo, since that false match "succeeded"
+and starved the (also real, separately fixed) brand-detection logic of
+ever running.
+
+### Why the name can't be changed later
+
+`Site.name` is chosen once at creation and locked after that — there's
+deliberately no way to rename it through `PATCH /api/customer/sites/
+<slug>/`, and web-portal's Overview tab shows it as a disabled field.
+An arbitrary customer-chosen name has no reliable shape the way an email
+address or phone number does (see `apply_contact_info` below), so
+finding everywhere the *old* name appeared to swap in a new one always
+comes back to some form of substring matching — which is exactly what
+produced the "Team" corruption above. Locking it after creation removes
+the failure mode entirely rather than trying to out-guess it.
 
 ## PayFast subscriptions (`builder/services/payfast.py`, `builder/payfast_views.py`)
 
@@ -162,17 +182,17 @@ token row server-side (a real revoke, not just "forget it client-side").
   ever offers the home page in that case (see "Click-to-edit preview"
   below).
 - `PATCH /api/customer/sites/<slug>/` — authenticated. Body: any subset of
-  `{name, tagline, phone, whatsapp_number, email, address, primary_color}`
-  — the `Site`'s own profile fields, as opposed to its page text. `email`
-  is validated as an address if non-blank (it's also where this site's own
+  `{tagline, phone, whatsapp_number, email, address, primary_color}` — the
+  `Site`'s own profile fields, as opposed to its page text. `email` is
+  validated as an address if non-blank (it's also where this site's own
   contact form sends messages — see `builder.views.site_contact`);
   `primary_color` must be a `#rrggbb` hex code or blank (falls back to the
   template's own `default_primary_color` — see "Theme color" below).
-  Renaming (`name`) also calls `services.site_provisioning.
-  rename_site_in_slots`, which carries the old name into whichever slots
-  currently say it verbatim (the same substring-preserving swap
-  provisioning does at creation — see "Getting a new customer set up"
-  above), without touching anything a manual edit already changed.
+  **`name` is deliberately not accepted here** — see "Why the name can't
+  be changed later" below. Setting `email`/`phone` also calls
+  `services.site_provisioning.apply_contact_info`, which finds whatever
+  already looks like an email address / phone number anywhere on the
+  page and swaps in the new one (see the same section).
 - `GET /api/customer/packages/` — public: the three packages (id, label,
   monthly, setup) for the "remove branding" picker.
 - `POST /api/customer/sites/<slug>/checkout/` — authenticated. See "PayFast
@@ -202,6 +222,36 @@ that `Site`'s rendered pages — since a custom property set anywhere in
 the document cascades to every element referencing it via `var()`, this
 recolors the whole site without ever duplicating or rewriting the shared
 stylesheet itself.
+
+Only runs at ingest, so a `Template` uploaded before this feature
+existed keeps `default_primary_color` blank forever (its CSS was never
+rewritten with the `var()` wrapping, so a `Site.primary_color` override
+would have nothing to hook into and silently do nothing) — run
+`python manage.py backfill_theme_colors` once to catch those up; it's a
+no-op for anything that already has a `default_primary_color`.
+
+## Contact info find-and-replace (`services/site_provisioning.apply_contact_info`)
+
+Setting a `Site`'s `email`/`phone` via the `PATCH` above doesn't just
+save those fields — it also finds whatever already looks like an email
+address or phone number anywhere on the page (every page, not just the
+one currently being edited) and replaces it with the new one. Unlike the
+site's name (see "Why the name can't be changed later" above), an email
+or phone number has a distinctive enough shape that a plain regex can
+find every occurrence directly, with no need to know what the *old*
+value was and no realistic risk of a false match: `EMAIL_RE` is a
+standard `local@domain.tld` pattern, and phone numbers use a digit-count
+filter (`_looks_like_phone`, ≥7 actual digits) on top of a loose
+candidate regex specifically to rule out things that merely *contain*
+digits — a stat ("150+ Successful Projects"), a date ("February 27,
+2025"), a price ("$25,000"), a range ("12-20 weeks") — none of which
+should ever be mistaken for a phone number.
+
+There's no equivalent for `address`: unlike an email or phone number, a
+street address has no reliable pattern to match by regex, and the real
+CoreBiz template alone splits it across two separate slots (a street
+line and a city/zip line) with nothing tying them together — so this is
+edited the same way any other page text is, directly on the Edit tab.
 
 ## Click-to-edit preview (`builder/views._render_site_page`, `?vicinic_edit=1`)
 
