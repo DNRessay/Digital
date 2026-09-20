@@ -10,7 +10,7 @@ across every site that uses them.
 ```
 backend/            Django + Mangum on Lambda (see backend/README.md)
 frontend/
-  site/             Marketing site (vicinic.com) — static HTML/CSS/JS
+  site/             Marketing site (vicinic.com) — Vite + React
   admin/            Central admin dashboard — Vite + React
   portal/           Template manager (upload/convert templates) — Vite + React
   web-portal/       Customer-facing site editor (edit your own site's text) — Vite + React

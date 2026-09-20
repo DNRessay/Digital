@@ -6,13 +6,12 @@ Pages supports this via each project's own "Root directory" setting).
 
 | App          | Purpose                                              | Stack                  | Status                    |
 | ------------ | ----------------------------------------------------- | ---------------------- | ------------------------- |
-| `site`       | Marketing site (vicinic.com)                          | Static HTML/CSS/JS     | Existing, live            |
+| `site`       | Marketing site (vicinic.com)                          | Vite + React           | Existing, live            |
 | `admin`      | Central dashboard (sites, templates overview)         | Vite + React           | Scaffold — placeholder UI |
 | `portal`     | Template manager (upload zips, list templates)        | Vite + React           | Functional — real API     |
 | `web-portal` | Customer editor (edit your own site's slot text)      | Vite + React           | Scaffold — no API yet     |
 
-`site` has no build step (plain static files); `admin`/`portal`/`web-portal`
-are Vite apps and need a build.
+All four are Vite apps and need a build (`npm run build` → `dist/`).
 
 ## Deploying each app to Cloudflare Pages
 
@@ -20,21 +19,25 @@ For each app, create a **separate** Cloudflare Pages project (Workers &
 Pages → Create → Pages → connect this repo), then in that project's
 build settings, with **Root directory (advanced)** set to `frontend/<app>`:
 
-- **`site`**: Build command *(empty)*, output directory `/`
-- **`admin` / `portal` / `web-portal`**: Build command `npm run build`, output directory `dist`
+- **`site` / `admin` / `portal` / `web-portal`**: Build command `npm run build`, output directory `dist`
 
 Do **not** add a `wrangler.toml` to any of these apps — its mere presence
 overrides the dashboard's build command field, which breaks git-integration
-deploys (see `frontend/site/README.md` for the full explanation from when
-this was hit on the `site` app).
+deploys.
+
+> **If you have a live Cloudflare Pages project for `site` from before this
+> app went back to Vite+React**, update its build command back to
+> `npm run build` and its output directory back to `dist` — it was
+> previously set to an empty build command and `/` output for a brief
+> plain-static-HTML version of this app, which no longer applies.
 
 ### Environment variables per app
 
 - **portal**: `VITE_API_BASE_URL` — the backend's Lambda Function URL, no
   trailing slash (see `frontend/portal/.env.example`).
-- **site**: no build-time env vars (no build step) — the Web3Forms access
-  key is a hardcoded value directly in `index.html` (see `frontend/site/README.md`
-  — Web3Forms keys are meant to be public/embedded client-side).
+- **site**: no env vars — the Web3Forms access key is a hardcoded value in
+  `src/sections/Contact.jsx`'s form markup (see `frontend/site/README.md` —
+  Web3Forms keys are meant to be public/embedded client-side).
 - **admin**, **web-portal**: none yet — they're placeholder UI with no
   backend wiring.
 
