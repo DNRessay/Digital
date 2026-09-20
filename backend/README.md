@@ -145,6 +145,40 @@ token row server-side (a real revoke, not just "forget it client-side").
 - `POST /api/customer/sites/<slug>/checkout/` — authenticated. See "PayFast
   subscriptions" above.
 
+## Click-to-edit preview (`builder/views._render_site_page`, `?vicinic_edit=1`)
+
+web-portal's editor doesn't just show a form of every slot anymore — it
+embeds the site's own real rendered page in an iframe and lets the owner
+click straight onto a piece of text to edit it, like Squarespace/Wix.
+That's the same `site_home`/`site_page` views real visitors hit, with one
+query param: `?vicinic_edit=1` makes `_resolve_slots` wrap each slot's
+value in `<span class="vicinic-editable" data-vicinic-slot="...">` (skipped
+for the handful of tags that can never contain an element — `<title>`,
+`<option>`, `<textarea>`, `<noscript>`, and the odd bare-text-node
+`[document]` case — detected from the `<tagname>` prefix
+`slot_extractor.py` already puts on every slot's `label`; those stay
+editable through a small fallback text-input list in web-portal instead),
+and appends a small vanilla-JS "bridge" script before `</body>` that:
+makes every wrapped span clickable → `contentEditable` (Enter commits,
+Escape reverts), blocks all in-page link clicks (so the preview never
+navigates itself away), and reports each committed edit up to the parent
+frame via `postMessage({source: 'vicinic-editor', type: 'slot-changed',
+key, value})` — it never calls the save API itself. `?vicinic_edit=1`
+also gets `response.xframe_options_exempt = True` (only that response —
+never the plain public one) since web-portal is a different origin and
+the default clickjacking header would otherwise stop the iframe from
+loading it at all.
+
+**Edits are cached client-side, not saved as they happen.** web-portal
+keeps a `{slot_key: value}` draft in `localStorage` (per site slug) that
+every `slot-changed` message updates; nothing reaches the server until
+the owner clicks "Publish changes" (`POST .../slots/`, same endpoint the
+old form used). Switching pages or reloading the tab replays the current
+draft back into the freshly-loaded iframe via a matching `postMessage`
+the bridge script listens for, so in-progress edits keep showing even
+though the server hasn't seen them yet. A "Discard changes" action just
+clears the local draft and reloads the iframe to the last-published copy.
+
 ## Local development
 
 ```bash

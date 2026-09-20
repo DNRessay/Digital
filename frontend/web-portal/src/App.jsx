@@ -1,19 +1,37 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   API_BASE,
   checkout,
+  clearDraft,
   createSite,
   getSiteSlots,
   listPackages,
   listPublicTemplates,
   listSites,
+  loadDraft,
   login,
   logout,
   redirectToPayFast,
   register,
   saveSiteSlots,
+  storeDraft,
   whoami,
 } from './api.js'
+
+// Tags whose text can never be wrapped for click-to-edit (a <title> or
+// <option> can only ever hold plain text) — mirrors
+// backend/builder/views.py's NON_INLINE_EDITABLE_TAGS/_slot_tag, both
+// reading the same "<tagname> preview" prefix slot_extractor.py puts in
+// every slot's label.
+const NON_INLINE_TAGS = new Set(['title', 'option', 'textarea', 'noscript', '[document]'])
+
+function slotTag(label) {
+  if (label.startsWith('<')) {
+    const end = label.indexOf('>')
+    if (end !== -1) return label.slice(1, end)
+  }
+  return ''
+}
 
 function Login({ onLoggedIn, onSwitchToRegister }) {
   const [username, setUsername] = useState('')
@@ -370,41 +388,67 @@ function SlotField({ slot, value, onChange }) {
   )
 }
 
-function SiteEditor({ site }) {
+function VisualEditor({ site }) {
   const [groups, setGroups] = useState(null)
-  const [values, setValues] = useState({})
   const [loadError, setLoadError] = useState(null)
+  const [activePage, setActivePage] = useState(null)
+  const [drafts, setDrafts] = useState({})
   const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
   const [saveError, setSaveError] = useState(null)
+  const iframeRef = useRef(null)
 
   useEffect(() => {
     setGroups(null)
+    setLoadError(null)
     setSaveState('idle')
+    setDrafts(loadDraft(site.slug))
     getSiteSlots(site.slug)
       .then((data) => {
         setGroups(data.groups)
-        const initial = {}
-        for (const group of data.groups) {
-          for (const slot of group.slots) {
-            initial[slot.key] = slot.value
-          }
-        }
-        setValues(initial)
+        const firstPage = data.groups.find((g) => g.page !== null)
+        setActivePage(firstPage ? firstPage.page : '')
       })
       .catch((err) => setLoadError(err.message))
   }, [site.slug])
 
-  const isDirty = useMemo(() => {
-    if (!groups) return false
-    return groups.some((g) => g.slots.some((s) => values[s.key] !== s.value))
-  }, [groups, values])
+  useEffect(() => {
+    function handleMessage(e) {
+      if (iframeRef.current && e.source !== iframeRef.current.contentWindow) return
+      const msg = e.data
+      if (!msg || msg.source !== 'vicinic-editor' || msg.type !== 'slot-changed') return
+      setDrafts((prev) => {
+        const next = { ...prev, [msg.key]: msg.value }
+        storeDraft(site.slug, next)
+        return next
+      })
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [site.slug])
 
-  async function handleSave() {
+  function setDraftValue(key, value) {
+    setDrafts((prev) => {
+      const next = { ...prev, [key]: value }
+      storeDraft(site.slug, next)
+      return next
+    })
+  }
+
+  function sendDraftToPreview() {
+    iframeRef.current?.contentWindow?.postMessage(
+      { source: 'vicinic-editor', type: 'apply-draft', values: drafts },
+      '*'
+    )
+  }
+
+  async function handlePublish() {
     setSaveState('saving')
     setSaveError(null)
     try {
-      const data = await saveSiteSlots(site.slug, values)
+      const data = await saveSiteSlots(site.slug, drafts)
       setGroups(data.groups)
+      clearDraft(site.slug)
+      setDrafts({})
       setSaveState('saved')
     } catch (err) {
       setSaveError(err.message)
@@ -412,31 +456,68 @@ function SiteEditor({ site }) {
     }
   }
 
+  function handleDiscard() {
+    clearDraft(site.slug)
+    setDrafts({})
+    setSaveState('idle')
+    iframeRef.current?.contentWindow?.location.reload()
+  }
+
   if (loadError) return <div className="card error">Could not load this site's text: {loadError}</div>
-  if (!groups) return null
+  if (!groups || activePage === null) return null
+
+  const pages = groups.filter((g) => g.page !== null)
+  const isDirty = Object.keys(drafts).length > 0
+  const previewUrl = `${API_BASE}/${site.slug}/${activePage ? `${activePage}/` : ''}?vicinic_edit=1`
+  const fallbackSlots = groups
+    .filter((g) => g.page === null || g.page === activePage)
+    .flatMap((g) => g.slots.filter((s) => NON_INLINE_TAGS.has(slotTag(s.label))))
 
   return (
     <>
-      {groups.map((group) => (
-        <div className="card" key={group.page ?? '__shared__'}>
-          <h2>{group.label}</h2>
-          {group.slots.map((slot) => (
+      {pages.length > 1 && (
+        <div className="card site-picker">
+          <label htmlFor="preview-page">Page</label>
+          <select id="preview-page" value={activePage} onChange={(e) => setActivePage(e.target.value)}>
+            {pages.map((g) => (
+              <option key={g.page} value={g.page}>{g.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="card notice">Click any text on the preview below to edit it in place.</div>
+
+      <div className="visual-editor-frame">
+        <iframe ref={iframeRef} src={previewUrl} title="Site preview" onLoad={sendDraftToPreview} />
+      </div>
+
+      {fallbackSlots.length > 0 && (
+        <div className="card">
+          <h2>Page settings</h2>
+          <p>These aren't part of the visible page, so they're edited here instead.</p>
+          {fallbackSlots.map((slot) => (
             <SlotField
               key={slot.key}
               slot={slot}
-              value={values[slot.key] ?? ''}
-              onChange={(v) => setValues((prev) => ({ ...prev, [slot.key]: v }))}
+              value={drafts[slot.key] ?? slot.value}
+              onChange={(v) => setDraftValue(slot.key, v)}
             />
           ))}
         </div>
-      ))}
+      )}
 
       <div className="save-bar">
         {saveError && <div className="error">{saveError}</div>}
-        <button type="button" onClick={handleSave} disabled={!isDirty || saveState === 'saving'}>
-          {saveState === 'saving' ? 'Saving…' : 'Save changes'}
+        {isDirty && (
+          <button type="button" className="link-button" onClick={handleDiscard} disabled={saveState === 'saving'}>
+            Discard changes
+          </button>
+        )}
+        <button type="button" onClick={handlePublish} disabled={!isDirty || saveState === 'saving'}>
+          {saveState === 'saving' ? 'Publishing…' : 'Publish changes'}
         </button>
-        {saveState === 'saved' && !isDirty && <span className="save-status">Saved</span>}
+        {saveState === 'saved' && !isDirty && <span className="save-status">Published</span>}
       </div>
     </>
   )
@@ -531,7 +612,7 @@ export default function App() {
           {selectedSite && activeTab === 'overview' && (
             <OverviewTab site={selectedSite} checkoutNotice={checkoutNotice} />
           )}
-          {selectedSite && activeTab === 'edit' && <SiteEditor site={selectedSite} />}
+          {selectedSite && activeTab === 'edit' && <VisualEditor site={selectedSite} />}
           {selectedSite && activeTab === 'pricing' && <UpgradeCard site={selectedSite} />}
           {activeTab === 'profile' && (
             <ProfileTab displayName={displayName} username={username} email={email} onLogout={handleLogout} />

@@ -97,6 +97,39 @@ export function saveSiteSlots(siteSlug, values) {
   return apiFetch(`/api/customer/sites/${siteSlug}/slots/`, { method: 'POST', body: values })
 }
 
+// Edits made in the click-to-edit preview are cached here — per site,
+// in this browser only — rather than saved as they happen; "Publish
+// changes" is what actually sends them via saveSiteSlots above. Survives
+// a reload so an in-progress edit isn't lost if the tab closes early.
+function draftKey(siteSlug) {
+  return `vicinic_draft_${siteSlug}`
+}
+
+export function loadDraft(siteSlug) {
+  try {
+    const raw = localStorage.getItem(draftKey(siteSlug))
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+export function storeDraft(siteSlug, values) {
+  try {
+    localStorage.setItem(draftKey(siteSlug), JSON.stringify(values))
+  } catch {
+    // Private browsing / storage disabled — edits just won't survive a reload.
+  }
+}
+
+export function clearDraft(siteSlug) {
+  try {
+    localStorage.removeItem(draftKey(siteSlug))
+  } catch {
+    // Nothing to do — see storeDraft.
+  }
+}
+
 export function listPackages() {
   return apiFetch('/api/customer/packages/')
 }
