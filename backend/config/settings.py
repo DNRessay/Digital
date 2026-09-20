@@ -146,4 +146,23 @@ PAYFAST_MERCHANT_KEY = os.environ.get("PAYFAST_MERCHANT_KEY", "46f0cd694581a")
 PAYFAST_PASSPHRASE = os.environ.get("PAYFAST_PASSPHRASE", "")
 PAYFAST_SANDBOX = os.environ.get("PAYFAST_SANDBOX", "true").lower() == "true"
 
+# Cloudflare (builder/services/cloudflare.py) — connecting a customer's own
+# domain and Email Routing on it for the "Deploy" tab. CLOUDFLARE_API_TOKEN
+# needs Zone:Edit, Zone:DNS:Edit, Zone Email Routing Rules:Edit and
+# Account:Zone:Edit; CLOUDFLARE_ACCOUNT_ID is the account every customer
+# domain becomes a zone under (see that module's docstring for why).
+# PLATFORM_ORIGIN_HOST is this backend's own Lambda Function URL host (no
+# scheme) — the DNS target a connected domain's zone gets pointed at; it
+# can't be derived automatically (self-referencing a Function's own
+# generated URL from within its own environment variables is a circular
+# CloudFormation dependency), so it's a parameter, same as
+# TEMPLIFY_FUNCTION_URL above, and needs updating if this stack is ever
+# torn down and redeployed as a new function (a plain redeploy keeps the
+# same URL).
+CLOUDFLARE_API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
+CLOUDFLARE_ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
+PLATFORM_ORIGIN_HOST = os.environ.get(
+    "PLATFORM_ORIGIN_HOST", "uoby5fryqkhbasb7wicrtg5oiq0pgwth.lambda-url.eu-west-1.on.aws"
+)
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

@@ -138,6 +138,29 @@ class Site(models.Model):
         help_text="PayFast subscription token (for managing/cancelling recurring billing), set once the ITN confirms payment.",
     )
 
+    DOMAIN_NONE = "none"
+    DOMAIN_PENDING = "pending"
+    DOMAIN_ACTIVE = "active"
+    DOMAIN_ERROR = "error"
+    DOMAIN_STATUS_CHOICES = [
+        (DOMAIN_NONE, "Not connected"),
+        (DOMAIN_PENDING, "Pending (waiting for nameservers to update)"),
+        (DOMAIN_ACTIVE, "Active"),
+        (DOMAIN_ERROR, "Error"),
+    ]
+    custom_domain = models.CharField(
+        max_length=255, unique=True, null=True, blank=True, default=None,
+        help_text="A customer-owned domain (e.g. mybusiness.com), connected via "
+        "services.cloudflare — the customer points its nameservers at Cloudflare's, "
+        "which turns it into a zone under Vicinic's own Cloudflare account.",
+    )
+    domain_status = models.CharField(max_length=20, choices=DOMAIN_STATUS_CHOICES, default=DOMAIN_NONE)
+    cloudflare_zone_id = models.CharField(max_length=64, blank=True)
+    cloudflare_nameservers = models.CharField(
+        max_length=255, blank=True,
+        help_text="Comma-separated — what the customer needs to set at their registrar for domain_status to become active.",
+    )
+
     is_published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -150,6 +173,37 @@ class Site(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class EmailRoute(models.Model):
+    """One "forward mail sent to <from_address> to <to_address>" rule on a
+    Site's own custom_domain, via Cloudflare Email Routing
+    (services.cloudflare) — e.g. hello@mybusiness.com forwarded to the
+    owner's real Gmail inbox. Only meaningful once the Site's domain_status
+    is "active"; `from_address` must be on that same custom_domain."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="email_routes")
+    from_address = models.EmailField()
+    to_address = models.EmailField(help_text="Where mail sent to from_address actually gets delivered.")
+
+    STATUS_PENDING_VERIFICATION = "pending_verification"
+    STATUS_ACTIVE = "active"
+    STATUS_ERROR = "error"
+    STATUS_CHOICES = [
+        (STATUS_PENDING_VERIFICATION, "Waiting on destination email verification"),
+        (STATUS_ACTIVE, "Active"),
+        (STATUS_ERROR, "Error"),
+    ]
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default=STATUS_PENDING_VERIFICATION)
+    cloudflare_rule_id = models.CharField(max_length=64, blank=True)
+    error_message = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("site", "from_address")]
+
+    def __str__(self):
+        return f"{self.from_address} → {self.to_address}"
 
 
 class SiteSlotValue(models.Model):
