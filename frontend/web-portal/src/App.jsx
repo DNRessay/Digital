@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  API_BASE,
   checkout,
   createSite,
   getSiteSlots,
@@ -246,6 +247,104 @@ function UpgradeCard({ site }) {
   )
 }
 
+function OverviewTab({ site, checkoutNotice }) {
+  return (
+    <div className="card">
+      <h2>{site.name}</h2>
+      {checkoutNotice === 'success' && (
+        <div className="notice">
+          Payment received — activating your site's plan. This can take a minute; refresh if it doesn't update.
+        </div>
+      )}
+      {checkoutNotice === 'cancelled' && (
+        <div className="notice">Checkout cancelled — your site is still on the free plan.</div>
+      )}
+      <p>
+        Status: <strong>{site.subscription_status === 'active' ? 'Paid plan' : 'Free plan'}</strong>
+        {site.subscription_status === 'pending' && ' (payment pending)'}
+      </p>
+      <p>
+        Live at <a href={`${API_BASE}/${site.slug}/`} target="_blank" rel="noreferrer">{`${API_BASE}/${site.slug}/`}</a>
+      </p>
+    </div>
+  )
+}
+
+function ProfileTab({ displayName, username, email, onLogout }) {
+  return (
+    <div className="card">
+      <h2>Profile</h2>
+      <p><strong>Name:</strong> {displayName}</p>
+      <p><strong>Username:</strong> {username}</p>
+      <p><strong>Email:</strong> {email}</p>
+      <button type="button" className="link-button" onClick={onLogout}>Sign out</button>
+    </div>
+  )
+}
+
+const TABS = [
+  {
+    key: 'overview',
+    label: 'Overview',
+    icon: (
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="3" width="8" height="8" rx="1.5" />
+        <rect x="13" y="3" width="8" height="8" rx="1.5" />
+        <rect x="3" y="13" width="8" height="8" rx="1.5" />
+        <rect x="13" y="13" width="8" height="8" rx="1.5" />
+      </svg>
+    ),
+  },
+  {
+    key: 'edit',
+    label: 'Edit',
+    icon: (
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M12 20h9" strokeLinecap="round" />
+        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    key: 'pricing',
+    label: 'Pricing',
+    icon: (
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M20.5 12.5 12.9 20a2 2 0 0 1-2.8 0l-7-7a2 2 0 0 1-.6-1.4V4.5A1.5 1.5 0 0 1 4 3h7.1c.5 0 1 .2 1.4.6l8 8a2 2 0 0 1 0 2.9Z" strokeLinejoin="round" />
+        <circle cx="8" cy="8" r="1.5" />
+      </svg>
+    ),
+  },
+  {
+    key: 'profile',
+    label: 'Profile',
+    icon: (
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M4.5 20a7.5 7.5 0 0 1 15 0" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+]
+
+function BottomNav({ active, onSelect }) {
+  return (
+    <nav className="bottom-nav">
+      {TABS.map((tab) => (
+        <button
+          key={tab.key}
+          type="button"
+          className={`bottom-nav-item${active === tab.key ? ' active' : ''}`}
+          onClick={() => onSelect(tab.key)}
+        >
+          {tab.icon}
+          <span>{tab.label}</span>
+        </button>
+      ))}
+    </nav>
+  )
+}
+
 function SlotField({ slot, value, onChange }) {
   // Decided once from the slot's own default text (stable) rather than the
   // live value, so the field doesn't flip between <input> and <textarea>
@@ -347,10 +446,13 @@ export default function App() {
   const [status, setStatus] = useState('loading') // loading | anon | ready | error
   const [authView, setAuthView] = useState('login') // login | register
   const [displayName, setDisplayName] = useState(null)
+  const [username, setUsername] = useState(null)
+  const [email, setEmail] = useState(null)
   const [sites, setSites] = useState([])
   const [selectedSlug, setSelectedSlug] = useState(null)
   const [loadError, setLoadError] = useState(null)
   const [checkoutNotice, setCheckoutNotice] = useState(null) // null | 'success' | 'cancelled'
+  const [activeTab, setActiveTab] = useState('overview')
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -378,6 +480,8 @@ export default function App() {
     whoami()
       .then((data) => {
         setDisplayName(data.name || data.username)
+        setUsername(data.username)
+        setEmail(data.email)
         loadSites()
       })
       .catch((err) => setStatus(err.status === 401 ? 'anon' : 'error'))
@@ -389,11 +493,17 @@ export default function App() {
     setAuthView('login')
     setSites([])
     setSelectedSlug(null)
+    setActiveTab('overview')
   }
 
   function handleAuthenticated() {
     setStatus('loading')
-    whoami().then((d) => { setDisplayName(d.name || d.username); loadSites() })
+    whoami().then((d) => {
+      setDisplayName(d.name || d.username)
+      setUsername(d.username)
+      setEmail(d.email)
+      loadSites()
+    })
   }
 
   if (status === 'loading') return null
@@ -405,33 +515,28 @@ export default function App() {
   if (status === 'error') return <div className="page error">Could not reach the backend. {loadError}</div>
 
   const selectedSite = sites.find((s) => s.slug === selectedSlug)
+  const hasSite = sites.length > 0
 
   return (
-    <div className="page">
+    <div className={`page${hasSite ? ' has-bottom-nav' : ''}`}>
       <div className="topbar">
-        <h1>Edit your site</h1>
-        <div className="topbar-user">
-          <span>{displayName}</span>
-          <button type="button" className="link-button" onClick={handleLogout}>Sign out</button>
-        </div>
+        <h1>Vicinic</h1>
       </div>
 
-      {checkoutNotice === 'success' && (
-        <div className="card notice">
-          Payment received — activating your site's plan. This can take a minute; refresh if it doesn't update.
-        </div>
-      )}
-      {checkoutNotice === 'cancelled' && (
-        <div className="card notice">Checkout cancelled — your site is still on the free plan.</div>
-      )}
-
-      {sites.length === 0 ? (
+      {!hasSite ? (
         <CreateSite onCreated={loadSites} />
       ) : (
         <>
-          <SitePicker sites={sites} selected={selectedSlug} onSelect={setSelectedSlug} />
-          {selectedSite && <UpgradeCard site={selectedSite} />}
-          {selectedSite && <SiteEditor site={selectedSite} />}
+          {sites.length > 1 && <SitePicker sites={sites} selected={selectedSlug} onSelect={setSelectedSlug} />}
+          {selectedSite && activeTab === 'overview' && (
+            <OverviewTab site={selectedSite} checkoutNotice={checkoutNotice} />
+          )}
+          {selectedSite && activeTab === 'edit' && <SiteEditor site={selectedSite} />}
+          {selectedSite && activeTab === 'pricing' && <UpgradeCard site={selectedSite} />}
+          {activeTab === 'profile' && (
+            <ProfileTab displayName={displayName} username={username} email={email} onLogout={handleLogout} />
+          )}
+          <BottomNav active={activeTab} onSelect={setActiveTab} />
         </>
       )}
     </div>

@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 const TOKEN_KEY = 'vicinic_token'
 
 // Bearer-token auth, not cookies: web-portal's backend is a different site
