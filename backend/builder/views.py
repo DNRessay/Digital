@@ -1,4 +1,5 @@
 import re
+from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -202,12 +203,32 @@ def _inject_head_style(html, css_text):
     return style + html
 
 
+GOOGLE_MAPS_IFRAME_SRC_RE = re.compile(
+    r'(<iframe\b[^>]*\bsrc=["\'])(https?://(?:www\.)?google\.com/maps[^"\']*)(["\'])',
+    re.IGNORECASE,
+)
+
+
+def _inject_map_address(html, address):
+    """Bootstrap-style "Contact us" sections almost always ship a Google
+    Maps <iframe> already pointing at the template author's own fake demo
+    location — this rewrites every such iframe's src to a keyless Google
+    Maps embed URL (`?q=<address>&output=embed`, no API key needed) for
+    the site's own real address instead, wherever one exists. A no-op if
+    the page has no such iframe."""
+    if not address:
+        return html
+    new_src = f"https://www.google.com/maps?q={quote(address)}&output=embed"
+    return GOOGLE_MAPS_IFRAME_SRC_RE.sub(lambda m: m.group(1) + new_src + m.group(3), html)
+
+
 def _render_site_page(site, page, edit_mode=False):
     context = _resolve_slots(site, page, edit_mode=edit_mode)
     template = django_engine.from_string(page.document)
     html = template.render(context)
     if site.primary_color and HEX_COLOR_RE.match(site.primary_color):
         html = _inject_head_style(html, f":root{{--vicinic-primary:{site.primary_color};}}")
+    html = _inject_map_address(html, site.address)
     if edit_mode:
         html = _inject_editor_bridge(html)
     elif site.is_branded:

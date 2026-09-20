@@ -247,11 +247,20 @@ digits — a stat ("150+ Successful Projects"), a date ("February 27,
 2025"), a price ("$25,000"), a range ("12-20 weeks") — none of which
 should ever be mistaken for a phone number.
 
-There's no equivalent for `address`: unlike an email or phone number, a
-street address has no reliable pattern to match by regex, and the real
-CoreBiz template alone splits it across two separate slots (a street
-line and a city/zip line) with nothing tying them together — so this is
-edited the same way any other page text is, directly on the Edit tab.
+There's no equivalent for the address *text*: unlike an email or phone
+number, a street address has no reliable pattern to match by regex, and
+the real CoreBiz template alone splits it across two separate slots (a
+street line and a city/zip line) with nothing tying them together — so
+that text is edited the same way any other page text is, directly on
+the Edit tab.
+
+Its embedded *map* is a different story — `builder.views._inject_map_address`
+rewrites the `src` of every `<iframe>` already pointing at
+`google.com/maps` (which most Bootstrap "Contact us" sections ship out
+of the box, aimed at the template author's own fake demo location) to a
+keyless embed URL (`https://www.google.com/maps?q=<address>&output=embed`
+— no Google Maps API key needed) for the site's real `address` instead.
+A no-op wherever the page has no such iframe.
 
 ## Click-to-edit preview (`builder/views._render_site_page`, `?vicinic_edit=1`)
 
