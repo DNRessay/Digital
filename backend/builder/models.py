@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -74,6 +75,14 @@ class Site(models.Model):
     name = models.CharField(max_length=120)
     slug = models.SlugField(unique=True)
     template = models.ForeignKey(Template, on_delete=models.PROTECT, related_name="sites")
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sites",
+        help_text="The customer who can log into web-portal and edit this site's text.",
+    )
     tagline = models.CharField(max_length=200, blank=True)
 
     phone = models.CharField(max_length=30, blank=True)

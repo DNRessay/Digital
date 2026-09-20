@@ -34,8 +34,9 @@ class SiteSlotValueInline(admin.TabularInline):
 
 @admin.register(Site)
 class SiteAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug", "template", "is_published", "updated_at")
+    list_display = ("name", "slug", "template", "owner", "is_published", "updated_at")
     list_filter = ("template", "is_published")
+    autocomplete_fields = ["owner"]
     prepopulated_fields = {"slug": ("name",)}
     inlines = [SiteSlotValueInline]
 

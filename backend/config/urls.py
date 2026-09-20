@@ -3,7 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from builder import api_views
+from builder import api_views, customer_api
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -12,6 +12,16 @@ urlpatterns = [
     # frontend app uses in place of the old /manage/templates/ page.
     path("api/whoami/", api_views.api_whoami, name="api-whoami"),
     path("api/templates/", api_views.api_templates, name="api-templates"),
+    # JSON API for "web-portal" — a customer editing their own Site's text.
+    path("api/customer/whoami/", customer_api.api_customer_whoami, name="api-customer-whoami"),
+    path("api/customer/login/", customer_api.api_customer_login, name="api-customer-login"),
+    path("api/customer/logout/", customer_api.api_customer_logout, name="api-customer-logout"),
+    path("api/customer/sites/", customer_api.api_customer_sites, name="api-customer-sites"),
+    path(
+        "api/customer/sites/<slug:site_slug>/slots/",
+        customer_api.api_customer_site_slots,
+        name="api-customer-site-slots",
+    ),
     path("", include("builder.urls")),
 ]
 

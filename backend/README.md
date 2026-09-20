@@ -36,9 +36,33 @@ The old server-rendered `/manage/templates/` page (`builder/views.template_manag
 still exists and works — it's the same underlying logic — but is superseded
 by the portal app. Remove it once the portal app is deployed and verified.
 
-Editing a customer's site content (which template, colors, contact info,
-and each slot's text) is done through the **normal Django admin** at
-`/admin/` — that part is exactly as the stock admin provides.
+A `Site`'s setup (which template, colors, contact info) is done through the
+**normal Django admin** at `/admin/` — that part is exactly as the stock
+admin provides. To let a customer edit their own site's text themselves via
+**`frontend/web-portal`**, also create a regular (non-staff) Django `User`
+for them in `/admin/` and set that `Site`'s `owner` to that user — the
+customer then signs in at web-portal with that username/password and edits
+every slot found on their site (grouped by page). Staff can always edit the
+same slot values directly via the `SiteSlotValue` inline on the `Site` admin
+page too — both paths write to the same rows.
+
+## Customer-facing API (`builder/customer_api.py`, `/api/customer/...`)
+
+Session-cookie authenticated like the portal's `/api/...`, but for any
+regular authenticated `User` (no superuser check) rather than staff — a
+dedicated `/api/customer/login/` endpoint handles this since Django admin's
+own login form (`AdminAuthenticationForm`) rejects non-staff users outright.
+
+- `GET /api/customer/whoami/` — `{authenticated, username}` (also the
+  endpoint the SPA calls first to pick up a CSRF cookie before logging in).
+- `POST /api/customer/login/`, `POST /api/customer/logout/`
+- `GET /api/customer/sites/` — the Sites owned by the current user.
+- `GET /api/customer/sites/<slug>/slots/` — that site's slots grouped by
+  page (`page: null` first, for shared header/footer text), each with its
+  current effective value (an override, or the template's default).
+- `POST /api/customer/sites/<slug>/slots/` — body is a flat JSON
+  `{slot_key: value, ...}` map; only keys that are actually one of this
+  site's slots are written (a 404 if the slug isn't owned by the caller).
 
 ## Local development
 
