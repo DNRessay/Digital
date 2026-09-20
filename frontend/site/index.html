@@ -1,14 +1,934 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0b0f19" />
-    <title>Vicinic</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>Vicinic — Websites & WhatsApp Systems for Small Businesses</title>
+  <meta name="description" content="Vicinic builds professional websites and optional WhatsApp systems for small and growing businesses in South Africa — hosted, secured, and supported.">
+  <link rel="canonical" href="https://vicinic.com/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Vicinic — Websites & WhatsApp Systems for Small Businesses">
+  <meta property="og:description" content="Vicinic builds professional websites and optional WhatsApp systems for small and growing businesses in South Africa — hosted, secured, and supported.">
+  <meta property="og:url" content="https://vicinic.com/">
+  <!-- TODO: add an og:image once a logo/brand image is available -->
+  <!-- <meta property="og:image" content="https://vicinic.com/assets/img/og-image.webp"> -->
+
+  <!-- Favicons -->
+  <link href="assets/img/favicon.png" rel="icon">
+  <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com" rel="preconnect">
+  <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Raleway:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+
+  <!-- Vendor CSS Files -->
+  <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+  <link href="assets/vendor/aos/aos.css" rel="stylesheet">
+  <link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
+
+  <!-- Main CSS File -->
+  <link href="assets/css/main.css" rel="stylesheet">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Vicinic",
+    "url": "https://vicinic.com/",
+    "description": "Vicinic builds professional websites and WhatsApp systems for small and growing businesses across South Africa — hosted, secured, and supported.",
+    "address": { "@type": "PostalAddress", "addressCountry": "ZA" },
+    "sameAs": ["https://github.com/MrViincciLeRoy"]
+  }
+  </script>
+
+  <!-- =======================================================
+  * Built on the "Orbit" template by BootstrapMade.com
+  * Template URL: https://bootstrapmade.com/orbit-bootstrap-template/
+  * License: https://bootstrapmade.com/license/
+  ======================================================== -->
+</head>
+
+<body class="index-page">
+
+  <header id="header" class="header d-flex align-items-center sticky-top">
+    <div class="container position-relative d-flex align-items-center justify-content-between">
+
+      <a href="#hero" class="logo d-flex align-items-center me-auto me-xl-0">
+        <h1 class="sitename">Vicinic</h1><span>.</span>
+      </a>
+
+      <nav id="navmenu" class="navmenu">
+        <ul>
+          <li><a href="#hero" class="active">Home</a></li>
+          <li><a href="#about">About</a></li>
+          <li><a href="#services">Services</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+          <li><a href="#portfolio">Portfolio</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+        <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
+      </nav>
+
+      <a class="btn-getstarted" href="#contact">Get a Quote</a>
+
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- Hero Section -->
+    <section id="hero" class="hero section">
+
+      <div class="container" data-aos="fade-up" data-aos-delay="100">
+
+        <div class="row align-items-center gy-5">
+
+          <div class="col-lg-6" data-aos="fade-right" data-aos-delay="200">
+            <div class="hero-content">
+              <div class="hero-tag" data-aos="fade-up" data-aos-delay="250">
+                <span class="tag-dot"></span>
+                <span class="tag-text">Websites & WhatsApp Systems</span>
+              </div>
+
+              <h1 class="hero-headline" data-aos="fade-up" data-aos-delay="300">Websites & WhatsApp Systems for Small & Growing Businesses</h1>
+
+              <p class="hero-text" data-aos="fade-up" data-aos-delay="350">A professional website plus a WhatsApp line your customers already trust — built, hosted, and supported by us. No hardware, no in-house developer needed.</p>
+
+              <div class="hero-cta" data-aos="fade-up" data-aos-delay="400">
+                <a href="#pricing" class="cta-button">
+                  <span>See Packages</span>
+                  <i class="bi bi-arrow-right"></i>
+                </a>
+                <a href="#contact" class="cta-link">
+                  <i class="bi bi-chat-dots"></i>
+                  <span>Get a Quote</span>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6" data-aos="fade-left" data-aos-delay="300">
+            <div class="stats-grid">
+              <div class="stat-card stat-card-primary" data-aos="zoom-in" data-aos-delay="350">
+                <div class="stat-icon-wrap">
+                  <i class="bi bi-boxes"></i>
+                </div>
+                <div class="stat-info">
+                  <span class="stat-value">3</span>
+                  <span class="stat-title">Flexible Packages</span>
+                </div>
+              </div>
+
+              <div class="stat-card" data-aos="zoom-in" data-aos-delay="400">
+                <div class="stat-icon-wrap">
+                  <i class="bi bi-shield-check"></i>
+                </div>
+                <div class="stat-info">
+                  <span class="stat-value">SSL</span>
+                  <span class="stat-title">Security Included</span>
+                </div>
+              </div>
+
+              <div class="stat-card" data-aos="zoom-in" data-aos-delay="450">
+                <div class="stat-icon-wrap">
+                  <i class="bi bi-whatsapp"></i>
+                </div>
+                <div class="stat-info">
+                  <span class="stat-value">Optional</span>
+                  <span class="stat-title">WhatsApp Add-on</span>
+                </div>
+              </div>
+
+              <div class="stat-card stat-card-accent" data-aos="zoom-in" data-aos-delay="500">
+                <div class="stat-icon-wrap">
+                  <i class="bi bi-geo-alt"></i>
+                </div>
+                <div class="stat-info">
+                  <span class="stat-value">South Africa</span>
+                  <span class="stat-title">Locally Based</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section><!-- /Hero Section -->
+
+    <!-- About Section -->
+    <section id="about" class="about section">
+
+      <div class="container" data-aos="fade-up" data-aos-delay="100">
+
+        <div class="row gy-5 align-items-center">
+
+          <div class="col-xl-6" data-aos="fade-right" data-aos-delay="200">
+            <div class="about-images-wrapper">
+              <div class="image-main">
+                <img src="assets/img/about/about-5.webp" alt="Working on a client project" class="img-fluid">
+              </div>
+              <div class="image-offset">
+                <img src="assets/img/about/about-square-3.webp" alt="Detail shot" class="img-fluid">
+              </div>
+              <div class="shape-pattern"></div>
+            </div>
+          </div>
+
+          <div class="col-xl-6" data-aos="fade-left" data-aos-delay="300">
+            <div class="about-content">
+              <div class="section-subtitle">Who We Are</div>
+              <h2>Built by a Developer Who Ships</h2>
+              <p class="lead-text">
+                Vicinic is a solo-led digital studio based in South Africa. No layers of account managers,
+                no bloated timelines — just working websites and WhatsApp systems, built and shipped by
+                someone who writes the code.
+              </p>
+              <p class="mb-4 description">
+                Every project starts with the smallest thing that works — a fast, secure, SEO-ready
+                website — then grows with you. Hosting, SSL security, and support are included from day
+                one, and you can upgrade any time without losing your data.
+              </p>
+
+              <div class="features-grid">
+                <div class="feature-card">
+                  <i class="bi bi-check-circle-fill"></i>
+                  <span>Fast Delivery</span>
+                </div>
+                <div class="feature-card">
+                  <i class="bi bi-check-circle-fill"></i>
+                  <span>Hosting Included</span>
+                </div>
+                <div class="feature-card">
+                  <i class="bi bi-check-circle-fill"></i>
+                  <span>No Middlemen</span>
+                </div>
+                <div class="feature-card">
+                  <i class="bi bi-check-circle-fill"></i>
+                  <span>Ongoing Support</span>
+                </div>
+              </div>
+
+              <div class="action-buttons">
+                <a href="#services" class="btn btn-primary-custom">
+                  See What We Build <i class="bi bi-arrow-right"></i>
+                </a>
+                <div class="contact-info">
+                  <div class="icon-box">
+                    <i class="bi bi-envelope-fill"></i>
+                  </div>
+                  <div class="text">
+                    <span>Have a project?</span>
+                    <a href="#contact">Get in touch</a>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section><!-- /About Section -->
+
+    <!-- Services Section -->
+    <section id="services" class="services section">
+
+      <!-- Section Title -->
+      <div class="container section-title" data-aos="fade-up">
+        <h2>Services</h2>
+        <p>Everything your business needs to be found online — hosting and support included on every plan</p>
+      </div><!-- End Section Title -->
+
+      <div class="container" data-aos="fade-up" data-aos-delay="100">
+
+        <div class="row g-4">
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="100">
+            <div class="service-card">
+              <div class="icon-wrapper">
+                <i class="bi bi-window"></i>
+              </div>
+              <h3>Business Websites</h3>
+              <p>A professional home, about, services, and contact site — built, hosted, and secured for you. No developer needed on your side.</p>
+              <a href="#pricing" class="service-link">
+                <span>See Packages</span>
+                <i class="bi bi-arrow-right"></i>
+              </a>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="200">
+            <div class="service-card">
+              <div class="icon-wrapper">
+                <i class="bi bi-whatsapp"></i>
+              </div>
+              <h3>WhatsApp Systems</h3>
+              <p>Optional WhatsApp lines for customer enquiries and broadcasts, with an AI assistant available on higher tiers.</p>
+              <a href="#pricing" class="service-link">
+                <span>See Packages</span>
+                <i class="bi bi-arrow-right"></i>
+              </a>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="300">
+            <div class="service-card featured">
+              <div class="featured-badge">
+                <i class="bi bi-star-fill"></i>
+                <span>Popular</span>
+              </div>
+              <div class="icon-wrapper">
+                <i class="bi bi-calendar-check"></i>
+              </div>
+              <h3>Bookings & Payments</h3>
+              <p>Online bookings, customer databases, and payment collection as your business grows — upgrade any time, no data lost.</p>
+              <a href="#pricing" class="service-link">
+                <span>See Packages</span>
+                <i class="bi bi-arrow-right"></i>
+              </a>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="100">
+            <div class="service-card">
+              <div class="icon-wrapper">
+                <i class="bi bi-shield-check"></i>
+              </div>
+              <h3>Hosting & Security</h3>
+              <p>Hosting, SSL security, and uptime included on every plan — no extra setup or separate bills on your side.</p>
+              <a href="#pricing" class="service-link">
+                <span>See Packages</span>
+                <i class="bi bi-arrow-right"></i>
+              </a>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="200">
+            <div class="service-card">
+              <div class="icon-wrapper">
+                <i class="bi bi-headset"></i>
+              </div>
+              <h3>Ongoing Support</h3>
+              <p>Support is included from day one. No developer or IT staff required on your side, ever.</p>
+              <a href="#pricing" class="service-link">
+                <span>See Packages</span>
+                <i class="bi bi-arrow-right"></i>
+              </a>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="300">
+            <div class="service-card">
+              <div class="icon-wrapper">
+                <i class="bi bi-graph-up-arrow"></i>
+              </div>
+              <h3>SEO & Analytics</h3>
+              <p>Built to be found online, with basic analytics on visitor activity from the Growth Hub tier up.</p>
+              <a href="#pricing" class="service-link">
+                <span>See Packages</span>
+                <i class="bi bi-arrow-right"></i>
+              </a>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section><!-- /Services Section -->
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="pricing section light-background">
+
+      <div class="container section-title" data-aos="fade-up">
+        <h2>Pricing</h2>
+        <p>Three packages, for any type of business. Every plan includes hosting, security, and ongoing support.</p>
+      </div>
+
+      <div class="container" data-aos="fade-up" data-aos-delay="100">
+
+        <div class="row g-4 justify-content-center">
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="100">
+            <div class="pricing-card">
+              <h3>Starter Site</h3>
+              <div class="pricing-price">R99<span>/month</span></div>
+              <ul class="pricing-features">
+                <li><i class="bi bi-check-circle-fill"></i> Professional static website (home, about, services, contact)</li>
+                <li><i class="bi bi-check-circle-fill"></i> 1 admin login to manage content</li>
+                <li><i class="bi bi-check-circle-fill"></i> Contact form — enquiries land in your inbox</li>
+                <li><i class="bi bi-check-circle-fill"></i> Hosting, SSL security & support included</li>
+              </ul>
+              <div class="pricing-setup">Once-off setup fee <strong>R900</strong></div>
+              <a href="#contact" class="btn-pricing">Get a Quote</a>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="200">
+            <div class="pricing-card featured">
+              <div class="featured-badge"><i class="bi bi-star-fill"></i> Best fit for most businesses</div>
+              <h3>Growth Hub</h3>
+              <div class="pricing-price">R349<span>/month</span></div>
+              <ul class="pricing-features">
+                <li><i class="bi bi-check-circle-fill"></i> Everything in Starter Site</li>
+                <li><i class="bi bi-check-circle-fill"></i> Online bookings or enquiry form with customer database</li>
+                <li><i class="bi bi-check-circle-fill"></i> Staff logins with secure Google Sign-In</li>
+                <li><i class="bi bi-check-circle-fill"></i> Basic analytics on visitor activity</li>
+              </ul>
+              <div class="pricing-setup">Once-off setup fee <strong>R2,500</strong></div>
+              <a href="#contact" class="btn-pricing">Get a Quote</a>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="300">
+            <div class="pricing-card">
+              <div class="featured-badge"><i class="bi bi-award"></i> Full package</div>
+              <h3>Business OS</h3>
+              <div class="pricing-price">R699<span>/month</span></div>
+              <ul class="pricing-features">
+                <li><i class="bi bi-check-circle-fill"></i> Everything in Growth Hub</li>
+                <li><i class="bi bi-check-circle-fill"></i> Online payments and order/booking management</li>
+                <li><i class="bi bi-check-circle-fill"></i> Customer profiles and purchase/service history</li>
+              </ul>
+              <div class="pricing-setup">Once-off setup fee <strong>R5,500</strong></div>
+              <a href="#contact" class="btn-pricing">Get a Quote</a>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="row g-4 mt-3">
+          <div class="col-lg-6" data-aos="fade-up" data-aos-delay="100">
+            <h4 class="addon-heading">WhatsApp add-ons</h4>
+            <p class="addon-intro">Not every business runs on WhatsApp — so it's priced separately, added only when you want it.</p>
+            <table class="addon-table">
+              <thead><tr><th>Plan</th><th>Price</th></tr></thead>
+              <tbody>
+                <tr><td>Basic — inquiries + up to 500 broadcasts/month</td><td>R99/mo</td></tr>
+                <tr><td>Standard — up to 1,500 broadcasts/month</td><td>R220/mo</td></tr>
+                <tr><td>Pro — up to 5,000 broadcasts/month + AI assistant</td><td>R720/mo</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="col-lg-6" data-aos="fade-up" data-aos-delay="200">
+            <h4 class="addon-heading">Other add-ons</h4>
+            <p class="addon-intro">Available on any tier, whenever you need them.</p>
+            <table class="addon-table">
+              <thead><tr><th>Add-on</th><th>Price</th></tr></thead>
+              <tbody>
+                <tr><td>Content Manager — we keep your site updated</td><td>R350/mo</td></tr>
+                <tr><td>Data Capturing — load existing records</td><td>R500 once</td></tr>
+                <tr><td>Website Refresh — annual redesign</td><td>R800/yr</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </section><!-- /Pricing Section -->
+
+    <!-- Portfolio Section -->
+    <section id="portfolio" class="portfolio section">
+
+      <div class="container section-title" data-aos="fade-up">
+        <h2>Portfolio</h2>
+        <p>A few of the systems we've designed and shipped</p>
+      </div>
+
+      <div class="container" data-aos="fade-up" data-aos-delay="100">
+
+        <div class="row g-4">
+
+          <div class="col-lg-6 col-md-6" data-aos="fade-up" data-aos-delay="100">
+            <div class="project-card">
+              <div class="image-wrapper">
+                <img src="assets/img/portfolio/portfolio-2.webp" alt="Project preview" class="img-fluid" loading="lazy">
+                <div class="hover-overlay">
+                  <div class="overlay-actions">
+                    <a href="assets/img/portfolio/portfolio-2.webp" class="glightbox action-btn" data-gallery="portfolio">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                  </div>
+                </div>
+                <span class="category-badge">Django</span>
+              </div>
+              <div class="project-info">
+                <h3>LSuite (Ledger Suite)</h3>
+                <p>Django-based financial management system that parses South African bank statements (Capitec, TymeBank) from PDFs and Gmail, auto-categorizes transactions, and syncs with ERPNext.</p>
+                <div class="project-meta">
+                  <div class="tech-tags">
+                    <span>Django</span>
+                    <span>MySQL</span>
+                    <span>ERPNext</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6 col-md-6" data-aos="fade-up" data-aos-delay="200">
+            <div class="project-card featured">
+              <div class="image-wrapper">
+                <img src="assets/img/portfolio/portfolio-4.webp" alt="Project preview" class="img-fluid" loading="lazy">
+                <div class="hover-overlay">
+                  <div class="overlay-actions">
+                    <a href="assets/img/portfolio/portfolio-4.webp" class="glightbox action-btn" data-gallery="portfolio">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                  </div>
+                </div>
+                <span class="category-badge">WhatsApp AI</span>
+              </div>
+              <div class="project-info">
+                <h3>BHKA Bot</h3>
+                <p>WhatsApp AI chatbot for a South African credit rehabilitation company, powered by Groq (Llama 3) and the Meta WhatsApp Cloud API.</p>
+                <div class="project-meta">
+                  <div class="tech-tags">
+                    <span>Python</span>
+                    <span>Groq</span>
+                    <span>WhatsApp Cloud API</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6 col-md-6" data-aos="fade-up" data-aos-delay="300">
+            <div class="project-card">
+              <div class="image-wrapper">
+                <img src="assets/img/portfolio/portfolio-8.webp" alt="Project preview" class="img-fluid" loading="lazy">
+                <div class="hover-overlay">
+                  <div class="overlay-actions">
+                    <a href="assets/img/portfolio/portfolio-8.webp" class="glightbox action-btn" data-gallery="portfolio">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                  </div>
+                </div>
+                <span class="category-badge">AI Assistant</span>
+              </div>
+              <div class="project-info">
+                <h3>Semblance</h3>
+                <p>A Jarvis-inspired personal AI assistant with an animated React interface and a Claude-powered backend.</p>
+                <div class="project-meta">
+                  <div class="tech-tags">
+                    <span>React</span>
+                    <span>Claude API</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6 col-md-6" data-aos="fade-up" data-aos-delay="400">
+            <div class="project-card">
+              <div class="image-wrapper">
+                <img src="assets/img/portfolio/portfolio-1.webp" alt="Project preview" class="img-fluid" loading="lazy">
+                <div class="hover-overlay">
+                  <div class="overlay-actions">
+                    <a href="assets/img/portfolio/portfolio-1.webp" class="glightbox action-btn" data-gallery="portfolio">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                  </div>
+                </div>
+                <span class="category-badge">Data</span>
+              </div>
+              <div class="project-info">
+                <h3>News-Forex Dataset</h3>
+                <p>A US economic calendar dataset (2001–2026) enriched with technical indicators (RSI, MACD, Bollinger Bands) built for automated market analysis.</p>
+                <div class="project-meta">
+                  <div class="tech-tags">
+                    <span>Python</span>
+                    <span>GitHub Actions</span>
+                    <span>yfinance</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section><!-- /Portfolio Section -->
+
+    <!-- Why Us Section -->
+    <section id="why-us" class="why-us section light-background">
+
+      <div class="container section-title" data-aos="fade-up">
+        <h2>Why Us</h2>
+        <p>What makes working with Vicinic different</p>
+      </div>
+
+      <div class="container" data-aos="fade-up" data-aos-delay="100">
+
+        <div class="row g-5">
+          <div class="col-lg-5" data-aos="fade-right" data-aos-delay="200">
+            <div class="sidebar-content">
+              <div class="badge-wrapper">
+                <span class="section-badge"><i class="bi bi-stars"></i> Our Difference</span>
+              </div>
+              <h2>Why Businesses Choose Vicinic</h2>
+              <p class="description">Straightforward pricing, no long contracts, and a direct line to the person actually building your site.</p>
+
+              <div class="stat-cards">
+                <div class="stat-card" data-aos="zoom-in" data-aos-delay="300">
+                  <div class="stat-text">No Lock-in</div>
+                </div>
+                <div class="stat-card" data-aos="zoom-in" data-aos-delay="350">
+                  <div class="stat-text">Hosting Included</div>
+                </div>
+                <div class="stat-card" data-aos="zoom-in" data-aos-delay="400">
+                  <div class="stat-text">You Own Your Data</div>
+                </div>
+              </div>
+
+              <div class="action-buttons">
+                <a href="#contact" class="btn-main">Get Started Today</a>
+                <a href="#portfolio" class="btn-outline">Explore Portfolio</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-7" data-aos="fade-left" data-aos-delay="200">
+            <div class="features-grid">
+              <div class="feature-box highlight" data-aos="fade-up" data-aos-delay="250">
+                <div class="feature-icon">
+                  <i class="bi bi-rocket-takeoff-fill"></i>
+                </div>
+                <div class="feature-content">
+                  <h4>No Developer Needed</h4>
+                  <p>We handle the tech so you don't have to hire, manage, or maintain anyone.</p>
+                  <a href="#contact" class="feature-link">Get in touch <i class="bi bi-chevron-right"></i></a>
+                </div>
+              </div>
+
+              <div class="feature-box" data-aos="fade-up" data-aos-delay="300">
+                <div class="feature-icon">
+                  <i class="bi bi-arrow-repeat"></i>
+                </div>
+                <div class="feature-content">
+                  <h4>Start Small, Grow Later</h4>
+                  <p>Upgrade any time without losing your data or starting over.</p>
+                  <a href="#pricing" class="feature-link">See packages <i class="bi bi-chevron-right"></i></a>
+                </div>
+              </div>
+
+              <div class="feature-box" data-aos="fade-up" data-aos-delay="350">
+                <div class="feature-icon">
+                  <i class="bi bi-shield-check"></i>
+                </div>
+                <div class="feature-content">
+                  <h4>Hosting & Security Included</h4>
+                  <p>SSL, hosting, and support are part of every plan from day one.</p>
+                  <a href="#pricing" class="feature-link">See packages <i class="bi bi-chevron-right"></i></a>
+                </div>
+              </div>
+            </div>
+
+            <div class="process-timeline" data-aos="fade-up" data-aos-delay="400">
+              <h5 class="timeline-title"><i class="bi bi-diagram-3-fill"></i> How It Works</h5>
+              <div class="timeline-steps">
+                <div class="timeline-step">
+                  <div class="step-marker">1</div>
+                  <div class="step-info">
+                    <strong>Chat</strong>
+                    <span>Tell us about your business</span>
+                  </div>
+                </div>
+                <div class="timeline-connector"></div>
+                <div class="timeline-step">
+                  <div class="step-marker">2</div>
+                  <div class="step-info">
+                    <strong>Plan</strong>
+                    <span>We recommend the right package</span>
+                  </div>
+                </div>
+                <div class="timeline-connector"></div>
+                <div class="timeline-step">
+                  <div class="step-marker">3</div>
+                  <div class="step-info">
+                    <strong>Build</strong>
+                    <span>Your site goes live in days</span>
+                  </div>
+                </div>
+                <div class="timeline-connector"></div>
+                <div class="timeline-step">
+                  <div class="step-marker">4</div>
+                  <div class="step-info">
+                    <strong>Support</strong>
+                    <span>Ongoing hosting & help included</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="capabilities-section" data-aos="fade-up" data-aos-delay="450">
+              <h5 class="capabilities-heading">What Sets Us Apart</h5>
+              <div class="capabilities-grid">
+                <div class="capability-card">
+                  <div class="capability-icon">
+                    <i class="bi bi-file-earmark-text"></i>
+                  </div>
+                  <h6>No Long Contracts</h6>
+                  <p>Month-to-month packages — cancel or upgrade any time.</p>
+                </div>
+                <div class="capability-card">
+                  <div class="capability-icon">
+                    <i class="bi bi-lightning-charge"></i>
+                  </div>
+                  <h6>Fast Turnaround</h6>
+                  <p>Most sites go live in days, not months.</p>
+                </div>
+                <div class="capability-card">
+                  <div class="capability-icon">
+                    <i class="bi bi-person-check"></i>
+                  </div>
+                  <h6>Direct Access</h6>
+                  <p>Work directly with the person building your site — no account managers.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </section><!-- /Why Us Section -->
+
+    <!-- Contact Section -->
+    <section id="contact" class="contact section">
+
+      <div class="container section-title" data-aos="fade-up">
+        <h2>Contact</h2>
+        <p>Tell us about your business — we'll recommend the right package</p>
+      </div>
+
+      <div class="container" data-aos="fade-up" data-aos-delay="100">
+
+        <div class="row gy-5 align-items-stretch">
+
+          <div class="col-lg-5" data-aos="fade-right" data-aos-delay="200">
+            <div class="info-panel">
+              <div class="panel-header">
+                <span class="section-badge">
+                  <i class="bi bi-chat-dots-fill"></i>
+                  Get In Touch
+                </span>
+                <h3>Let's Build Something</h3>
+                <p>Send a message and we'll get back to you — usually within a day.</p>
+              </div>
+
+              <div class="contact-methods">
+                <div class="method-item">
+                  <div class="method-icon">
+                    <i class="bi bi-clock-history"></i>
+                  </div>
+                  <div class="method-details">
+                    <span class="method-label">Response Time</span>
+                    <span>Usually within a day</span>
+                  </div>
+                </div>
+
+                <div class="method-item">
+                  <div class="method-icon">
+                    <i class="bi bi-currency-exchange"></i>
+                  </div>
+                  <div class="method-details">
+                    <span class="method-label">Quotes</span>
+                    <span>No-obligation, straightforward pricing</span>
+                  </div>
+                </div>
+
+                <div class="method-item">
+                  <div class="method-icon">
+                    <i class="bi bi-geo-alt-fill"></i>
+                  </div>
+                  <div class="method-details">
+                    <span class="method-label">Based In</span>
+                    <span>South Africa</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-7" data-aos="fade-left" data-aos-delay="300">
+            <div class="form-card">
+              <div class="form-card-header">
+                <div class="header-icon">
+                  <i class="bi bi-send-fill"></i>
+                </div>
+                <div class="header-text">
+                  <h4>Send Us a Message</h4>
+                  <p>Fill out the form and we'll respond as soon as we can.</p>
+                </div>
+              </div>
+
+              <form class="php-email-form">
+                <!-- Replace with your own key from https://web3forms.com -->
+                <input type="hidden" name="access_key" value="YOUR_WEB3FORMS_ACCESS_KEY">
+                <!-- Honeypot field — hidden from real users, catches spam bots -->
+                <input type="checkbox" name="botcheck" class="d-none" style="display:none" tabindex="-1" autocomplete="off">
+
+                <div class="row g-4">
+                  <div class="col-md-6">
+                    <div class="input-group-custom">
+                      <label>Your Name</label>
+                      <div class="input-wrapper">
+                        <i class="bi bi-person"></i>
+                        <input type="text" name="name" placeholder="Your name" required autocomplete="name">
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="input-group-custom">
+                      <label>Email Address</label>
+                      <div class="input-wrapper">
+                        <i class="bi bi-envelope"></i>
+                        <input type="email" name="email" placeholder="you@example.com" required autocomplete="email">
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-12">
+                    <div class="input-group-custom">
+                      <label>Subject</label>
+                      <div class="input-wrapper">
+                        <i class="bi bi-chat-square-text"></i>
+                        <input type="text" name="subject" placeholder="How can we help?" required>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-12">
+                    <div class="input-group-custom">
+                      <label>Your Message</label>
+                      <div class="input-wrapper textarea-wrapper">
+                        <i class="bi bi-pencil-square"></i>
+                        <textarea name="message" rows="5" placeholder="Tell us about your business..." required></textarea>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <div class="loading">Loading</div>
+                  <div class="error-message"></div>
+                  <div class="sent-message">Your message has been sent. Thank you!</div>
+
+                  <button type="submit" class="btn-submit">
+                    <span>Send Message</span>
+                    <i class="bi bi-arrow-right-circle-fill"></i>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section><!-- /Contact Section -->
+
+  </main>
+
+  <footer id="footer" class="footer light-background">
+
+    <div class="container footer-top">
+      <div class="row gy-4">
+        <div class="col-lg-3 col-md-6 footer-info">
+          <a href="#hero" class="logo d-flex align-items-center mb-4">
+            <span class="sitename">Vicinic</span>
+          </a>
+          <p>Websites & WhatsApp systems for small and growing businesses across South Africa — hosted, secured, and supported.</p>
+
+          <div class="social-links d-flex mt-4">
+            <a href="https://github.com/MrViincciLeRoy" aria-label="GitHub" target="_blank" rel="noopener"><i class="bi bi-github"></i></a>
+          </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6 footer-links">
+          <h4>Company</h4>
+          <ul>
+            <li><a href="#about">About</a></li>
+            <li><a href="#services">Services</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+            <li><a href="#portfolio">Portfolio</a></li>
+          </ul>
+        </div>
+
+        <div class="col-lg-3 col-md-6 footer-links">
+          <h4>Get In Touch</h4>
+          <ul>
+            <li><a href="#contact">Contact</a></li>
+            <li><a href="privacy.html">Privacy Policy</a></li>
+            <li><a href="terms.html">Terms of Service</a></li>
+          </ul>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+          <div class="footer-newsletter">
+            <h4>Ready to start?</h4>
+            <p>Tell us about your business and we'll recommend the right package.</p>
+            <a href="#contact" class="btn-pricing">Get a Quote</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container footer-bottom">
+      <div class="row gy-3">
+        <div class="col-md-6 order-2 order-md-1">
+          <div class="copyright">
+            <p>© <span>Copyright</span> <strong class="sitename">Vicinic</strong>. All Rights Reserved.</p>
+          </div>
+          <div class="credits">
+            <!-- All the links in the footer should remain intact. -->
+            <!-- You can delete the links only if you've purchased the pro version. -->
+            <!-- Licensing information: https://bootstrapmade.com/license/ -->
+            <!-- Purchase the pro version with working PHP/AJAX contact form: [buy-url] -->
+            Designed by <a href="https://bootstrapmade.com/">BootstrapMade</a> | <a href="https://bootstrapmade.com/tools/">DevTools</a>
+          </div>
+        </div>
+        <div class="col-md-6 order-1 order-md-2">
+          <div class="legal-links">
+            <a href="terms.html">Terms of Service</a>
+            <a href="privacy.html">Privacy Policy</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </footer>
+
+  <!-- Scroll Top -->
+  <a href="#" id="scroll-top" class="scroll-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
+
+  <!-- Preloader -->
+  <div id="preloader"></div>
+
+  <!-- Vendor JS Files -->
+  <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/vendor/aos/aos.js"></script>
+  <script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
+
+  <!-- Main JS File -->
+  <script src="assets/js/main.js"></script>
+  <script src="assets/js/forms.js"></script>
+
+</body>
+
 </html>

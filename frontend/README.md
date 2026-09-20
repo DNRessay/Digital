@@ -4,22 +4,24 @@ Four separate apps, each its own Cloudflare Pages project pointed at a
 different subdirectory of this same repo (monorepo-style — Cloudflare
 Pages supports this via each project's own "Root directory" setting).
 
-| App          | Purpose                                              | Stack           | Status                    |
-| ------------ | ----------------------------------------------------- | ---------------- | ------------------------- |
-| `site`       | Marketing site (vicinic.com)                          | Vite + React     | Existing, live            |
-| `admin`      | Central dashboard (sites, templates overview)         | Vite + React     | Scaffold — placeholder UI |
-| `portal`     | Template manager (upload zips, list templates)        | Vite + React     | Functional — real API     |
-| `web-portal` | Customer editor (edit your own site's slot text)      | Vite + React     | Scaffold — no API yet     |
+| App          | Purpose                                              | Stack                  | Status                    |
+| ------------ | ----------------------------------------------------- | ---------------------- | ------------------------- |
+| `site`       | Marketing site (vicinic.com)                          | Static HTML/CSS/JS     | Existing, live            |
+| `admin`      | Central dashboard (sites, templates overview)         | Vite + React           | Scaffold — placeholder UI |
+| `portal`     | Template manager (upload zips, list templates)        | Vite + React           | Functional — real API     |
+| `web-portal` | Customer editor (edit your own site's slot text)      | Vite + React           | Scaffold — no API yet     |
+
+`site` has no build step (plain static files); `admin`/`portal`/`web-portal`
+are Vite apps and need a build.
 
 ## Deploying each app to Cloudflare Pages
 
 For each app, create a **separate** Cloudflare Pages project (Workers &
 Pages → Create → Pages → connect this repo), then in that project's
-build settings:
+build settings, with **Root directory (advanced)** set to `frontend/<app>`:
 
-- **Root directory (advanced):** `frontend/<app>` (e.g. `frontend/portal`)
-- **Build command:** `npm run build`
-- **Build output directory:** `dist`
+- **`site`**: Build command *(empty)*, output directory `/`
+- **`admin` / `portal` / `web-portal`**: Build command `npm run build`, output directory `dist`
 
 Do **not** add a `wrangler.toml` to any of these apps — its mere presence
 overrides the dashboard's build command field, which breaks git-integration
@@ -30,7 +32,9 @@ this was hit on the `site` app).
 
 - **portal**: `VITE_API_BASE_URL` — the backend's Lambda Function URL, no
   trailing slash (see `frontend/portal/.env.example`).
-- **site**: `VITE_WEB3FORMS_ACCESS_KEY` (see `frontend/site/README.md`).
+- **site**: no build-time env vars (no build step) — the Web3Forms access
+  key is a hardcoded value directly in `index.html` (see `frontend/site/README.md`
+  — Web3Forms keys are meant to be public/embedded client-side).
 - **admin**, **web-portal**: none yet — they're placeholder UI with no
   backend wiring.
 
