@@ -66,3 +66,23 @@ def provision_missing_slot_values(site):
             for slot in missing_slots
         ]
     )
+
+
+def rename_site_in_slots(site, old_name, new_name):
+    """When a customer renames their Site from the profile form, carry
+    that into whichever slots currently show the old name verbatim — the
+    logo, <title>, a footer credit, wherever _name_overrides_for put it at
+    creation (or wherever it just happens to appear) — without touching
+    anything that no longer says the old name (e.g. because the customer
+    already rewrote it by hand to something else)."""
+    if not old_name or old_name == new_name:
+        return
+    updated = []
+    for sv in site.slot_values.select_related("slot"):
+        current = sv.value or sv.slot.default_text
+        if old_name not in current:
+            continue
+        sv.value = current.replace(old_name, new_name)
+        updated.append(sv)
+    if updated:
+        SiteSlotValue.objects.bulk_update(updated, ["value"])

@@ -1,7 +1,10 @@
 import secrets
 
 from django.conf import settings
+from django.core.validators import RegexValidator
 from django.db import models
+
+HEX_COLOR_VALIDATOR = RegexValidator(r"^#[0-9a-fA-F]{6}$", "Enter a hex color like #2e8b57.")
 
 
 class Template(models.Model):
@@ -14,6 +17,13 @@ class Template(models.Model):
     slug = models.SlugField(unique=True)
     app_label = models.CharField(max_length=60, help_text="The app_name given to Templify during conversion.")
     is_active = models.BooleanField(default=True, help_text="Whether customers can pick this template for new sites.")
+    default_primary_color = models.CharField(
+        max_length=7, blank=True, validators=[HEX_COLOR_VALIDATOR],
+        help_text="This template's own dominant accent color, auto-detected at ingest "
+        "(services.template_ingest._parametrize_theme_color) and rewritten into its CSS as "
+        "var(--vicinic-primary, <this color>) — blank means none was confidently detected, "
+        "so a Site's own primary_color override has nothing to hook into.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -89,8 +99,13 @@ class Site(models.Model):
 
     phone = models.CharField(max_length=30, blank=True)
     whatsapp_number = models.CharField(max_length=30, blank=True, help_text="International format, e.g. 27821234567")
-    email = models.EmailField(blank=True)
+    email = models.EmailField(blank=True, help_text="Also where this site's own contact form (site_contact) sends messages.")
     address = models.CharField(max_length=255, blank=True)
+    primary_color = models.CharField(
+        max_length=7, blank=True, validators=[HEX_COLOR_VALIDATOR],
+        help_text="Hex override (e.g. #2e8b57) for the template's own detected accent color "
+        "(Template.default_primary_color). Blank means use the template's default.",
+    )
 
     PACKAGE_STARTER = "starter"
     PACKAGE_GROWTH = "growth"

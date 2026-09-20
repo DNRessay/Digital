@@ -156,10 +156,52 @@ token row server-side (a real revoke, not just "forget it client-side").
 - `POST /api/customer/sites/<slug>/slots/` — body is a flat JSON
   `{slot_key: value, ...}` map; only keys that are actually one of this
   site's slots are written (a 404 if the slug isn't owned by the caller).
+  **Free-tier sites (`subscription_status != "active"`) can only write
+  slots on the home page** — a key for any other page is silently
+  dropped rather than erroring, since web-portal's editor already only
+  ever offers the home page in that case (see "Click-to-edit preview"
+  below).
+- `PATCH /api/customer/sites/<slug>/` — authenticated. Body: any subset of
+  `{name, tagline, phone, whatsapp_number, email, address, primary_color}`
+  — the `Site`'s own profile fields, as opposed to its page text. `email`
+  is validated as an address if non-blank (it's also where this site's own
+  contact form sends messages — see `builder.views.site_contact`);
+  `primary_color` must be a `#rrggbb` hex code or blank (falls back to the
+  template's own `default_primary_color` — see "Theme color" below).
+  Renaming (`name`) also calls `services.site_provisioning.
+  rename_site_in_slots`, which carries the old name into whichever slots
+  currently say it verbatim (the same substring-preserving swap
+  provisioning does at creation — see "Getting a new customer set up"
+  above), without touching anything a manual edit already changed.
 - `GET /api/customer/packages/` — public: the three packages (id, label,
   monthly, setup) for the "remove branding" picker.
 - `POST /api/customer/sites/<slug>/checkout/` — authenticated. See "PayFast
   subscriptions" above.
+
+## Theme color (`services/template_ingest._parametrize_theme_color`, `Site.primary_color`)
+
+At ingest, after a template's pages/slots/assets are all created, a
+best-effort pass looks at its own (non-vendor — anything named like
+`bootstrap`/`jquery`/`owl`/etc. or ending `.min.css` is skipped, since
+that's a bundled library's own palette, not the template author's) CSS
+for the accent color used most often — a button/link/heading color, not
+gray or white/black — and rewrites every occurrence of it, across *all*
+of the template's CSS files, to `var(--vicinic-primary, <that same
+color>)`. The fallback value keeps every site on that template looking
+pixel-identical by default (the shared CSS file — same S3 object for
+every `Site` on this `Template` — is otherwise untouched, matching "the
+markup/CSS/assets are shared and never touched per-site" above), and the
+detected color itself is stored on `Template.default_primary_color`
+purely for the UI to show as a sensible default color-picker value.
+
+A `Site.primary_color` override (blank means "use the template's
+default") gets turned into a real, per-site color by
+`builder.views._render_site_page` injecting `<style>:root{
+--vicinic-primary:<color>;}</style>` right after `<head>` on every one of
+that `Site`'s rendered pages — since a custom property set anywhere in
+the document cascades to every element referencing it via `var()`, this
+recolors the whole site without ever duplicating or rewriting the shared
+stylesheet itself.
 
 ## Click-to-edit preview (`builder/views._render_site_page`, `?vicinic_edit=1`)
 
@@ -194,6 +236,13 @@ draft back into the freshly-loaded iframe via a matching `postMessage`
 the bridge script listens for, so in-progress edits keep showing even
 though the server hasn't seen them yet. A "Discard changes" action just
 clears the local draft and reloads the iframe to the last-published copy.
+
+**Free-tier sites only get the home page here.** web-portal hides the
+page picker and defaults straight to the home page whenever
+`subscription_status != "active"`, with an upsell note in its place if
+the template actually has more than one page — matching the backend's
+own restriction on `POST .../slots/` above, so there's no path (UI or
+direct API call) to editing another page's text without upgrading.
 
 ## Local development
 
@@ -253,6 +302,16 @@ lose every uploaded template's assets between invocations.
 - **No subscription-cancellation flow** — `Site.payfast_token` is stored
   for exactly this, but there's no endpoint or admin action that uses it
   yet to cancel a customer's recurring billing.
+- **Theme-color detection is a heuristic, not guaranteed correct** — it
+  picks whichever non-gray hex color repeats most across a template's own
+  (non-vendor) CSS, which works well for the common "one accent color used
+  for buttons/links/headings" case but could pick the wrong color for a
+  template with a genuinely multi-color palette, or detect nothing at all
+  (leaving `Template.default_primary_color` blank, so a `Site`'s color
+  picker just has no useful default) if the accent color is only ever used
+  once. Nothing breaks either way — a site's own `primary_color` still
+  works fine, and the template's original CSS is the fallback either way
+  — but it's worth a spot-check on a newly uploaded template.
 - **Header/nav/footer text is duplicated per page, not truly shared**, for
   templates (like the bundled Axis example) where Templify couldn't hoist
   the header into `base.html` because it differs slightly per page (e.g.

@@ -13,6 +13,7 @@ explicit Authorization header a cross-site page can't read or set.
 """
 import functools
 import json
+import re
 import uuid
 from urllib.parse import urlparse
 
@@ -31,7 +32,9 @@ from django.views.decorators.http import require_http_methods
 
 from .models import CustomerAuthToken, Site, SiteSlotValue, Template
 from .services.payfast import PACKAGES, PayFastError, build_checkout_payload
-from .services.site_provisioning import provision_missing_slot_values
+from .services.site_provisioning import provision_missing_slot_values, rename_site_in_slots
+
+HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 def _origin_allowed(url):
@@ -88,6 +91,13 @@ def _serialize_site(site):
         "package": site.package,
         "subscription_status": site.subscription_status,
         "is_branded": site.is_branded,
+        "tagline": site.tagline,
+        "phone": site.phone,
+        "whatsapp_number": site.whatsapp_number,
+        "email": site.email,
+        "address": site.address,
+        "primary_color": site.primary_color,
+        "default_primary_color": site.template.default_primary_color,
     }
 
 
@@ -248,6 +258,64 @@ def api_customer_sites(request):
     return JsonResponse({"site": _serialize_site(site)}, status=201)
 
 
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["PATCH"])
+def api_customer_site_update(request, site_slug):
+    """Updates the Site's own profile fields — its display name, contact
+    info, and theme color override — as opposed to its page text, which
+    goes through api_customer_site_slots instead."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+
+    body = _json_body(request)
+    fields = {}
+    old_name = site.name
+
+    if "name" in body:
+        name = str(body["name"]).strip()
+        if not name:
+            return JsonResponse({"error": "Site name can't be empty."}, status=400)
+        fields["name"] = name[:120]
+
+    if "tagline" in body:
+        fields["tagline"] = str(body["tagline"]).strip()[:200]
+    if "phone" in body:
+        fields["phone"] = str(body["phone"]).strip()[:30]
+    if "whatsapp_number" in body:
+        fields["whatsapp_number"] = str(body["whatsapp_number"]).strip()[:30]
+    if "address" in body:
+        fields["address"] = str(body["address"]).strip()[:255]
+
+    if "email" in body:
+        email = str(body["email"]).strip()
+        if email:
+            try:
+                validate_email(email)
+            except ValidationError:
+                return JsonResponse({"error": "That doesn't look like a valid contact email."}, status=400)
+        fields["email"] = email
+
+    if "primary_color" in body:
+        color = str(body["primary_color"]).strip()
+        if color and not HEX_COLOR_RE.match(color):
+            return JsonResponse({"error": "Theme color must be a hex code like #2e8b57."}, status=400)
+        fields["primary_color"] = color
+
+    if not fields:
+        return JsonResponse({"site": _serialize_site(site)})
+
+    for key, value in fields.items():
+        setattr(site, key, value)
+    site.save(update_fields=list(fields.keys()))
+
+    if "name" in fields:
+        rename_site_in_slots(site, old_name, fields["name"])
+
+    return JsonResponse({"site": _serialize_site(site)})
+
+
 @require_http_methods(["GET"])
 def api_customer_packages(request):
     """Public — the same three packages advertised on the marketing site's
@@ -314,7 +382,14 @@ def api_customer_site_slots(request, site_slug):
     if not isinstance(values, dict):
         return JsonResponse({"error": "Expected a JSON object of {slot_key: value}."}, status=400)
 
-    slot_values = SiteSlotValue.objects.filter(site=site, slot__key__in=values.keys()).select_related("slot")
+    slot_values = SiteSlotValue.objects.filter(site=site, slot__key__in=values.keys()).select_related(
+        "slot", "slot__page"
+    )
+    if site.subscription_status != Site.SUBSCRIPTION_ACTIVE:
+        # Free-tier sites can only edit their home page — anything for a
+        # slot on another page is silently dropped rather than erroring,
+        # since the UI already only ever offers the home page in this case.
+        slot_values = [sv for sv in slot_values if sv.slot.page is None or sv.slot.page.slug == ""]
     updated = []
     for sv in slot_values:
         sv.value = str(values[sv.slot.key]).strip()

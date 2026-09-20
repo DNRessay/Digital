@@ -13,6 +13,7 @@ import io
 import posixpath
 import re
 import zipfile
+from collections import Counter
 
 from django.core.files.base import ContentFile
 from django.db import transaction
@@ -21,6 +22,17 @@ from ..models import Template, TemplateAsset, TemplatePage, TemplateSlot
 from .slot_extractor import extract_slots
 
 CSS_URL_RE = re.compile(r"url\(\s*['\"]?([^'\")\s]+)['\"]?\s*\)")
+HEX_COLOR_RE = re.compile(r"#(?:[0-9a-fA-F]{3}){1,2}\b")
+
+# Filenames that are almost certainly a bundled library, not the template's
+# own design — a color-detection pass run across these too would likely
+# find Bootstrap's or a carousel plugin's own palette instead of the
+# template author's actual brand color.
+VENDOR_CSS_HINTS = (
+    "bootstrap", "jquery", "owl", "slick", "animate", "aos.", "fontawesome", "font-awesome",
+    "swiper", "magnific", "lightbox", "normalize", "reset", "fancybox", "slicknav",
+    "nice-select", "flaticon", "themify",
+)
 
 PAGE_ROUTE_RE = re.compile(
     r'path\(\s*"([^"]*)"\s*,\s*TemplateView\.as_view\(\s*template_name\s*=\s*"[^"/]+/([^"]+)\.html"\s*\)\s*,'
@@ -38,6 +50,77 @@ CONTENT_MARKER = "<!--VICINIC_CONTENT_BLOCK-->"
 
 class IngestError(Exception):
     pass
+
+
+def _expand_hex(literal):
+    digits = literal.lstrip("#")
+    if len(digits) == 3:
+        digits = "".join(c * 2 for c in digits)
+    return digits.lower()
+
+
+def _is_grayscale(hex6):
+    r, g, b = int(hex6[0:2], 16), int(hex6[2:4], 16), int(hex6[4:6], 16)
+    return max(r, g, b) - min(r, g, b) < 20
+
+
+def _is_vendor_css(rel_path):
+    lower = rel_path.lower()
+    return lower.endswith(".min.css") or any(hint in lower for hint in VENDOR_CSS_HINTS)
+
+
+def _parametrize_theme_color(template):
+    """Best-effort: find the template's own dominant accent color — a
+    button/link/heading color repeated across its (non-vendor) CSS — and
+    rewrite every occurrence of it to `var(--vicinic-primary, <that same
+    color>)`. The fallback keeps every site on this template looking
+    pixel-identical by default; a Site can then override just that one
+    custom property (see builder.views._render_site_page) to recolor its
+    own copy without ever touching or duplicating this shared stylesheet.
+    """
+    css_assets = list(template.assets.filter(original_path__iendswith=".css"))
+    if not css_assets:
+        return
+
+    contents = {}
+    for asset in css_assets:
+        with asset.file.open("rb") as f:
+            contents[asset.id] = f.read().decode("utf-8", errors="ignore")
+
+    theme_ids = {a.id for a in css_assets if not _is_vendor_css(a.original_path)}
+    pool_ids = theme_ids or {a.id for a in css_assets}
+
+    counts = Counter()
+    for asset in css_assets:
+        if asset.id not in pool_ids:
+            continue
+        for literal in HEX_COLOR_RE.findall(contents[asset.id]):
+            hex6 = _expand_hex(literal)
+            if not _is_grayscale(hex6):
+                counts[hex6] += 1
+
+    if not counts:
+        return
+    dominant = counts.most_common(1)[0][0]
+
+    def _sub(m):
+        literal = m.group(0)
+        return f"var(--vicinic-primary, {literal})" if _expand_hex(literal) == dominant else literal
+
+    for asset in css_assets:
+        rewritten = HEX_COLOR_RE.sub(_sub, contents[asset.id])
+        if rewritten != contents[asset.id]:
+            # Write through the storage backend directly, at the exact
+            # existing name — asset.file.save() would re-apply the
+            # FileField's upload_to prefix on top of the already-prefixed
+            # name stored in asset.file.name, corrupting the path.
+            name = asset.file.name
+            storage = asset.file.storage
+            storage.delete(name)
+            storage.save(name, ContentFile(rewritten.encode("utf-8")))
+
+    template.default_primary_color = f"#{dominant}"
+    template.save(update_fields=["default_primary_color"])
 
 
 def ingest_converted_zip(zip_bytes, app_name, template_name, template_slug):
@@ -168,6 +251,7 @@ def ingest_converted_zip(zip_bytes, app_name, template_name, template_slug):
             order += 1
             _create_slots(template, page, content_slots)
 
+    _parametrize_theme_color(template)
     return template
 
 

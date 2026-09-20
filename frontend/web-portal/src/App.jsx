@@ -15,6 +15,7 @@ import {
   register,
   saveSiteSlots,
   storeDraft,
+  updateSite,
   whoami,
 } from './api.js'
 
@@ -265,26 +266,109 @@ function UpgradeCard({ site }) {
   )
 }
 
-function OverviewTab({ site, checkoutNotice }) {
+function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
+  const [form, setForm] = useState(() => ({
+    name: site.name,
+    primary_color: site.primary_color || site.default_primary_color || '#2e8b57',
+    email: site.email,
+    phone: site.phone,
+    whatsapp_number: site.whatsapp_number,
+    address: site.address,
+  }))
+  const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
+  const [saveError, setSaveError] = useState(null)
+
+  useEffect(() => {
+    setForm({
+      name: site.name,
+      primary_color: site.primary_color || site.default_primary_color || '#2e8b57',
+      email: site.email,
+      phone: site.phone,
+      whatsapp_number: site.whatsapp_number,
+      address: site.address,
+    })
+    setSaveState('idle')
+  }, [site.slug])
+
+  function setField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }))
+    setSaveState('idle')
+  }
+
+  async function handleSave(e) {
+    e.preventDefault()
+    setSaveState('saving')
+    setSaveError(null)
+    try {
+      const data = await updateSite(site.slug, form)
+      onSiteUpdated(data.site)
+      setSaveState('saved')
+    } catch (err) {
+      setSaveError(err.message)
+      setSaveState('error')
+    }
+  }
+
   return (
-    <div className="card">
-      <h2>{site.name}</h2>
+    <>
       {checkoutNotice === 'success' && (
-        <div className="notice">
+        <div className="card notice">
           Payment received — activating your site's plan. This can take a minute; refresh if it doesn't update.
         </div>
       )}
-      {checkoutNotice === 'cancelled' && (
-        <div className="notice">Checkout cancelled — your site is still on the free plan.</div>
-      )}
-      <p>
-        Status: <strong>{site.subscription_status === 'active' ? 'Paid plan' : 'Free plan'}</strong>
-        {site.subscription_status === 'pending' && ' (payment pending)'}
-      </p>
-      <p>
-        Live at <a href={`${API_BASE}/${site.slug}/`} target="_blank" rel="noreferrer">{`${API_BASE}/${site.slug}/`}</a>
-      </p>
-    </div>
+      {checkoutNotice === 'cancelled' && <div className="card notice">Checkout cancelled — your site is still on the free plan.</div>}
+
+      <div className="card">
+        <h2>{site.name}</h2>
+        <p>
+          Status: <strong>{site.subscription_status === 'active' ? 'Paid plan' : 'Free plan'}</strong>
+          {site.subscription_status === 'pending' && ' (payment pending)'}
+        </p>
+        <p>
+          Live at <a href={`${API_BASE}/${site.slug}/`} target="_blank" rel="noreferrer">{`${API_BASE}/${site.slug}/`}</a>
+        </p>
+      </div>
+
+      <form className="card" onSubmit={handleSave}>
+        <h2>Site details</h2>
+        {saveError && <div className="error">{saveError}</div>}
+
+        <label htmlFor="site-profile-name">Site name</label>
+        <input id="site-profile-name" type="text" value={form.name} onChange={(e) => setField('name', e.target.value)} required />
+
+        <label htmlFor="site-profile-color">Theme color</label>
+        <input
+          id="site-profile-color"
+          type="color"
+          value={form.primary_color}
+          onChange={(e) => setField('primary_color', e.target.value)}
+        />
+
+        <label htmlFor="site-profile-email">Contact email</label>
+        <input id="site-profile-email" type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} />
+
+        <label htmlFor="site-profile-phone">Phone</label>
+        <input id="site-profile-phone" type="text" value={form.phone} onChange={(e) => setField('phone', e.target.value)} />
+
+        <label htmlFor="site-profile-whatsapp">WhatsApp number</label>
+        <input
+          id="site-profile-whatsapp"
+          type="text"
+          value={form.whatsapp_number}
+          onChange={(e) => setField('whatsapp_number', e.target.value)}
+        />
+
+        <label htmlFor="site-profile-address">Address</label>
+        <input id="site-profile-address" type="text" value={form.address} onChange={(e) => setField('address', e.target.value)} />
+
+        <div className="save-bar">
+          <button type="submit" disabled={saveState === 'saving'}>
+            {saveState === 'saving' ? 'Saving…' : 'Save details'}
+          </button>
+          {saveState === 'saved' && <span className="save-status">Saved</span>}
+        </div>
+      </form>
+    </>
   )
 }
 
@@ -405,11 +489,18 @@ function VisualEditor({ site }) {
     getSiteSlots(site.slug)
       .then((data) => {
         setGroups(data.groups)
-        const firstPage = data.groups.find((g) => g.page !== null)
-        setActivePage(firstPage ? firstPage.page : '')
+        if (site.subscription_status !== 'active') {
+          // Free-tier sites can only edit their home page — the backend
+          // already silently drops an edit to any other page's slots, so
+          // there's no point ever pointing the preview at one.
+          setActivePage('')
+        } else {
+          const firstPage = data.groups.find((g) => g.page !== null)
+          setActivePage(firstPage ? firstPage.page : '')
+        }
       })
       .catch((err) => setLoadError(err.message))
-  }, [site.slug])
+  }, [site.slug, site.subscription_status])
 
   useEffect(() => {
     function handleMessage(e) {
@@ -467,6 +558,7 @@ function VisualEditor({ site }) {
   if (!groups || activePage === null) return null
 
   const pages = groups.filter((g) => g.page !== null)
+  const isFreeTier = site.subscription_status !== 'active'
   const isDirty = Object.keys(drafts).length > 0
   const previewUrl = `${API_BASE}/${site.slug}/${activePage ? `${activePage}/` : ''}?vicinic_edit=1`
   const fallbackSlots = groups
@@ -475,7 +567,7 @@ function VisualEditor({ site }) {
 
   return (
     <>
-      {pages.length > 1 && (
+      {!isFreeTier && pages.length > 1 && (
         <div className="card site-picker">
           <label htmlFor="preview-page">Page</label>
           <select id="preview-page" value={activePage} onChange={(e) => setActivePage(e.target.value)}>
@@ -483,6 +575,11 @@ function VisualEditor({ site }) {
               <option key={g.page} value={g.page}>{g.label}</option>
             ))}
           </select>
+        </div>
+      )}
+      {isFreeTier && pages.length > 1 && (
+        <div className="card notice">
+          Free sites can only edit the homepage — upgrade on the Pricing tab to edit every page.
         </div>
       )}
 
@@ -610,7 +707,11 @@ export default function App() {
         <>
           {sites.length > 1 && <SitePicker sites={sites} selected={selectedSlug} onSelect={setSelectedSlug} />}
           {selectedSite && activeTab === 'overview' && (
-            <OverviewTab site={selectedSite} checkoutNotice={checkoutNotice} />
+            <OverviewTab
+              site={selectedSite}
+              checkoutNotice={checkoutNotice}
+              onSiteUpdated={(updated) => setSites((prev) => prev.map((s) => (s.slug === updated.slug ? updated : s)))}
+            />
           )}
           {selectedSite && activeTab === 'edit' && <VisualEditor site={selectedSite} />}
           {selectedSite && activeTab === 'pricing' && <UpgradeCard site={selectedSite} />}

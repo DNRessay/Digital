@@ -21,6 +21,11 @@ urlpatterns = [
     path("api/customer/packages/", customer_api.api_customer_packages, name="api-customer-packages"),
     path("api/customer/sites/", customer_api.api_customer_sites, name="api-customer-sites"),
     path(
+        "api/customer/sites/<slug:site_slug>/",
+        customer_api.api_customer_site_update,
+        name="api-customer-site-update",
+    ),
+    path(
         "api/customer/sites/<slug:site_slug>/slots/",
         customer_api.api_customer_site_slots,
         name="api-customer-site-slots",

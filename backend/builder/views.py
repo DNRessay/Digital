@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.mail import BadHeaderError, send_mail
@@ -183,10 +185,29 @@ def _resolve_slots(site, page, edit_mode=False):
     return context
 
 
+HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _inject_head_style(html, css_text):
+    style = f"<style>{css_text}</style>"
+    lower = html.lower()
+    idx = lower.find("<head>")
+    if idx != -1:
+        insert_at = idx + len("<head>")
+        return html[:insert_at] + style + html[insert_at:]
+    idx = lower.find("<html")
+    end = html.find(">", idx) if idx != -1 else -1
+    if end != -1:
+        return html[: end + 1] + style + html[end + 1 :]
+    return style + html
+
+
 def _render_site_page(site, page, edit_mode=False):
     context = _resolve_slots(site, page, edit_mode=edit_mode)
     template = django_engine.from_string(page.document)
     html = template.render(context)
+    if site.primary_color and HEX_COLOR_RE.match(site.primary_color):
+        html = _inject_head_style(html, f":root{{--vicinic-primary:{site.primary_color};}}")
     if edit_mode:
         html = _inject_editor_bridge(html)
     elif site.is_branded:
