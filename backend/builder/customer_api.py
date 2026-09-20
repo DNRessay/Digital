@@ -21,6 +21,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.urls import reverse
@@ -75,7 +76,7 @@ def _full_name(user):
 
 
 def _serialize_user(user):
-    return {"username": user.username, "name": _full_name(user)}
+    return {"username": user.username, "name": _full_name(user), "email": user.email}
 
 
 def _serialize_site(site):
@@ -175,10 +176,16 @@ def api_customer_register(request):
     body = _json_body(request)
     name = str(body.get("name", "")).strip()
     username = str(body.get("username", "")).strip()
+    email = str(body.get("email", "")).strip()
     password = str(body.get("password", ""))
 
-    if not name or not username or not password:
-        return JsonResponse({"error": "Name, username and password are all required."}, status=400)
+    if not name or not username or not email or not password:
+        return JsonResponse({"error": "Name, username, email and password are all required."}, status=400)
+
+    try:
+        validate_email(email)
+    except ValidationError:
+        return JsonResponse({"error": "That doesn't look like a valid email address."}, status=400)
 
     try:
         validate_password(password)
@@ -187,12 +194,15 @@ def api_customer_register(request):
 
     if User.objects.filter(username=username).exists():
         return JsonResponse({"error": "That username is already taken."}, status=409)
+    if User.objects.filter(email__iexact=email).exists():
+        return JsonResponse({"error": "An account with that email already exists."}, status=409)
 
     first_name, _, last_name = name.partition(" ")
 
     try:
         user = User.objects.create_user(
-            username=username, password=password, first_name=first_name[:150], last_name=last_name[:150],
+            username=username, password=password, email=email,
+            first_name=first_name[:150], last_name=last_name[:150],
         )
     except IntegrityError:
         return JsonResponse({"error": "That username was just taken — try again."}, status=409)

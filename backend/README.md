@@ -122,11 +122,13 @@ token row server-side (a real revoke, not just "forget it client-side").
 - `POST /api/customer/login/`, `POST /api/customer/logout/`
 - `GET /api/customer/templates/` — public, no auth required: the `is_active`
   `Template`s, for the "create your site" form's picker.
-- `POST /api/customer/register/` — public. Body: `{name, username,
-  password}`. Validates the password against Django's own
-  `AUTH_PASSWORD_VALIDATORS` (409 if the username is already taken), splits
-  `name` into `User.first_name`/`last_name`, creates just the `User` (no
-  `Site` yet) and its token.
+- `POST /api/customer/register/` — public. Body: `{name, username, email,
+  password}`. Validates the email format and the password against Django's
+  own `AUTH_PASSWORD_VALIDATORS` (409 if the username or email is already
+  taken — email is kept unique even though stock `User` doesn't enforce
+  that, since a future "confirm your email" / 2FA flow needs it to be),
+  splits `name` into `User.first_name`/`last_name`, creates just the `User`
+  (no `Site` yet) and its token.
 - `GET /api/customer/sites/` — the Sites owned by the current user.
 - `POST /api/customer/sites/` — authenticated. Body: `{site_name,
   template_slug}`. Slugifies `site_name` for the `Site`'s slug (409 if it's
@@ -189,6 +191,9 @@ lose every uploaded template's assets between invocations.
 
 ### Known gaps (v1)
 
+- **Email is collected but not verified, and there's no 2FA** — `User.email`
+  is captured and kept unique at registration for exactly this reason, but
+  nothing sends a confirmation link or enforces a second factor yet.
 - **The PayFast integration hasn't been exercised against a real sandbox
   transaction yet** — the signing/verification logic and the ITN webhook's
   business logic are unit-tested (mocking the actual network call to

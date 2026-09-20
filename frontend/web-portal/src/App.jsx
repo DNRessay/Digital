@@ -56,6 +56,7 @@ function Login({ onLoggedIn, onSwitchToRegister }) {
 function Register({ onRegistered, onSwitchToLogin }) {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -65,7 +66,7 @@ function Register({ onRegistered, onSwitchToLogin }) {
     setBusy(true)
     setError(null)
     try {
-      await register(name, username, password)
+      await register(name, username, email, password)
       onRegistered()
     } catch (err) {
       setError(err.message)
@@ -84,6 +85,8 @@ function Register({ onRegistered, onSwitchToLogin }) {
         <input id="register-name" type="text" value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" />
         <label htmlFor="register-username">Username</label>
         <input id="register-username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} required autoComplete="username" />
+        <label htmlFor="register-email">Email</label>
+        <input id="register-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
         <label htmlFor="register-password">Password</label>
         <input id="register-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password" />
         <button type="submit" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</button>
