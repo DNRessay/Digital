@@ -69,3 +69,32 @@ export function getSiteSlots(siteSlug) {
 export function saveSiteSlots(siteSlug, values) {
   return apiFetch(`/api/customer/sites/${siteSlug}/slots/`, { method: 'POST', body: values })
 }
+
+export function listPackages() {
+  return apiFetch('/api/customer/packages/')
+}
+
+export function checkout(siteSlug, packageId, returnUrl, cancelUrl) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/checkout/`, {
+    method: 'POST',
+    body: { package: packageId, return_url: returnUrl, cancel_url: cancelUrl },
+  })
+}
+
+// PayFast needs a real browser form POST (not fetch) to its hosted
+// checkout page — build one on the fly, in the exact field order the
+// backend signed, and submit it.
+export function redirectToPayFast(processUrl, fields) {
+  const form = document.createElement('form')
+  form.method = 'POST'
+  form.action = processUrl
+  for (const { name, value } of fields) {
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = name
+    input.value = value
+    form.appendChild(input)
+  }
+  document.body.appendChild(form)
+  form.submit()
+}

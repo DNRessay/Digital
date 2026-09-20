@@ -9,19 +9,34 @@ rejects non-staff users outright.
 """
 import functools
 import json
+import uuid
+from urllib.parse import urlparse
 
+from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse
+from django.urls import reverse
 from django.utils.text import slugify
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from .models import Site, SiteSlotValue, Template
+from .services.payfast import PACKAGES, PayFastError, build_checkout_payload
 from .services.site_provisioning import provision_missing_slot_values
+
+
+def _origin_allowed(url):
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    if not parsed.scheme or not parsed.netloc:
+        return False
+    return f"{parsed.scheme}://{parsed.netloc}" in settings.FRONTEND_ORIGINS
 
 
 def _json_body(request):
@@ -47,6 +62,9 @@ def _serialize_site(site):
         "name": site.name,
         "template": site.template.name,
         "is_published": site.is_published,
+        "package": site.package,
+        "subscription_status": site.subscription_status,
+        "is_branded": site.is_branded,
     }
 
 
@@ -182,12 +200,64 @@ def api_customer_sites(request):
 
     try:
         with transaction.atomic():
-            site = Site.objects.create(name=site_name, slug=site_slug, template=template, owner=request.user)
+            site = Site.objects.create(
+                name=site_name, slug=site_slug, template=template, owner=request.user, is_published=True,
+            )
             provision_missing_slot_values(site)
     except IntegrityError:
         return JsonResponse({"error": "That site name was just taken — try again."}, status=409)
 
     return JsonResponse({"site": _serialize_site(site)}, status=201)
+
+
+@require_http_methods(["GET"])
+def api_customer_packages(request):
+    """Public — the same three packages advertised on the marketing site's
+    Pricing section, used by the "remove branding" upgrade prompt."""
+    return JsonResponse(
+        {
+            "packages": [
+                {"id": pid, "label": p["label"], "monthly": str(p["monthly"]), "setup": str(p["setup"])}
+                for pid, p in PACKAGES.items()
+            ]
+        }
+    )
+
+
+@customer_login_required
+@require_http_methods(["POST"])
+def api_customer_checkout(request, site_slug):
+    """Starts a PayFast recurring-billing checkout for one of the packages.
+    Returns the PayFast URL + form fields for the frontend to auto-submit
+    as a POST — actual activation happens later, via the ITN webhook
+    (payfast_views.payfast_notify), never from this response alone."""
+    site = _get_owned_site_or_none(request.user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+
+    body = _json_body(request)
+    package_id = str(body.get("package", "")).strip()
+    return_url = str(body.get("return_url", "")).strip()
+    cancel_url = str(body.get("cancel_url", "")).strip()
+
+    if package_id not in PACKAGES:
+        return JsonResponse({"error": "Unknown package."}, status=400)
+    if not _origin_allowed(return_url) or not _origin_allowed(cancel_url):
+        return JsonResponse({"error": "return_url/cancel_url must be one of this site's known frontend origins."}, status=400)
+
+    notify_url = request.build_absolute_uri(reverse("payfast-notify"))
+    m_payment_id = f"{site.slug}-{uuid.uuid4().hex[:12]}"
+
+    try:
+        process_url, fields = build_checkout_payload(site, package_id, m_payment_id, return_url, cancel_url, notify_url)
+    except PayFastError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
+    site.subscription_status = Site.SUBSCRIPTION_PENDING
+    site.package = package_id
+    site.save(update_fields=["subscription_status", "package"])
+
+    return JsonResponse({"process_url": process_url, "fields": [{"name": k, "value": v} for k, v in fields]})
 
 
 @customer_login_required

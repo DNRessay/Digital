@@ -3,7 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from builder import api_views, customer_api
+from builder import api_views, customer_api, payfast_views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -18,12 +18,20 @@ urlpatterns = [
     path("api/customer/logout/", customer_api.api_customer_logout, name="api-customer-logout"),
     path("api/customer/register/", customer_api.api_customer_register, name="api-customer-register"),
     path("api/customer/templates/", customer_api.api_customer_templates, name="api-customer-templates"),
+    path("api/customer/packages/", customer_api.api_customer_packages, name="api-customer-packages"),
     path("api/customer/sites/", customer_api.api_customer_sites, name="api-customer-sites"),
     path(
         "api/customer/sites/<slug:site_slug>/slots/",
         customer_api.api_customer_site_slots,
         name="api-customer-site-slots",
     ),
+    path(
+        "api/customer/sites/<slug:site_slug>/checkout/",
+        customer_api.api_customer_checkout,
+        name="api-customer-checkout",
+    ),
+    # PayFast's own server-to-server webhook — see builder/payfast_views.py.
+    path("api/payfast/notify/", payfast_views.payfast_notify, name="payfast-notify"),
     path("", include("builder.urls")),
 ]
 

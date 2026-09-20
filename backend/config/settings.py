@@ -135,4 +135,15 @@ TEMPLIFY_FUNCTION_URL = os.environ.get(
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "")
 CONTACT_RECIPIENT_EMAIL = os.environ.get("CONTACT_RECIPIENT_EMAIL", "")
 
+# PayFast (builder/services/payfast.py) — removes a Site's "Powered by
+# Vicinic" credit once a package subscription is active. Defaults are
+# PayFast's own published sandbox test-merchant credentials (safe, public,
+# meant for exactly this) so this works out of the box in dev; production
+# must override all three with a real merchant account and set
+# PAYFAST_SANDBOX=false.
+PAYFAST_MERCHANT_ID = os.environ.get("PAYFAST_MERCHANT_ID", "10000100")
+PAYFAST_MERCHANT_KEY = os.environ.get("PAYFAST_MERCHANT_KEY", "46f0cd694581a")
+PAYFAST_PASSPHRASE = os.environ.get("PAYFAST_PASSPHRASE", "")
+PAYFAST_SANDBOX = os.environ.get("PAYFAST_SANDBOX", "true").lower() == "true"
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

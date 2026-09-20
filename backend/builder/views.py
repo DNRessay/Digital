@@ -17,6 +17,25 @@ from .services.templify_client import TemplifyError, convert_template_zip
 
 django_engine = engines["django"]
 
+# Free-tier credit shown on a Site's rendered pages — appended right before
+# </body> rather than relying on any of the template's own markup/classes,
+# since a Template's document structure is arbitrary customer-uploaded HTML.
+BRANDING_BADGE_HTML = (
+    '<a href="https://vicinic.com" target="_blank" rel="noopener" '
+    'style="position:fixed;bottom:12px;right:12px;z-index:2147483647;'
+    "background:#111;color:#d4af37;font:600 12px/1 system-ui,-apple-system,sans-serif;"
+    "padding:8px 12px;border-radius:6px;text-decoration:none;"
+    'box-shadow:0 2px 8px rgba(0,0,0,.3);">Powered by Vicinic</a>'
+)
+
+
+def _inject_branding_badge(html):
+    lower = html.lower()
+    idx = lower.rfind("</body>")
+    if idx == -1:
+        return html + BRANDING_BADGE_HTML
+    return html[:idx] + BRANDING_BADGE_HTML + html[idx:]
+
 
 def _resolve_slots(site, page):
     global_slots = list(site.template.slots.filter(page__isnull=True))
@@ -36,7 +55,10 @@ def _resolve_slots(site, page):
 def _render_site_page(site, page):
     context = _resolve_slots(site, page)
     template = django_engine.from_string(page.document)
-    return HttpResponse(template.render(context))
+    html = template.render(context)
+    if site.is_branded:
+        html = _inject_branding_badge(html)
+    return HttpResponse(html)
 
 
 def site_home(request, slug):

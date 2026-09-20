@@ -1,5 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createSite, getSiteSlots, listPublicTemplates, listSites, login, logout, register, saveSiteSlots, whoami } from './api.js'
+import {
+  checkout,
+  createSite,
+  getSiteSlots,
+  listPackages,
+  listPublicTemplates,
+  listSites,
+  login,
+  logout,
+  redirectToPayFast,
+  register,
+  saveSiteSlots,
+  whoami,
+} from './api.js'
 
 function Login({ onLoggedIn, onSwitchToRegister }) {
   const [username, setUsername] = useState('')
@@ -158,6 +171,75 @@ function SitePicker({ sites, selected, onSelect }) {
   )
 }
 
+function UpgradeCard({ site }) {
+  const [packages, setPackages] = useState(null)
+  const [packagesError, setPackagesError] = useState(null)
+  const [packageId, setPackageId] = useState('')
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    listPackages()
+      .then((data) => {
+        setPackages(data.packages)
+        if (data.packages.length > 0) setPackageId(data.packages[0].id)
+      })
+      .catch((err) => setPackagesError(err.message))
+  }, [])
+
+  async function handleSubscribe(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      const base = `${window.location.origin}${window.location.pathname}`
+      const data = await checkout(site.slug, packageId, `${base}?checkout=success`, `${base}?checkout=cancelled`)
+      redirectToPayFast(data.process_url, data.fields)
+      // Browser is navigating away to PayFast now — nothing else to do.
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+    }
+  }
+
+  if (site.subscription_status === 'active') {
+    const activePackage = packages?.find((p) => p.id === site.package)
+    return (
+      <div className="card upgrade-card">
+        <h2>Plan</h2>
+        <p>
+          You're on the <strong>{activePackage ? activePackage.label : site.package}</strong> plan — no
+          "Powered by Vicinic" credit is shown on your site.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <form className="card upgrade-card" onSubmit={handleSubscribe}>
+      <h2>Remove the "Powered by Vicinic" credit</h2>
+      <p>Your site currently shows a small credit linking back to us. Subscribing to a package removes it.</p>
+      {site.subscription_status === 'pending' && (
+        <div className="notice">Payment pending — this can take a minute to confirm after you pay.</div>
+      )}
+      {error && <div className="error">{error}</div>}
+      {packagesError && <div className="error">Could not load packages: {packagesError}</div>}
+
+      <label htmlFor="package">Package</label>
+      <select id="package" value={packageId} onChange={(e) => setPackageId(e.target.value)} disabled={!packages}>
+        {!packages && <option value="">Loading…</option>}
+        {packages && packages.map((p) => (
+          <option key={p.id} value={p.id}>{p.label} — R{p.monthly}/month (R{p.setup} once-off setup)</option>
+        ))}
+      </select>
+
+      <button type="submit" disabled={busy || !packageId}>
+        {busy ? 'Redirecting to PayFast…' : 'Subscribe with PayFast'}
+      </button>
+    </form>
+  )
+}
+
 function SlotField({ slot, value, onChange }) {
   // Decided once from the slot's own default text (stable) rather than the
   // live value, so the field doesn't flip between <input> and <textarea>
@@ -262,6 +344,17 @@ export default function App() {
   const [sites, setSites] = useState([])
   const [selectedSlug, setSelectedSlug] = useState(null)
   const [loadError, setLoadError] = useState(null)
+  const [checkoutNotice, setCheckoutNotice] = useState(null) // null | 'success' | 'cancelled'
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const notice = params.get('checkout')
+    if (!notice) return
+    setCheckoutNotice(notice)
+    params.delete('checkout')
+    const rest = params.toString()
+    window.history.replaceState({}, '', window.location.pathname + (rest ? `?${rest}` : ''))
+  }, [])
 
   async function loadSites() {
     try {
@@ -317,11 +410,21 @@ export default function App() {
         </div>
       </div>
 
+      {checkoutNotice === 'success' && (
+        <div className="card notice">
+          Payment received — activating your site's plan. This can take a minute; refresh if it doesn't update.
+        </div>
+      )}
+      {checkoutNotice === 'cancelled' && (
+        <div className="card notice">Checkout cancelled — your site is still on the free plan.</div>
+      )}
+
       {sites.length === 0 ? (
         <CreateSite onCreated={loadSites} />
       ) : (
         <>
           <SitePicker sites={sites} selected={selectedSlug} onSelect={setSelectedSlug} />
+          {selectedSite && <UpgradeCard site={selectedSite} />}
           {selectedSite && <SiteEditor site={selectedSite} />}
         </>
       )}

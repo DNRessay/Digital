@@ -117,6 +117,18 @@ button:disabled {
   margin-bottom: 12px;
 }
 
+.notice {
+  background: #fff8e1;
+  border-color: #f0d98c;
+  color: #6b5300;
+  font-size: 13px;
+}
+
+.upgrade-card p {
+  font-size: 14px;
+  color: #333a46;
+}
+
 .site-picker {
   margin-bottom: 24px;
 }

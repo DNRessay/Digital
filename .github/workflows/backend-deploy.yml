@@ -102,6 +102,10 @@ jobs:
           AWS_DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
           AWS_CONTACT_RECIPIENT_EMAIL: ${{ secrets.CONTACT_RECIPIENT_EMAIL }}
           AWS_FRONTEND_ORIGINS: ${{ secrets.FRONTEND_ORIGINS }}
+          AWS_PAYFAST_MERCHANT_ID: ${{ secrets.PAYFAST_MERCHANT_ID }}
+          AWS_PAYFAST_MERCHANT_KEY: ${{ secrets.PAYFAST_MERCHANT_KEY }}
+          AWS_PAYFAST_PASSPHRASE: ${{ secrets.PAYFAST_PASSPHRASE }}
+          AWS_PAYFAST_SANDBOX: ${{ secrets.PAYFAST_SANDBOX }}
         run: |
           # SAM's --parameter-overrides shorthand rejects an empty value
           # outright, so optional params (not every deploy has these
@@ -118,6 +122,10 @@ jobs:
           [ -n "${AWS_DEFAULT_FROM_EMAIL}" ] && OVERRIDES+=("DefaultFromEmail=${AWS_DEFAULT_FROM_EMAIL}")
           [ -n "${AWS_CONTACT_RECIPIENT_EMAIL}" ] && OVERRIDES+=("ContactRecipientEmail=${AWS_CONTACT_RECIPIENT_EMAIL}")
           [ -n "${AWS_FRONTEND_ORIGINS}" ] && OVERRIDES+=("FrontendOrigins=${AWS_FRONTEND_ORIGINS}")
+          [ -n "${AWS_PAYFAST_MERCHANT_ID}" ] && OVERRIDES+=("PayFastMerchantId=${AWS_PAYFAST_MERCHANT_ID}")
+          [ -n "${AWS_PAYFAST_MERCHANT_KEY}" ] && OVERRIDES+=("PayFastMerchantKey=${AWS_PAYFAST_MERCHANT_KEY}")
+          [ -n "${AWS_PAYFAST_PASSPHRASE}" ] && OVERRIDES+=("PayFastPassphrase=${AWS_PAYFAST_PASSPHRASE}")
+          [ -n "${AWS_PAYFAST_SANDBOX}" ] && OVERRIDES+=("PayFastSandbox=${AWS_PAYFAST_SANDBOX}")
 
           sam deploy \
             --stack-name viincci-digital-builder \

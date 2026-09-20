@@ -50,9 +50,56 @@ through **`frontend/web-portal`**: registering an account
 yet), and, once logged in, creating a `Site` of their own
 (`POST /api/customer/sites/`, picking a name and one of the active
 `Template`s — provisions every one of that template's `SiteSlotValue`
-rows). Note this is currently unrestricted — any authenticated user can
-create a site for free, there's no payment/approval check in front of
-`POST /api/customer/sites/` — see "Known gaps" below.
+rows, and publishes it immediately). This is deliberately free and
+unrestricted — anyone can create a `Site` — but a freshly created one is on
+the free tier: its rendered pages carry a small "Powered by Vicinic" credit
+(see "PayFast subscriptions" below) until its owner subscribes to one of
+the paid packages, which removes it.
+
+## PayFast subscriptions (`builder/services/payfast.py`, `builder/payfast_views.py`)
+
+A `Site.is_branded` property (true unless `subscription_status == "active"`)
+controls whether `builder/views._render_site_page` injects that credit
+before `</body>` on every rendered page. Subscribing to one of the three
+packages already advertised on the marketing site's Pricing section
+(Starter/Growth/Business OS — `builder/services/payfast.PACKAGES` is the
+source of truth for the exact amounts) removes it, via PayFast's hosted
+recurring-billing checkout:
+
+1. `POST /api/customer/sites/<slug>/checkout/` (authenticated, owner-only).
+   Body: `{package, return_url, cancel_url}` (the latter two must be on one
+   of `FRONTEND_ORIGINS` — this endpoint refuses to build a redirect to
+   anywhere else). Marks the `Site` `subscription_status="pending"`, and
+   returns `{process_url, fields}` — an ordered list of `{name, value}`
+   pairs the frontend submits as a real browser form POST to `process_url`
+   (a `fetch()`/XHR redirect won't work; PayFast's checkout page has to be
+   the top-level navigation). The first charge is `setup + monthly` for the
+   chosen package; every renewal after that is `monthly` only
+   (PayFast's own `amount` vs. `recurring_amount` fields).
+2. PayFast's checkout happens entirely on their site — this backend never
+   sees card details.
+3. **`POST /api/payfast/notify/`** (public, `@csrf_exempt` — PayFast's own
+   server calls this, no browser or CSRF token involved) is the only thing
+   that ever actually activates a subscription. It: verifies the payload's
+   signature (`verify_itn_signature`), then performs the required
+   server-to-server confirmation back to PayFast itself
+   (`confirm_with_payfast` — an ITN can be spoofed, so PayFast's own docs
+   require this step before trusting it), checks the charged amount matches
+   the expected package price **on first activation only** (subsequent
+   monthly renewals are PayFast billing the previously-agreed
+   `recurring_amount` on its own schedule), then sets
+   `subscription_status="active"` and stores the returned subscription
+   `token` (for any future cancel/manage call — not yet built).
+4. The browser separately lands back on `return_url`/`cancel_url` — this is
+   for UX only (a "payment received, activating…" message) and is **never**
+   treated as proof of payment; only the ITN is.
+
+Without any `PAYFAST_*` env vars set, this all runs against PayFast's own
+published **sandbox test-merchant credentials** — safe, public, meant for
+exactly this — so it works out of the box locally. Before this can take
+real money, set `PAYFAST_MERCHANT_ID`/`PAYFAST_MERCHANT_KEY`/
+`PAYFAST_PASSPHRASE` to a real PayFast merchant account's details and
+`PAYFAST_SANDBOX=false` — see `.env.example` and "Deploying" below.
 
 ## Customer-facing API (`builder/customer_api.py`, `/api/customer/...`)
 
@@ -81,6 +128,10 @@ own login form (`AdminAuthenticationForm`) rejects non-staff users outright.
 - `POST /api/customer/sites/<slug>/slots/` — body is a flat JSON
   `{slot_key: value, ...}` map; only keys that are actually one of this
   site's slots are written (a 404 if the slug isn't owned by the caller).
+- `GET /api/customer/packages/` — public: the three packages (id, label,
+  monthly, setup) for the "remove branding" picker.
+- `POST /api/customer/sites/<slug>/checkout/` — authenticated. See "PayFast
+  subscriptions" above.
 
 ## Local development
 
@@ -114,9 +165,12 @@ sam deploy --guided   # first time only, to set up the stack config
 Required GitHub Actions secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
 `AWS_REGION`, `DATABASE_URL` (Neon), `DJANGO_SECRET_KEY`,
 `DJANGO_ALLOWED_HOSTS`, and optionally `DEFAULT_FROM_EMAIL` /
-`CONTACT_RECIPIENT_EMAIL` for the generic contact-form handler, and
+`CONTACT_RECIPIENT_EMAIL` for the generic contact-form handler,
 `FRONTEND_ORIGINS` (comma-separated) for every `frontend/*` app's deployed
-origin that needs to call `/api/...` — see `.env.example`.
+origin that needs to call `/api/...`, and `PAYFAST_MERCHANT_ID` /
+`PAYFAST_MERCHANT_KEY` / `PAYFAST_PASSPHRASE` / `PAYFAST_SANDBOX` for real
+PayFast billing (left unset, the deploy keeps PayFast's public sandbox
+test-merchant defaults) — see `.env.example`.
 
 Template assets (CSS/JS/images/fonts) are stored in an S3 bucket created by
 `template.yaml` (`TemplateAssetsBucket`, public-read) — this is required,
@@ -125,11 +179,15 @@ lose every uploaded template's assets between invocations.
 
 ### Known gaps (v1)
 
-- **`POST /api/customer/sites/` has no gate on who can create a site** —
-  any registered user can create one for free, with no payment or manual
-  approval step in between. Fine for now; add a check here (e.g. requiring
-  some staff-set flag on the `User`, or a payment record) before this is
-  exposed to the public without other controls.
+- **The PayFast integration hasn't been exercised against a real sandbox
+  transaction yet** — the signing/verification logic and the ITN webhook's
+  business logic are unit-tested (mocking the actual network call to
+  PayFast, which this dev sandbox can't reach), but no one has clicked
+  through PayFast's actual hosted checkout page end-to-end. Do that once
+  this is deployed, before relying on it for real money.
+- **No subscription-cancellation flow** — `Site.payfast_token` is stored
+  for exactly this, but there's no endpoint or admin action that uses it
+  yet to cancel a customer's recurring billing.
 - **Header/nav/footer text is duplicated per page, not truly shared**, for
   templates (like the bundled Axis example) where Templify couldn't hoist
   the header into `base.html` because it differs slightly per page (e.g.

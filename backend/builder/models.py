@@ -90,9 +90,46 @@ class Site(models.Model):
     email = models.EmailField(blank=True)
     address = models.CharField(max_length=255, blank=True)
 
+    PACKAGE_STARTER = "starter"
+    PACKAGE_GROWTH = "growth"
+    PACKAGE_BUSINESS_OS = "business_os"
+    PACKAGE_CHOICES = [
+        (PACKAGE_STARTER, "Starter Site"),
+        (PACKAGE_GROWTH, "Growth Hub"),
+        (PACKAGE_BUSINESS_OS, "Business OS"),
+    ]
+    package = models.CharField(
+        max_length=20, choices=PACKAGE_CHOICES, blank=True,
+        help_text="Which paid package this site is on. Blank means the free tier (branded).",
+    )
+
+    SUBSCRIPTION_NONE = "none"
+    SUBSCRIPTION_PENDING = "pending"
+    SUBSCRIPTION_ACTIVE = "active"
+    SUBSCRIPTION_CANCELLED = "cancelled"
+    SUBSCRIPTION_STATUS_CHOICES = [
+        (SUBSCRIPTION_NONE, "None"),
+        (SUBSCRIPTION_PENDING, "Pending (checkout started, awaiting PayFast confirmation)"),
+        (SUBSCRIPTION_ACTIVE, "Active"),
+        (SUBSCRIPTION_CANCELLED, "Cancelled"),
+    ]
+    subscription_status = models.CharField(
+        max_length=20, choices=SUBSCRIPTION_STATUS_CHOICES, default=SUBSCRIPTION_NONE,
+    )
+    payfast_token = models.CharField(
+        max_length=100, blank=True,
+        help_text="PayFast subscription token (for managing/cancelling recurring billing), set once the ITN confirms payment.",
+    )
+
     is_published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def is_branded(self):
+        """Whether the free-tier "Powered by Vicinic" credit should show on
+        the rendered site — true unless there's an active paid subscription."""
+        return self.subscription_status != self.SUBSCRIPTION_ACTIVE
 
     def __str__(self):
         return self.name

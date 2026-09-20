@@ -26,6 +26,22 @@ Parameters:
     Type: String
     Default: ""
     Description: Comma-separated Cloudflare Pages origins allowed to call /api/... with credentials (e.g. the portal app)
+  PayFastMerchantId:
+    Type: String
+    Default: "10000100"
+    Description: PayFast merchant ID — defaults to PayFast's own public sandbox test-merchant value
+  PayFastMerchantKey:
+    Type: String
+    Default: "46f0cd694581a"
+    NoEcho: true
+  PayFastPassphrase:
+    Type: String
+    Default: ""
+    NoEcho: true
+  PayFastSandbox:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
   Stage:
     Type: String
     Default: prod
@@ -87,6 +103,10 @@ Resources:
           CONTACT_RECIPIENT_EMAIL: !Ref ContactRecipientEmail
           AWS_STORAGE_BUCKET_NAME: !Ref TemplateAssetsBucket
           FRONTEND_ORIGINS: !Ref FrontendOrigins
+          PAYFAST_MERCHANT_ID: !Ref PayFastMerchantId
+          PAYFAST_MERCHANT_KEY: !Ref PayFastMerchantKey
+          PAYFAST_PASSPHRASE: !Ref PayFastPassphrase
+          PAYFAST_SANDBOX: !Ref PayFastSandbox
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref TemplateAssetsBucket
