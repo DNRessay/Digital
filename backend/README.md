@@ -103,20 +103,30 @@ real money, set `PAYFAST_MERCHANT_ID`/`PAYFAST_MERCHANT_KEY`/
 
 ## Customer-facing API (`builder/customer_api.py`, `/api/customer/...`)
 
-Session-cookie authenticated like the portal's `/api/...`, but for any
-regular authenticated `User` (no superuser check) rather than staff — a
-dedicated `/api/customer/login/` endpoint handles this since Django admin's
-own login form (`AdminAuthenticationForm`) rejects non-staff users outright.
+**Bearer-token authenticated (`CustomerAuthToken`), not session-cookie
+based** — unlike the portal's `/api/...`. web-portal's backend is a
+different site from the frontend, and browsers increasingly block
+third-party cookies by default; a cross-site session cookie can silently
+never get set at all (the page still loads fine — only a later POST
+needing a matching CSRF cookie fails, with no earlier warning). This
+actually happened in testing. A bearer token in an `Authorization` header
+sidesteps it entirely: it doesn't touch the browser's cookie jar, works
+identically over plain HTTP or HTTPS, and needs no CSRF protection (CSRF
+exists to stop a forged cross-site request riding on ambient cookie auth —
+moot for a header a cross-site page can't read or set). `login`/`register`
+return `{token, ...}`; every other endpoint below requires
+`Authorization: Token <token>`; `POST /api/customer/logout/` deletes the
+token row server-side (a real revoke, not just "forget it client-side").
 
-- `GET /api/customer/whoami/` — `{authenticated, username}` (also the
-  endpoint the SPA calls first to pick up a CSRF cookie before logging in).
+- `GET /api/customer/whoami/` — `{authenticated, username, name}`.
 - `POST /api/customer/login/`, `POST /api/customer/logout/`
 - `GET /api/customer/templates/` — public, no auth required: the `is_active`
   `Template`s, for the "create your site" form's picker.
-- `POST /api/customer/register/` — public. Body: `{username, password}`.
-  Validates the password against Django's own `AUTH_PASSWORD_VALIDATORS`
-  (409 if the username is already taken), creates just the `User`, and logs
-  them in — no `Site` yet.
+- `POST /api/customer/register/` — public. Body: `{name, username,
+  password}`. Validates the password against Django's own
+  `AUTH_PASSWORD_VALIDATORS` (409 if the username is already taken), splits
+  `name` into `User.first_name`/`last_name`, creates just the `User` (no
+  `Site` yet) and its token.
 - `GET /api/customer/sites/` — the Sites owned by the current user.
 - `POST /api/customer/sites/` — authenticated. Body: `{site_name,
   template_slug}`. Slugifies `site_name` for the `Site`'s slug (409 if it's
@@ -200,6 +210,9 @@ lose every uploaded template's assets between invocations.
 - **AWS credentials in the GitHub Actions workflow use long-lived access
   keys**, not OIDC role assumption. Works, just less secure than the
   modern approach.
-- **`/api/...` auth is a cross-origin session cookie** (`SameSite=None`),
-  not a token scheme — see `../frontend/README.md`'s "Known limitation"
-  section for the browser-compatibility caveat this carries.
+- **`/api/...` (the portal app's, `api_views.py`) auth is a cross-origin
+  session cookie** (`SameSite=None`), not a token scheme — see
+  `../frontend/README.md`'s "Known limitation" section for the
+  browser-compatibility caveat this carries. `/api/customer/...` (this
+  section) doesn't have this problem — it already moved to bearer tokens
+  after hitting the same failure mode in practice.

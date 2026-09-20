@@ -2,10 +2,14 @@
 lets a customer edit their own Site's text — every visible text node the
 template's slot extractor found becomes one editable field here.
 
-Session-cookie authenticated like builder.api_views, but for any regular
-(non-staff) customer User rather than superusers — customers get their own
-login endpoint here instead of Django admin's, since AdminAuthenticationForm
-rejects non-staff users outright.
+Bearer-token authenticated (CustomerAuthToken), not session-cookie based —
+see the model's docstring for why: web-portal's backend is cross-site from
+the frontend, and a cross-site cookie can silently never get set at all in
+browsers that block third-party cookies by default, which looks fine right
+up until a POST needing a matching CSRF cookie 403s. All POST views here
+are csrf_exempt for the same reason: CSRF protection exists to stop a
+forged request from riding on ambient cookie auth, which is moot for an
+explicit Authorization header a cross-site page can't read or set.
 """
 import functools
 import json
@@ -13,7 +17,7 @@ import uuid
 from urllib.parse import urlparse
 
 from django.conf import settings
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -21,10 +25,10 @@ from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.urls import reverse
 from django.utils.text import slugify
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import Site, SiteSlotValue, Template
+from .models import CustomerAuthToken, Site, SiteSlotValue, Template
 from .services.payfast import PACKAGES, PayFastError, build_checkout_payload
 from .services.site_provisioning import provision_missing_slot_values
 
@@ -46,14 +50,32 @@ def _json_body(request):
         return {}
 
 
-def customer_login_required(view):
+def _token_from_header(request):
+    header = request.META.get("HTTP_AUTHORIZATION", "")
+    scheme, _, key = header.partition(" ")
+    if scheme not in ("Token", "Bearer") or not key:
+        return None
+    return CustomerAuthToken.objects.filter(key=key).select_related("user").first()
+
+
+def customer_token_required(view):
     @functools.wraps(view)
     def wrapped(request, *args, **kwargs):
-        if not request.user.is_authenticated:
+        token = _token_from_header(request)
+        if token is None:
             return JsonResponse({"error": "Authentication required."}, status=401)
+        request.customer_user = token.user
         return view(request, *args, **kwargs)
 
     return wrapped
+
+
+def _full_name(user):
+    return f"{user.first_name} {user.last_name}".strip()
+
+
+def _serialize_user(user):
+    return {"username": user.username, "name": _full_name(user)}
 
 
 def _serialize_site(site):
@@ -110,33 +132,33 @@ def _serialize_slots(site):
     return [groups[k] for k in ordered_keys]
 
 
-@ensure_csrf_cookie
+@customer_token_required
+@require_http_methods(["GET"])
 def api_customer_whoami(request):
-    if request.user.is_authenticated:
-        return JsonResponse({"authenticated": True, "username": request.user.username})
-    return JsonResponse({"authenticated": False}, status=401)
+    return JsonResponse({"authenticated": True, **_serialize_user(request.customer_user)})
 
 
-@ensure_csrf_cookie
+@csrf_exempt
 @require_http_methods(["POST"])
 def api_customer_login(request):
     body = _json_body(request)
     username = str(body.get("username", "")).strip()
     password = str(body.get("password", ""))
-    user = authenticate(request, username=username, password=password)
+    user = authenticate(username=username, password=password)
     if user is None:
         return JsonResponse({"error": "Incorrect username or password."}, status=401)
-    login(request, user)
-    return JsonResponse({"authenticated": True, "username": user.username})
+    token, _ = CustomerAuthToken.objects.get_or_create(user=user)
+    return JsonResponse({"authenticated": True, "token": token.key, **_serialize_user(user)})
 
 
+@csrf_exempt
+@customer_token_required
 @require_http_methods(["POST"])
 def api_customer_logout(request):
-    logout(request)
+    CustomerAuthToken.objects.filter(user=request.customer_user).delete()
     return JsonResponse({"authenticated": False})
 
 
-@ensure_csrf_cookie
 @require_http_methods(["GET"])
 def api_customer_templates(request):
     """Public — the "create your site" form needs this to offer a picker
@@ -145,17 +167,18 @@ def api_customer_templates(request):
     return JsonResponse({"templates": [{"slug": t.slug, "name": t.name} for t in templates]})
 
 
-@ensure_csrf_cookie
+@csrf_exempt
 @require_http_methods(["POST"])
 def api_customer_register(request):
     """Public — creates a plain account, no Site yet. A logged-in customer
     creates their own Site(s) afterwards via POST /api/customer/sites/."""
     body = _json_body(request)
+    name = str(body.get("name", "")).strip()
     username = str(body.get("username", "")).strip()
     password = str(body.get("password", ""))
 
-    if not username or not password:
-        return JsonResponse({"error": "Username and password are both required."}, status=400)
+    if not name or not username or not password:
+        return JsonResponse({"error": "Name, username and password are all required."}, status=400)
 
     try:
         validate_password(password)
@@ -165,20 +188,25 @@ def api_customer_register(request):
     if User.objects.filter(username=username).exists():
         return JsonResponse({"error": "That username is already taken."}, status=409)
 
+    first_name, _, last_name = name.partition(" ")
+
     try:
-        user = User.objects.create_user(username=username, password=password)
+        user = User.objects.create_user(
+            username=username, password=password, first_name=first_name[:150], last_name=last_name[:150],
+        )
     except IntegrityError:
         return JsonResponse({"error": "That username was just taken — try again."}, status=409)
 
-    login(request, user)
-    return JsonResponse({"authenticated": True, "username": user.username}, status=201)
+    token = CustomerAuthToken.objects.create(user=user)
+    return JsonResponse({"authenticated": True, "token": token.key, **_serialize_user(user)}, status=201)
 
 
-@customer_login_required
+@csrf_exempt
+@customer_token_required
 @require_http_methods(["GET", "POST"])
 def api_customer_sites(request):
     if request.method == "GET":
-        sites = Site.objects.filter(owner=request.user).select_related("template")
+        sites = Site.objects.filter(owner=request.customer_user).select_related("template")
         return JsonResponse({"sites": [_serialize_site(s) for s in sites]})
 
     body = _json_body(request)
@@ -201,7 +229,7 @@ def api_customer_sites(request):
     try:
         with transaction.atomic():
             site = Site.objects.create(
-                name=site_name, slug=site_slug, template=template, owner=request.user, is_published=True,
+                name=site_name, slug=site_slug, template=template, owner=request.customer_user, is_published=True,
             )
             provision_missing_slot_values(site)
     except IntegrityError:
@@ -224,14 +252,15 @@ def api_customer_packages(request):
     )
 
 
-@customer_login_required
+@csrf_exempt
+@customer_token_required
 @require_http_methods(["POST"])
 def api_customer_checkout(request, site_slug):
     """Starts a PayFast recurring-billing checkout for one of the packages.
     Returns the PayFast URL + form fields for the frontend to auto-submit
     as a POST — actual activation happens later, via the ITN webhook
     (payfast_views.payfast_notify), never from this response alone."""
-    site = _get_owned_site_or_none(request.user, site_slug)
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
 
@@ -260,10 +289,11 @@ def api_customer_checkout(request, site_slug):
     return JsonResponse({"process_url": process_url, "fields": [{"name": k, "value": v} for k, v in fields]})
 
 
-@customer_login_required
+@csrf_exempt
+@customer_token_required
 @require_http_methods(["GET", "POST"])
 def api_customer_site_slots(request, site_slug):
-    site = _get_owned_site_or_none(request.user, site_slug)
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
 

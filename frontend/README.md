@@ -44,28 +44,31 @@ deploys.
 
 Once an app is deployed, add its Cloudflare Pages URL (and any custom
 domain) to the backend's `FRONTEND_ORIGINS` env var (comma-separated) —
-see `backend/.env.example`. Without this, the backend's CORS/CSRF config
-will reject that app's API calls even though the app itself loads fine.
+see `backend/.env.example`. Without this, the backend's CORS config will
+reject that app's API calls even though the app itself loads fine.
 
-## Known limitation: cross-origin session cookies
+## Known limitation: `portal`'s cross-origin session cookie
 
-`portal` and `web-portal` both authenticate by sending the browser's Django
-session cookie cross-origin (`credentials: 'include'`) rather than a token
-scheme. This requires `SameSite=None; Secure` cookies (already configured in
-production — see `backend/config/settings.py`), and works in current
-Chrome/Firefox, but browsers with stricter third-party cookie policies
-(notably Safari's ITP) may block it intermittently. If that becomes a real
-problem, the fix is a proper token-based auth flow (e.g. a short-lived JWT
-returned from login, sent as an `Authorization` header instead of relying on
-cookies) — not attempted here to keep this first pass scoped.
-
-`SameSite=None` cookies also require HTTPS, which is why this whole scheme
-only works against the real deployed (HTTPS) backend, not a plain-HTTP local
-one — a genuinely cross-origin `http://localhost:5173` → `http://127.0.0.1:8000`
-request simply won't get the cookie stored or sent at all. `web-portal`
-works around this for local dev with a Vite dev-server proxy (see below);
-`portal` doesn't have one yet, so testing its login/upload flow end-to-end
+`portal` authenticates by sending the browser's Django session cookie
+cross-origin (`credentials: 'include'`) rather than a token scheme. This
+requires `SameSite=None; Secure` cookies (already configured in production
+— see `backend/config/settings.py`), and works in current Chrome/Firefox,
+but browsers with stricter third-party cookie policies (notably Safari's
+ITP, and increasingly Chrome too) may block it intermittently — the page
+still loads fine (GET requests work), but a POST needing the matching CSRF
+cookie can fail with no earlier warning. `SameSite=None` also requires
+HTTPS, so this only actually works against the real deployed backend, not
+a plain-HTTP local one — testing `portal`'s login/upload flow end-to-end
 currently requires the real deployed backend.
+
+**`web-portal` doesn't have this problem** — it hit exactly this failure
+mode in practice (registration 403ing on a phone whose browser silently
+never stored the cross-site cookie) and was switched to bearer-token auth
+instead (`src/api.js`: a token from login/register stored in
+`localStorage`, sent as an `Authorization` header). No cookies, no CSRF,
+and no HTTPS requirement for local testing — see `backend/README.md`'s
+`CustomerAuthToken` section. If `portal` ever hits the same problem in
+practice, the fix is the same pattern.
 
 ## Local development
 
@@ -77,13 +80,11 @@ npm install
 npm run dev
 ```
 
-**`web-portal`** proxies `/api/*` to `http://127.0.0.1:8000` in dev
-(`vite.config.js`'s `server.proxy`), so the browser sees the app and API as
-same-origin — leave `VITE_API_BASE_URL` unset locally (so requests go out as
-relative paths) and run the backend locally on port 8000 to use it.
+**`web-portal`** works cross-origin against any backend (local or
+deployed) — just set `VITE_API_BASE_URL` (see its `.env.example`).
 
 **`portal`** needs the backend's `FRONTEND_ORIGINS` env var to include your
 local dev origin (e.g. `http://localhost:5173`) to call the API — but per
 the cross-origin cookie caveat above, this only actually works end-to-end
-over HTTPS, so local testing of its login/upload flow has the same
-limitation web-portal's proxy works around.
+over HTTPS, so local testing of its login/upload flow requires the real
+deployed backend.

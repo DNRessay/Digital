@@ -54,6 +54,7 @@ function Login({ onLoggedIn, onSwitchToRegister }) {
 }
 
 function Register({ onRegistered, onSwitchToLogin }) {
+  const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
@@ -64,7 +65,7 @@ function Register({ onRegistered, onSwitchToLogin }) {
     setBusy(true)
     setError(null)
     try {
-      await register(username, password)
+      await register(name, username, password)
       onRegistered()
     } catch (err) {
       setError(err.message)
@@ -79,6 +80,8 @@ function Register({ onRegistered, onSwitchToLogin }) {
         <h1>Vicinic — Create an account</h1>
         <p>Once you're signed in you can set up your site.</p>
         {error && <div className="error">{error}</div>}
+        <label htmlFor="register-name">Full name</label>
+        <input id="register-name" type="text" value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" />
         <label htmlFor="register-username">Username</label>
         <input id="register-username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} required autoComplete="username" />
         <label htmlFor="register-password">Password</label>
@@ -340,7 +343,7 @@ function SiteEditor({ site }) {
 export default function App() {
   const [status, setStatus] = useState('loading') // loading | anon | ready | error
   const [authView, setAuthView] = useState('login') // login | register
-  const [username, setUsername] = useState(null)
+  const [displayName, setDisplayName] = useState(null)
   const [sites, setSites] = useState([])
   const [selectedSlug, setSelectedSlug] = useState(null)
   const [loadError, setLoadError] = useState(null)
@@ -371,7 +374,7 @@ export default function App() {
   useEffect(() => {
     whoami()
       .then((data) => {
-        setUsername(data.username)
+        setDisplayName(data.name || data.username)
         loadSites()
       })
       .catch((err) => setStatus(err.status === 401 ? 'anon' : 'error'))
@@ -387,7 +390,7 @@ export default function App() {
 
   function handleAuthenticated() {
     setStatus('loading')
-    whoami().then((d) => { setUsername(d.username); loadSites() })
+    whoami().then((d) => { setDisplayName(d.name || d.username); loadSites() })
   }
 
   if (status === 'loading') return null
@@ -405,7 +408,7 @@ export default function App() {
       <div className="topbar">
         <h1>Edit your site</h1>
         <div className="topbar-user">
-          <span>{username}</span>
+          <span>{displayName}</span>
           <button type="button" className="link-button" onClick={handleLogout}>Sign out</button>
         </div>
       </div>

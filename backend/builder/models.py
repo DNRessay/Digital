@@ -1,3 +1,5 @@
+import secrets
+
 from django.conf import settings
 from django.db import models
 
@@ -148,3 +150,37 @@ class SiteSlotValue(models.Model):
 
     def __str__(self):
         return f"{self.site.name} — {self.slot.key}"
+
+
+class CustomerAuthToken(models.Model):
+    """Bearer-token auth for the customer-facing API (builder/customer_api.py,
+    used by frontend/web-portal) — deliberately not session-cookie based.
+
+    web-portal's backend is a different site (a different eTLD+1) from the
+    frontend, and browsers increasingly block third-party cookies by default
+    (this is Safari/Firefox's existing default and Chrome's own direction) —
+    a cross-site session cookie can silently never get set at all, which
+    looks fine (GET requests still "work" and render a normal-looking page)
+    right up until a POST needing a matching CSRF cookie 403s. A bearer
+    token sent as an explicit header sidesteps this entirely: it doesn't
+    rely on the browser's cookie jar, and CSRF protection (which exists to
+    stop a forged cross-site request from riding on ambient cookie auth)
+    is simply moot for it, since a page on another origin cannot read or
+    set this token without our JS already having handed it to it.
+    """
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="auth_token")
+    key = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @staticmethod
+    def generate_key():
+        return secrets.token_hex(32)
+
+    def save(self, *args, **kwargs):
+        if not self.key:
+            self.key = self.generate_key()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Token for {self.user.username}"
