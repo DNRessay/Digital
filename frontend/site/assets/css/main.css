@@ -161,6 +161,11 @@ h6 {
   margin-right: 8px;
 }
 
+.header .logo .logo-img {
+  max-height: 34px;
+  width: auto;
+}
+
 .header .logo h1 {
   font-size: 30px;
   margin: 0;
@@ -462,6 +467,11 @@ h6 {
 
 .footer .footer-info .logo {
   line-height: 1;
+}
+
+.footer .footer-info .logo .logo-img {
+  max-height: 40px;
+  width: auto;
 }
 
 .footer .footer-info .logo span {
