@@ -23,12 +23,14 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "storages",
+    "corsheaders",
     "builder",
 ]
 
 MIDDLEWARE = [
     "config.request_log_middleware.RequestLogMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "config.trailing_slash_middleware.RestoreStrippedTrailingSlashMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -38,6 +40,24 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+# The frontend/portal (and later web-portal/admin) React apps are deployed
+# separately on Cloudflare Pages — a different origin from this backend —
+# and need to call the JSON API with the session cookie attached.
+FRONTEND_ORIGINS = [o.strip() for o in os.environ.get("FRONTEND_ORIGINS", "").split(",") if o.strip()]
+CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = FRONTEND_ORIGINS
+
+if not DEBUG:
+    # SameSite=None is what lets the browser attach these cookies to a
+    # cross-origin fetch(credentials:'include') call from a Pages domain;
+    # it requires Secure, which is why this is production-only (local dev
+    # runs on plain http and would silently stop setting cookies at all).
+    SESSION_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SAMESITE = "None"
+    CSRF_COOKIE_SECURE = True
 
 ROOT_URLCONF = "config.urls"
 

@@ -23,13 +23,18 @@ markup/CSS/assets are shared and never touched per-site.
 
 ## Adding a template
 
-Templates are added at **`/manage/templates/`** — a small custom page (not
-the Django admin), restricted to superusers. Upload a zip of a static HTML
+Templates are managed through **`frontend/portal`** (a separate React app —
+see `../frontend/README.md`), which calls this backend's JSON API
+(`builder/api_views.py`, `/api/templates/`). Upload a zip of a static HTML
 template (the usual multi-page-with-`assets/`-folder layout); it's sent to
 the deployed Templify conversion service (`TEMPLIFY_FUNCTION_URL`), then
 `builder/services/template_ingest.py` turns the result into a `Template`
 with its pages/slots/assets. No redeploy required — it's available to
 customers immediately.
+
+The old server-rendered `/manage/templates/` page (`builder/views.template_manager`)
+still exists and works — it's the same underlying logic — but is superseded
+by the portal app. Remove it once the portal app is deployed and verified.
 
 Editing a customer's site content (which template, colors, contact info,
 and each slot's text) is done through the **normal Django admin** at
@@ -48,9 +53,10 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-Visit `/manage/templates/` to upload a template, then `/admin/` to create a
-`Site` using it, fill in its slot text, mark it "is_published", and visit
-`/<slug>/` to view it.
+Run `frontend/portal` (`npm run dev`) to upload a template — or use
+`/manage/templates/` directly if you'd rather skip running the frontend
+locally. Then use `/admin/` to create a `Site` using it, fill in its slot
+text, mark it "is_published", and visit `/<slug>/` to view it.
 
 ## Deploying (AWS SAM + Lambda + Mangum)
 
@@ -66,7 +72,9 @@ sam deploy --guided   # first time only, to set up the stack config
 Required GitHub Actions secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
 `AWS_REGION`, `DATABASE_URL` (Neon), `DJANGO_SECRET_KEY`,
 `DJANGO_ALLOWED_HOSTS`, and optionally `DEFAULT_FROM_EMAIL` /
-`CONTACT_RECIPIENT_EMAIL` for the generic contact-form handler.
+`CONTACT_RECIPIENT_EMAIL` for the generic contact-form handler, and
+`FRONTEND_ORIGINS` (comma-separated) for every `frontend/*` app's deployed
+origin that needs to call `/api/...` — see `.env.example`.
 
 Template assets (CSS/JS/images/fonts) are stored in an S3 bucket created by
 `template.yaml` (`TemplateAssetsBucket`, public-read) — this is required,
@@ -87,3 +95,6 @@ lose every uploaded template's assets between invocations.
 - **AWS credentials in the GitHub Actions workflow use long-lived access
   keys**, not OIDC role assumption. Works, just less secure than the
   modern approach.
+- **`/api/...` auth is a cross-origin session cookie** (`SameSite=None`),
+  not a token scheme — see `../frontend/README.md`'s "Known limitation"
+  section for the browser-compatibility caveat this carries.

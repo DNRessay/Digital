@@ -1,0 +1,23 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f6f7fb;
+  color: #0b0f19;
+}
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e4e7ee;
+  border-radius: 10px;
+  padding: 24px;
+}

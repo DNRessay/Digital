@@ -1,0 +1,57 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f6f7fb;
+  color: #0b0f19;
+}
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  background: #0b0f19;
+  color: #fff;
+  padding: 24px 16px;
+  flex-shrink: 0;
+}
+
+.sidebar h1 {
+  font-size: 18px;
+  margin: 0 0 24px;
+}
+
+.sidebar nav a {
+  display: block;
+  color: #cbd2e1;
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.sidebar nav a.active,
+.sidebar nav a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.main {
+  flex: 1;
+  padding: 32px 40px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e4e7ee;
+  border-radius: 10px;
+  padding: 24px;
+  max-width: 640px;
+}

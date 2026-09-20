@@ -9,3 +9,4 @@ beautifulsoup4==4.12.3
 requests==2.32.3
 django-storages[s3]==1.14.4
 boto3==1.35.68
+django-cors-headers==4.6.0

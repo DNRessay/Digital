@@ -101,11 +101,15 @@ jobs:
           AWS_DJANGO_ALLOWED_HOSTS: ${{ secrets.DJANGO_ALLOWED_HOSTS }}
           AWS_DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
           AWS_CONTACT_RECIPIENT_EMAIL: ${{ secrets.CONTACT_RECIPIENT_EMAIL }}
+          AWS_FRONTEND_ORIGINS: ${{ secrets.FRONTEND_ORIGINS }}
         run: |
           # SAM's --parameter-overrides shorthand rejects an empty value
           # outright, so optional params (not every deploy has these
           # secrets set) are only included when actually non-empty —
           # otherwise CloudFormation just uses the template's own Default.
+          # A comma-separated value (FrontendOrigins) is safe here as long
+          # as it stays one quoted array element, per SAM's own docs
+          # (e.g. --parameter-overrides ServiceNames="Users,Orders,Products").
           OVERRIDES=(
             "DatabaseUrl=${AWS_DATABASE_URL}"
             "DjangoSecretKey=${AWS_DJANGO_SECRET_KEY}"
@@ -113,6 +117,7 @@ jobs:
           )
           [ -n "${AWS_DEFAULT_FROM_EMAIL}" ] && OVERRIDES+=("DefaultFromEmail=${AWS_DEFAULT_FROM_EMAIL}")
           [ -n "${AWS_CONTACT_RECIPIENT_EMAIL}" ] && OVERRIDES+=("ContactRecipientEmail=${AWS_CONTACT_RECIPIENT_EMAIL}")
+          [ -n "${AWS_FRONTEND_ORIGINS}" ] && OVERRIDES+=("FrontendOrigins=${AWS_FRONTEND_ORIGINS}")
 
           sam deploy \
             --stack-name viincci-digital-builder \
