@@ -1,0 +1,47 @@
+name: Debug Query (temporary, read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      site_slug:
+        description: "Site slug to inspect"
+        required: true
+        default: "tea"
+
+jobs:
+  query:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Dump site + template slot data
+        working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SITE_SLUG: ${{ inputs.site_slug }}
+        run: |
+          python manage.py shell -c "
+          import os
+          from builder.models import Site
+          from builder.services.site_provisioning import _detect_brand_token
+
+          slug = os.environ['SITE_SLUG']
+          site = Site.objects.select_related('template').get(slug=slug)
+          print('SITE NAME:', repr(site.name))
+          print('TEMPLATE:', site.template.slug)
+          print()
+          print('DETECTED BRAND TOKEN:', repr(_detect_brand_token(site.template)))
+          print()
+          for sv in site.slot_values.select_related('slot', 'slot__page').order_by('slot__page__order', 'slot__order'):
+              page = sv.slot.page.slug if sv.slot.page else '(shared)'
+              print(sv.slot.key, '| page=', page, '| label=', repr(sv.slot.label), '| default=', repr(sv.slot.default_text), '| value=', repr(sv.value))
+          "
