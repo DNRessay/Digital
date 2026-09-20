@@ -272,7 +272,6 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
     email: site.email,
     phone: site.phone,
     whatsapp_number: site.whatsapp_number,
-    address: site.address,
   }))
   const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
   const [saveError, setSaveError] = useState(null)
@@ -283,7 +282,6 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
       email: site.email,
       phone: site.phone,
       whatsapp_number: site.whatsapp_number,
-      address: site.address,
     })
     setSaveState('idle')
   }, [site.slug])
@@ -356,9 +354,6 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
           value={form.whatsapp_number}
           onChange={(e) => setField('whatsapp_number', e.target.value)}
         />
-
-        <label htmlFor="site-profile-address">Address</label>
-        <input id="site-profile-address" type="text" value={form.address} onChange={(e) => setField('address', e.target.value)} />
 
         <div className="save-bar">
           <button type="submit" disabled={saveState === 'saving'}>
