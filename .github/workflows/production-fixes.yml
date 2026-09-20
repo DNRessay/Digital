@@ -1,0 +1,80 @@
+name: Production fixes (temporary, one-off)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Backfill theme colors for pre-existing templates
+        working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python manage.py backfill_theme_colors
+
+      - name: Repair the "tea" site's corrupted slot values
+        working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python manage.py shell -c "
+          from builder.models import Site
+          from builder.services.site_provisioning import apply_contact_info, _detect_brand_token
+
+          site = Site.objects.select_related('template').get(slug='tea')
+          print('SITE NAME:', repr(site.name))
+          print()
+          print('--- before ---')
+          for sv in site.slot_values.select_related('slot').order_by('slot__key'):
+              if sv.value:
+                  print(sv.slot.key, '=', repr(sv.value))
+
+          # Undo every override the old buggy substring-rename may have
+          # written anywhere on the site (the 'Team' nav link corrupted to
+          # 'Beerm' is the one already confirmed, but the bug could have
+          # hit any other word containing 'Tea' the same way) — this site
+          # has no other manual edits, so a full reset back to template
+          # defaults is safe here.
+          reset_count = site.slot_values.exclude(value='').update(value='')
+          print()
+          print('reset', reset_count, 'corrupted override(s) back to template defaults')
+
+          brand = _detect_brand_token(site.template)
+          print('detected brand token:', repr(brand))
+
+          from builder.services.site_provisioning import _contains_whole_word, _replace_whole_word
+          from builder.models import SiteSlotValue
+          updated = []
+          if brand:
+              for sv in site.slot_values.select_related('slot'):
+                  default = sv.slot.default_text
+                  if default.strip() == brand:
+                      sv.value = site.name
+                  elif _contains_whole_word(default, brand):
+                      sv.value = _replace_whole_word(default, brand, site.name)
+                  else:
+                      continue
+                  updated.append(sv)
+              if updated:
+                  SiteSlotValue.objects.bulk_update(updated, ['value'])
+          print('applied real name to', len(updated), 'brand slot(s)')
+
+          print()
+          print('--- after ---')
+          for sv in site.slot_values.select_related('slot').order_by('slot__key'):
+              if sv.value:
+                  print(sv.slot.key, '=', repr(sv.value))
+          "
