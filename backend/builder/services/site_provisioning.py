@@ -36,15 +36,16 @@ def _detect_brand_token(template):
         return None
     title_text = title_slot.default_text
 
-    texts = {s.default_text.strip() for s in template.slots.all()}
-    candidates = [
-        t for t in texts
-        if t and 1 < len(t) <= 40 and t != title_text and t in title_text and t.lower() not in _GENERIC_TEXT
-    ]
+    candidates = set()
+    for s in template.slots.all():
+        if s.id == title_slot.id:
+            continue
+        t = s.default_text.strip()
+        if t and 1 < len(t) <= 40 and t in title_text and t.lower() not in _GENERIC_TEXT:
+            candidates.add(t)
     if not candidates:
         return None
-    candidates.sort(key=len, reverse=True)
-    return candidates[0]
+    return max(candidates, key=len)
 
 
 def _name_overrides_for(site, slots):
