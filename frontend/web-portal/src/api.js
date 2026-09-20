@@ -39,6 +39,17 @@ export function login(username, password) {
   return apiFetch('/api/customer/login/', { method: 'POST', body: { username, password } })
 }
 
+export function listPublicTemplates() {
+  return apiFetch('/api/customer/templates/')
+}
+
+export function signup(username, password, siteName, templateSlug) {
+  return apiFetch('/api/customer/signup/', {
+    method: 'POST',
+    body: { username, password, site_name: siteName, template_slug: templateSlug },
+  })
+}
+
 export function logout() {
   return apiFetch('/api/customer/logout/', { method: 'POST' })
 }

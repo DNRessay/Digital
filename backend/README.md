@@ -36,15 +36,20 @@ The old server-rendered `/manage/templates/` page (`builder/views.template_manag
 still exists and works — it's the same underlying logic — but is superseded
 by the portal app. Remove it once the portal app is deployed and verified.
 
-A `Site`'s setup (which template, colors, contact info) is done through the
-**normal Django admin** at `/admin/` — that part is exactly as the stock
-admin provides. To let a customer edit their own site's text themselves via
-**`frontend/web-portal`**, also create a regular (non-staff) Django `User`
-for them in `/admin/` and set that `Site`'s `owner` to that user — the
-customer then signs in at web-portal with that username/password and edits
-every slot found on their site (grouped by page). Staff can always edit the
-same slot values directly via the `SiteSlotValue` inline on the `Site` admin
-page too — both paths write to the same rows.
+A `Site` can also be set up through the **normal Django admin** at `/admin/`
+— that part is exactly as the stock admin provides — for cases where staff
+need to create or reassign one directly (e.g. attaching an existing `Site`
+to a different `owner`, or changing its template/colors/contact info).
+Staff can always edit the same slot values directly via the
+`SiteSlotValue` inline on the `Site` admin page too — every path writes to
+the same rows.
+
+For getting a new customer set up in the first place, **`frontend/web-portal`**'s
+own sign-up flow (`POST /api/customer/signup/`) is the normal path: a
+prospective customer picks a name for their site and one of the active
+`Template`s, and the account + `Site` + every one of that template's
+`SiteSlotValue` rows are created together in one step, then they're logged
+straight in.
 
 ## Customer-facing API (`builder/customer_api.py`, `/api/customer/...`)
 
@@ -56,6 +61,14 @@ own login form (`AdminAuthenticationForm`) rejects non-staff users outright.
 - `GET /api/customer/whoami/` — `{authenticated, username}` (also the
   endpoint the SPA calls first to pick up a CSRF cookie before logging in).
 - `POST /api/customer/login/`, `POST /api/customer/logout/`
+- `GET /api/customer/templates/` — public, no auth required: the `is_active`
+  `Template`s, for the sign-up form's picker.
+- `POST /api/customer/signup/` — public. Body: `{username, password,
+  site_name, template_slug}`. Validates the password against Django's own
+  `AUTH_PASSWORD_VALIDATORS`, slugifies `site_name` for the `Site`'s slug
+  (409 if either the username or the resulting slug is already taken),
+  creates the `User` + `Site` + its slot values in one transaction, and logs
+  the new user in — same response shape as `/login/`, plus the new `site`.
 - `GET /api/customer/sites/` — the Sites owned by the current user.
 - `GET /api/customer/sites/<slug>/slots/` — that site's slots grouped by
   page (`page: null` first, for shared header/footer text), each with its

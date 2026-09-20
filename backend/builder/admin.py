@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 
 from .models import Site, SiteSlotValue
+from .services.site_provisioning import provision_missing_slot_values
 
 
 class SiteSlotValueInline(admin.TabularInline):
@@ -42,8 +43,4 @@ class SiteAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
-        existing_slot_ids = set(obj.slot_values.values_list("slot_id", flat=True))
-        missing_slots = obj.template.slots.exclude(id__in=existing_slot_ids)
-        SiteSlotValue.objects.bulk_create(
-            [SiteSlotValue(site=obj, slot=slot, value="") for slot in missing_slots]
-        )
+        provision_missing_slot_values(obj)

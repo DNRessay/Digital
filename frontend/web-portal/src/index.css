@@ -36,6 +36,12 @@ h2 {
   padding-top: 15vh;
 }
 
+.switch-auth-mode {
+  margin: 16px 0 0;
+  font-size: 13px;
+  color: #565d6d;
+}
+
 .topbar {
   display: flex;
   align-items: center;

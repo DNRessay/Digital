@@ -11,11 +11,17 @@ import functools
 import json
 
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.http import JsonResponse
+from django.utils.text import slugify
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from .models import Site, SiteSlotValue
+from .models import Site, SiteSlotValue, Template
+from .services.site_provisioning import provision_missing_slot_values
 
 
 def _json_body(request):
@@ -110,6 +116,56 @@ def api_customer_login(request):
 def api_customer_logout(request):
     logout(request)
     return JsonResponse({"authenticated": False})
+
+
+@ensure_csrf_cookie
+@require_http_methods(["GET"])
+def api_customer_templates(request):
+    """Public — the signup form needs this before anyone has an account."""
+    templates = Template.objects.filter(is_active=True).order_by("name")
+    return JsonResponse({"templates": [{"slug": t.slug, "name": t.name} for t in templates]})
+
+
+@ensure_csrf_cookie
+@require_http_methods(["POST"])
+def api_customer_signup(request):
+    body = _json_body(request)
+    username = str(body.get("username", "")).strip()
+    password = str(body.get("password", ""))
+    site_name = str(body.get("site_name", "")).strip()
+    template_slug = str(body.get("template_slug", "")).strip()
+
+    if not username or not password or not site_name or not template_slug:
+        return JsonResponse({"error": "Username, password, site name, and template are all required."}, status=400)
+
+    try:
+        validate_password(password)
+    except ValidationError as exc:
+        return JsonResponse({"error": " ".join(exc.messages)}, status=400)
+
+    template = Template.objects.filter(slug=template_slug, is_active=True).first()
+    if template is None:
+        return JsonResponse({"error": "That template isn't available."}, status=400)
+
+    if User.objects.filter(username=username).exists():
+        return JsonResponse({"error": "That username is already taken."}, status=409)
+
+    site_slug = slugify(site_name)
+    if not site_slug:
+        return JsonResponse({"error": "Site name must contain some letters or numbers."}, status=400)
+    if Site.objects.filter(slug=site_slug).exists():
+        return JsonResponse({"error": f'A site named "{site_name}" already exists — pick a different name.'}, status=409)
+
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(username=username, password=password)
+            site = Site.objects.create(name=site_name, slug=site_slug, template=template, owner=user)
+            provision_missing_slot_values(site)
+    except IntegrityError:
+        return JsonResponse({"error": "That username or site name was just taken — try again."}, status=409)
+
+    login(request, user)
+    return JsonResponse({"authenticated": True, "username": user.username, "site": _serialize_site(site)}, status=201)
 
 
 @customer_login_required
