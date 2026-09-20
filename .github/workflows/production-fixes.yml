@@ -17,11 +17,29 @@ jobs:
         working-directory: backend
         run: pip install -r requirements.txt
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Look up the deployed template-assets S3 bucket name
+        id: bucket
+        run: |
+          NAME=$(aws cloudformation describe-stacks \
+            --stack-name viincci-digital-builder \
+            --query "Stacks[0].Outputs[?OutputKey=='TemplateAssetsBucketName'].OutputValue" \
+            --output text)
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
       - name: Backfill theme colors for pre-existing templates
         working-directory: backend
         env:
           DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AWS_STORAGE_BUCKET_NAME: ${{ steps.bucket.outputs.name }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
         run: python manage.py backfill_theme_colors
 
       - name: Repair the "tea" site's corrupted slot values
@@ -29,6 +47,8 @@ jobs:
         env:
           DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AWS_STORAGE_BUCKET_NAME: ${{ steps.bucket.outputs.name }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
           python manage.py shell -c "
           from builder.models import Site
