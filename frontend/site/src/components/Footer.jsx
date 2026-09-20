@@ -1,4 +1,4 @@
-import SectionLink from './SectionLink.jsx'
+import { Link } from 'react-router-dom'
 
 export default function Footer() {
   return (
@@ -7,9 +7,9 @@ export default function Footer() {
       <div className="container footer-top">
         <div className="row gy-4">
           <div className="col-lg-3 col-md-6 footer-info">
-            <SectionLink to="hero" className="logo d-flex align-items-center mb-4">
+            <Link to="/" className="logo d-flex align-items-center mb-4">
               <img src="/assets/img/logo.png" alt="Vicinic" className="logo-img" />
-            </SectionLink>
+            </Link>
             <p>Websites & WhatsApp systems for small and growing businesses across South Africa — hosted, secured, and supported.</p>
 
             <div className="social-links d-flex mt-4">
@@ -20,17 +20,17 @@ export default function Footer() {
           <div className="col-lg-3 col-md-6 footer-links">
             <h4>Company</h4>
             <ul>
-              <li><SectionLink to="about">About</SectionLink></li>
-              <li><SectionLink to="services">Services</SectionLink></li>
-              <li><SectionLink to="pricing">Pricing</SectionLink></li>
-              <li><SectionLink to="portfolio">Portfolio</SectionLink></li>
+              <li><Link to="/about">About</Link></li>
+              <li><Link to="/services">Services</Link></li>
+              <li><Link to="/pricing">Pricing</Link></li>
+              <li><Link to="/portfolio">Portfolio</Link></li>
             </ul>
           </div>
 
           <div className="col-lg-3 col-md-6 footer-links">
             <h4>Get In Touch</h4>
             <ul>
-              <li><SectionLink to="contact">Contact</SectionLink></li>
+              <li><Link to="/contact">Contact</Link></li>
               <li><a href="/privacy">Privacy Policy</a></li>
               <li><a href="/terms">Terms of Service</a></li>
             </ul>
@@ -40,7 +40,7 @@ export default function Footer() {
             <div className="footer-newsletter">
               <h4>Ready to start?</h4>
               <p>Tell us about your business and we'll recommend the right package.</p>
-              <SectionLink to="contact" className="btn-pricing">Get a Quote</SectionLink>
+              <Link to="/contact" className="btn-pricing">Get a Quote</Link>
             </div>
           </div>
         </div>

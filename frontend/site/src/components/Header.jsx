@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
-import SectionLink from './SectionLink.jsx'
+import { Link } from 'react-router-dom'
 import useActiveSection from '../hooks/useActiveSection.js'
 
 const NAV_ITEMS = [
-  { to: 'hero', label: 'Home' },
-  { to: 'about', label: 'About' },
-  { to: 'services', label: 'Services' },
-  { to: 'pricing', label: 'Pricing' },
-  { to: 'portfolio', label: 'Portfolio' },
-  { to: 'contact', label: 'Contact' },
+  { to: 'hero', route: '/', label: 'Home' },
+  { to: 'about', route: '/about', label: 'About' },
+  { to: 'services', route: '/services', label: 'Services' },
+  { to: 'pricing', route: '/pricing', label: 'Pricing' },
+  { to: 'portfolio', route: '/portfolio', label: 'Portfolio' },
+  { to: 'contact', route: '/contact', label: 'Contact' },
 ]
 
 export default function Header() {
@@ -23,17 +23,17 @@ export default function Header() {
     <header id="header" className="header d-flex align-items-center sticky-top">
       <div className="container position-relative d-flex align-items-center justify-content-between">
 
-        <SectionLink to="hero" className="logo d-flex align-items-center me-auto me-xl-0">
+        <Link to="/" className="logo d-flex align-items-center me-auto me-xl-0">
           <img src="/assets/img/logo.png" alt="Vicinic" className="logo-img" />
-        </SectionLink>
+        </Link>
 
         <nav id="navmenu" className="navmenu">
           <ul onClick={() => setMobileNavActive(false)}>
             {NAV_ITEMS.map((item) => (
               <li key={item.to}>
-                <SectionLink to={item.to} className={active === item.to ? 'active' : undefined}>
+                <Link to={item.route} className={active === item.to ? 'active' : undefined}>
                   {item.label}
-                </SectionLink>
+                </Link>
               </li>
             ))}
           </ul>
@@ -43,7 +43,7 @@ export default function Header() {
           ></i>
         </nav>
 
-        <SectionLink to="contact" className="btn-getstarted">Get a Quote</SectionLink>
+        <Link to="/contact" className="btn-getstarted">Get a Quote</Link>
 
       </div>
     </header>
