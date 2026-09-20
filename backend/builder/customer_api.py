@@ -310,10 +310,19 @@ def api_customer_site_update(request, site_slug):
         setattr(site, key, value)
     site.save(update_fields=list(fields.keys()))
 
+    renamed_slots = None
     if "name" in fields:
-        rename_site_in_slots(site, old_name, fields["name"])
+        renamed_slots = rename_site_in_slots(site, old_name, fields["name"])
 
-    return JsonResponse({"site": _serialize_site(site)})
+    response = {"site": _serialize_site(site)}
+    if renamed_slots == 0:
+        # Nothing on the page actually said the old name — most likely an
+        # image logo, or a template _detect_brand_token couldn't
+        # confidently guess. The name itself is still saved either way;
+        # this just tells web-portal to point the owner at the Edit tab
+        # instead of leaving them wondering why nothing visibly changed.
+        response["name_change_applied_to_page"] = False
+    return JsonResponse(response)
 
 
 @require_http_methods(["GET"])

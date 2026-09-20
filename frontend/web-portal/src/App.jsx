@@ -302,7 +302,7 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
     try {
       const data = await updateSite(site.slug, form)
       onSiteUpdated(data.site)
-      setSaveState('saved')
+      setSaveState(data.name_change_applied_to_page === false ? 'saved-name-not-found' : 'saved')
     } catch (err) {
       setSaveError(err.message)
       setSaveState('error')
@@ -367,6 +367,12 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
           </button>
           {saveState === 'saved' && <span className="save-status">Saved</span>}
         </div>
+        {saveState === 'saved-name-not-found' && (
+          <div className="notice">
+            Saved — but your old name wasn't found anywhere on the page, so nothing there updated
+            automatically. Edit the logo/heading text directly on the Edit tab instead.
+          </div>
+        )}
       </form>
     </>
   )

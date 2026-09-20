@@ -2,19 +2,27 @@
 API: whenever a Site is attached to a Template (on creation, or if the
 template is switched), make sure every one of that template's slots has a
 SiteSlotValue row to edit — blank means "use the template's own default"."""
-from collections import Counter
-
 from ..models import SiteSlotValue
 from .slot_extractor import slot_tag
+
+# Common nav/UI text that can legitimately show up inside a <title> too
+# (e.g. a title of just "Home" for the homepage) — excluded so a page like
+# that can't get mistaken for the template's own brand name.
+_GENERIC_TEXT = {
+    "home", "about", "about us", "contact", "contact us", "services", "portfolio",
+    "blog", "team", "gallery", "shop", "products", "pricing", "faq", "login",
+    "sign in", "register", "get started", "read more", "learn more", "menu", "search",
+}
 
 
 def _detect_brand_token(template):
     """Guesses the template's own hardcoded demo name (e.g. "CoreBiz") —
-    the bit of text that's both repeated verbatim across multiple slots
-    (logo, nav brand, footer credit usually all say the same thing) and
-    present in the page's own <title>, which anchors the guess to
-    something that's actually a name rather than a generic repeated word
-    like "Home" or "Contact"."""
+    the longest bit of slot text that's both present in the page's own
+    <title> (which anchors the guess to something that's actually a name,
+    not just any short slot) and isn't a generic nav/UI word that could
+    coincidentally also appear in a title. Doesn't require it to repeat
+    elsewhere too — plenty of real templates only ever show their name
+    once, e.g. just the header logo, with no matching footer credit."""
     home = template.pages.filter(slug="").first()
     if home is None:
         return None
@@ -28,9 +36,11 @@ def _detect_brand_token(template):
         return None
     title_text = title_slot.default_text
 
-    texts = [s.default_text.strip() for s in template.slots.all()]
-    counts = Counter(t for t in texts if t and 1 < len(t) <= 40)
-    candidates = [text for text, count in counts.items() if count >= 2 and text in title_text]
+    texts = {s.default_text.strip() for s in template.slots.all()}
+    candidates = [
+        t for t in texts
+        if t and 1 < len(t) <= 40 and t != title_text and t in title_text and t.lower() not in _GENERIC_TEXT
+    ]
     if not candidates:
         return None
     candidates.sort(key=len, reverse=True)
@@ -74,15 +84,42 @@ def rename_site_in_slots(site, old_name, new_name):
     logo, <title>, a footer credit, wherever _name_overrides_for put it at
     creation (or wherever it just happens to appear) — without touching
     anything that no longer says the old name (e.g. because the customer
-    already rewrote it by hand to something else)."""
+    already rewrote it by hand to something else). Returns how many slots
+    changed, so callers can tell the customer when nothing did.
+
+    If nothing contains the old name at all — most likely because
+    _detect_brand_token couldn't confidently guess this template's own
+    demo name back when the site was first created, so the creation-time
+    auto-fill never ran — this tries that same detection again now,
+    against whichever slots are still exactly the template's own
+    untouched default text (anything already customized by hand is left
+    alone either way)."""
     if not old_name or old_name == new_name:
-        return
+        return 0
+    slot_values = list(site.slot_values.select_related("slot"))
     updated = []
-    for sv in site.slot_values.select_related("slot"):
+    for sv in slot_values:
         current = sv.value or sv.slot.default_text
         if old_name not in current:
             continue
         sv.value = current.replace(old_name, new_name)
         updated.append(sv)
+
+    if not updated:
+        brand = _detect_brand_token(site.template)
+        if brand:
+            for sv in slot_values:
+                if sv.value:  # already has some override — leave it alone
+                    continue
+                default = sv.slot.default_text
+                if default.strip() == brand:
+                    sv.value = new_name
+                elif brand in default:
+                    sv.value = default.replace(brand, new_name)
+                else:
+                    continue
+                updated.append(sv)
+
     if updated:
         SiteSlotValue.objects.bulk_update(updated, ["value"])
+    return len(updated)
