@@ -56,6 +56,22 @@ the free tier: its rendered pages carry a small "Powered by Vicinic" credit
 (see "PayFast subscriptions" below) until its owner subscribes to one of
 the paid packages, which removes it.
 
+Provisioning also does its best to replace the template's own hardcoded
+demo name (e.g. a Bootstrap template called "CoreBiz" out of the box)
+with the name the customer actually gave their `Site`, wherever it
+appears — the logo, the `<title>`, a footer credit — rather than leaving
+every new site showing the template author's own brand until someone
+manually finds and edits each occurrence
+(`services/site_provisioning._detect_brand_token`/`_name_overrides_for`).
+It guesses the demo name from whatever short bit of text is both repeated
+across multiple slots *and* present in the page's own `<title>` — that
+combination is what tells "CoreBiz" (the actual brand) apart from a
+generic repeated word like "Home" or "Contact" that just happens to
+appear on every page too. This only ever touches a slot's very first
+`SiteSlotValue` row (still blank, never yet given a real override), so
+it can't clobber an edit made later, and it's skipped entirely if no
+`<title>` slot is found or nothing repeats.
+
 ## PayFast subscriptions (`builder/services/payfast.py`, `builder/payfast_views.py`)
 
 A `Site.is_branded` property (true unless `subscription_status == "active"`)

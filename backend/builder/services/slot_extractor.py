@@ -11,6 +11,18 @@ from bs4.element import Comment
 SKIP_PARENT_TAGS = {"script", "style"}
 
 
+def slot_tag(label):
+    """The "<tagname>" prefix every slot's label starts with (see below) —
+    the parent tag its text came from. Used elsewhere to recognize tags
+    that can't hold an element (<title>, <option>, ...) or to anchor
+    "which slot is the site's own name" guesses to <title>/<h1>/<a>."""
+    if label.startswith("<"):
+        end = label.find(">")
+        if end != -1:
+            return label[1:end]
+    return ""
+
+
 def extract_slots(html_fragment, key_prefix, start_index=1):
     """Returns (new_html, slots, next_index).
 

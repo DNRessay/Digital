@@ -14,6 +14,7 @@ from django.views.decorators.http import require_POST
 
 from .forms import TemplateUploadForm
 from .models import Site, SiteSlotValue, Template, TemplatePage
+from .services.slot_extractor import slot_tag
 from .services.template_ingest import IngestError, ingest_converted_zip
 from .services.templify_client import TemplifyError, convert_template_zip
 
@@ -45,14 +46,6 @@ def _inject_branding_badge(html):
 # already puts in every slot's label. These stay plain text even in edit
 # mode; web-portal falls back to a small text-input list for just these.
 NON_INLINE_EDITABLE_TAGS = {"title", "option", "textarea", "noscript", "[document]"}
-
-
-def _slot_tag(label):
-    if label.startswith("<"):
-        end = label.find(">")
-        if end != -1:
-            return label[1:end]
-    return ""
 
 
 # Injected before </body> only when rendering for the customer's own
@@ -182,7 +175,7 @@ def _resolve_slots(site, page, edit_mode=False):
     context = {"site": site}
     for slot in slots:
         value = overrides.get(slot.id, slot.default_text)
-        if edit_mode and _slot_tag(slot.label) not in NON_INLINE_EDITABLE_TAGS:
+        if edit_mode and slot_tag(slot.label) not in NON_INLINE_EDITABLE_TAGS:
             value = mark_safe(
                 f'<span class="vicinic-editable" data-vicinic-slot="{escape(slot.key)}">{escape(value)}</span>'
             )
