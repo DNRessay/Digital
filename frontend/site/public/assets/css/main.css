@@ -17,38 +17,38 @@
   --nav-font: "Lato",  sans-serif;
 }
 
-/* Global Colors - Vicinic brand: black, white, gold. No blue/navy. */
+/* Global Colors - Vicinic brand: black dominant, gold reserved for lines/accents/buttons, white/gray text. No blue/navy. */
 :root {
-  --background-color: #ffffff; /* Background color for the entire website, including individual sections */
-  --default-color: #2b2b2b; /* Default color used for the majority of the text content across the entire website */
-  --heading-color: #0a0a0a; /* Color for headings, subheadings and title throughout the website */
-  --accent-color: #c9a227; /* Gold — brand accent used for buttons, links, and other elements that need to stand out */
-  --surface-color: #ffffff; /* The surface color is used as a background of boxed elements within sections, such as cards, icon boxes, or other elements that require a visual separation from the global background. */
+  --background-color: #0a0a0a; /* Black is now the dominant background across the whole site */
+  --default-color: #d6d6d6; /* Light gray body text, for contrast on black */
+  --heading-color: #ffffff; /* White headings on black */
+  --accent-color: #c9a227; /* Gold — reserved for lines, borders, and buttons; not used as a page background */
+  --surface-color: #141414; /* A step above black, for cards/boxes that need to separate from the page background */
   --contrast-color: #0a0a0a; /* Contrast color for text on top of accent-colored elements — near-black reads better on gold than white does. */
 }
 
 /* Nav Menu Colors - The following color variables are used specifically for the navigation menu. They are separate from the global colors to allow for more customization options */
 :root {
-  --nav-color: #0a0a0a;  /* The default color of the main navmenu links */
+  --nav-color: #f2f2f2;  /* The default color of the main navmenu links */
   --nav-hover-color: #c9a227; /* Applied to main navmenu links when they are hovered over or active */
-  --nav-mobile-background-color: #ffffff; /* Used as the background color for mobile navigation menu */
-  --nav-dropdown-background-color: #ffffff; /* Used as the background color for dropdown items that appear when hovering over primary navigation items */
-  --nav-dropdown-color: #2b2b2b; /* Used for navigation links of the dropdown items in the navigation menu. */
+  --nav-mobile-background-color: #111111; /* Used as the background color for mobile navigation menu */
+  --nav-dropdown-background-color: #141414; /* Used as the background color for dropdown items that appear when hovering over primary navigation items */
+  --nav-dropdown-color: #d6d6d6; /* Used for navigation links of the dropdown items in the navigation menu. */
   --nav-dropdown-hover-color: #c9a227; /* Similar to --nav-hover-color, this color is applied to dropdown navigation links when they are hovered over. */
 }
 
 /* Color Presets - These classes override global colors when applied to any section or element, providing reuse of the sam color scheme. */
 
 .light-background {
-  --background-color: #f7f5f0;
-  --surface-color: #ffffff;
+  --background-color: #121212; /* One shade up from the base black, for alternating section rhythm down the page */
+  --surface-color: #1c1c1c;
 }
 
 .dark-background {
-  --background-color: #0a0a0a;
+  --background-color: #000000; /* The deepest black, for sections meant to read as the most dramatic */
   --default-color: #e5e5e5;
   --heading-color: #ffffff;
-  --surface-color: #171717;
+  --surface-color: #111111;
   --contrast-color: #0a0a0a;
 }
 
@@ -63,6 +63,8 @@
 body {
   color: var(--default-color);
   background-color: var(--background-color);
+  background-image: linear-gradient(160deg, #000000 0%, #1e1e1e 45%, #000000 100%);
+  background-attachment: fixed;
   font-family: var(--default-font);
 }
 
@@ -143,9 +145,9 @@ h6 {
 # Global Header
 --------------------------------------------------------------*/
 .header {
-  --surface-color: #1b2430;
   color: var(--default-color);
   background-color: var(--background-color);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-color), transparent 70%);
   padding: 15px 0;
   transition: all 0.5s;
   z-index: 997;
@@ -164,6 +166,12 @@ h6 {
 .header .logo .logo-img {
   max-height: 48px;
   width: auto;
+}
+
+/* logo.png is a black/dark-gray mark drawn for a light background;
+   invert it so it reads on the site's black header and footer. */
+.logo-img {
+  filter: invert(1) brightness(1.6);
 }
 
 .header .logo h1 {
@@ -455,6 +463,7 @@ h6 {
 .footer {
   color: var(--default-color);
   background-color: var(--background-color);
+  border-top: 1px solid color-mix(in srgb, var(--accent-color), transparent 70%);
   font-size: 14px;
   padding: 60px 0 30px;
   position: relative;
@@ -851,6 +860,13 @@ section,
   padding: 60px 0;
   scroll-margin-top: 90px;
   overflow: clip;
+  border-top: 1px solid color-mix(in srgb, var(--accent-color), transparent 88%);
+}
+
+section:first-of-type,
+.section:first-of-type,
+.hero.section {
+  border-top: none;
 }
 
 @media (max-width: 1199px) {
@@ -902,7 +918,8 @@ section,
   padding: 120px 0 80px;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, var(--background-color) 0%, color-mix(in srgb, var(--accent-color), transparent 95%) 100%);
+  background: linear-gradient(135deg, #000000 0%, #232323 60%, #000000 100%);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-color), transparent 75%);
 }
 
 .hero::before {
@@ -6404,6 +6421,7 @@ section,
   padding: 40px 32px;
   border-radius: 16px;
   background: var(--surface-color);
+  border: 1px solid color-mix(in srgb, var(--accent-color), transparent 80%);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
   height: 100%;
   display: flex;
@@ -6478,10 +6496,11 @@ section,
 }
 
 .pricing .pricing-card.featured {
-  background: var(--heading-color);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent-color), black 80%) 0%, #000000 100%);
+  border: 1px solid var(--accent-color);
   color: #ffffff;
   transform: scale(1.03);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 20px 60px color-mix(in srgb, var(--accent-color), transparent 70%);
 }
 
 .pricing .pricing-card.featured h3,
