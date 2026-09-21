@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>Scheduled Maintenance - Vicinic</title>
+  <meta name="description" content="This site is undergoing scheduled maintenance.">
+  <meta name="robots" content="noindex">
+  <link href="../assets/img/favicon.png" rel="icon">
+  <link href="../assets/img/apple-touch-icon.png" rel="apple-touch-icon">
+  <link href="https://fonts.googleapis.com" rel="preconnect">
+  <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Raleway:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --background-color: #0a0a0a;
+      --heading-color: #ffffff;
+      --default-color: #d6d6d6;
+      --accent-color: #c9a227;
+      --surface-color: #141414;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--background-color);
+      background-image:
+        radial-gradient(circle at 15% 20%, color-mix(in srgb, var(--accent-color), transparent 92%) 0%, transparent 45%),
+        radial-gradient(circle at 85% 80%, color-mix(in srgb, var(--accent-color), transparent 94%) 0%, transparent 50%),
+        linear-gradient(160deg, #000000 0%, #1e1e1e 45%, #000000 100%);
+      background-attachment: fixed;
+      padding: 24px;
+    }
+
+    .status-card {
+      max-width: 620px;
+      width: 100%;
+      text-align: center;
+      padding: 56px 40px;
+      border-radius: 20px;
+      background: var(--surface-color);
+      border: 1px solid color-mix(in srgb, var(--accent-color), transparent 75%);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+    }
+
+    .status-logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 36px;
+    }
+
+    .status-logo img {
+      max-height: 52px;
+      width: auto;
+      display: block;
+    }
+
+    .status-logo .logo-mark-img {
+      margin-right: 10px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 24px;
+      background: color-mix(in srgb, var(--accent-color), transparent 88%);
+      color: var(--accent-color);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 24px;
+    }
+
+    .status-badge svg {
+      width: 14px;
+      height: 14px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .status-card h1 {
+      font-family: "Raleway", sans-serif;
+      font-size: 2.25rem;
+      font-weight: 700;
+      color: var(--heading-color);
+      margin: 0 0 18px;
+      padding-bottom: 18px;
+      position: relative;
+    }
+
+    .status-card h1::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60px;
+      height: 3px;
+      background: var(--accent-color);
+    }
+
+    .status-card p {
+      color: var(--default-color);
+      font-size: 1.0625rem;
+      line-height: 1.7;
+      margin: 0;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="status-card">
+    <div class="status-logo">
+      <img src="../assets/img/logo-mark.png" alt="" class="logo-mark-img">
+      <img src="../assets/img/logo-wordmark.png" alt="Vicinic" class="logo-wordmark-img">
+    </div>
+
+    <span class="status-badge">
+      <svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4l-6 6 2 2 6-6a4 4 0 0 1 5.4-5.4l-2 2-2-2 2-2z"/></svg>
+      Scheduled Maintenance
+    </span>
+
+    <h1>We'll be back shortly</h1>
+    <p>This site is undergoing scheduled maintenance. Thanks for your patience —
+      check back again in a little while.</p>
+  </div>
+
+</body>
+
+</html>
