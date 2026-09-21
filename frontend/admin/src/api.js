@@ -1,17 +1,38 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+const TOKEN_KEY = 'vicinic_admin_token'
 
-function getCookie(name) {
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
-  return match ? decodeURIComponent(match[1]) : null
+// Bearer-token auth, not cookies — see models.CustomerAuthToken's docstring
+// for the full reasoning (this app hit it in practice: a same-origin login
+// worked, but the SPA's own cross-origin whoami() fetch() came back
+// unauthenticated because the session cookie never attached to it).
+export function getToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+function setToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token)
+    else localStorage.removeItem(TOKEN_KEY)
+  } catch {
+    // Private browsing / storage disabled — auth just won't persist across reloads.
+  }
 }
 
 async function apiFetch(path, options = {}) {
+  const isFormData = options.body instanceof FormData
+  const isJsonBody = options.body !== undefined && !isFormData && typeof options.body !== 'string'
+  const token = getToken()
   const res = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include',
     ...options,
+    body: isJsonBody ? JSON.stringify(options.body) : options.body,
     headers: {
+      ...(isJsonBody ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Token ${token}` } : {}),
       ...(options.headers || {}),
-      ...(options.method && options.method !== 'GET' ? { 'X-CSRFToken': getCookie('csrftoken') || '' } : {}),
     },
   })
   let data = null
@@ -28,19 +49,22 @@ async function apiFetch(path, options = {}) {
   return data
 }
 
-export function loginUrl() {
-  // admin-login-redirect/ (not /admin/login/ directly) handles both
-  // "already logged in" (Django's own admin login shortcuts straight to
-  // /admin/ in that case, ignoring next= entirely — a redirect-safety
-  // check can't fix that, it never even runs) and "needs to log in first"
-  // — see builder/views.admin_login_redirect for why this extra hop
-  // exists.
-  const target = encodeURIComponent(window.location.href)
-  return `${API_BASE}/admin-login-redirect/?target=${target}`
-}
-
 export function whoami() {
   return apiFetch('/api/whoami/')
+}
+
+export async function login(username, password) {
+  const data = await apiFetch('/api/admin/login/', { method: 'POST', body: { username, password } })
+  setToken(data.token)
+  return data
+}
+
+export async function logout() {
+  try {
+    await apiFetch('/api/admin/logout/', { method: 'POST' })
+  } finally {
+    setToken(null)
+  }
 }
 
 export function listTemplates() {

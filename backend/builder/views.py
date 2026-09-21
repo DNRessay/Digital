@@ -1,14 +1,13 @@
 import re
-from urllib.parse import quote, urlparse
+from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.mail import BadHeaderError, send_mail
 from django.db import IntegrityError
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template import engines
-from django.urls import reverse
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
 from django.utils.text import slugify
@@ -340,38 +339,3 @@ def template_manager(request):
         "builder/manager/templates.html",
         {"form": form, "templates": templates, "error": error},
     )
-
-
-def admin_login_redirect(request):
-    """Single entry point frontend/admin's loginUrl() points at (instead of
-    straight at /admin/login/) — handles both cases needed to get the
-    browser back to the React app (a different origin — Cloudflare Pages)
-    after signing in:
-
-    - Already authenticated (any prior session for this staff user, e.g.
-      from visiting /admin/ directly, or from a previous cross-origin
-      login) — AdminSite.login() itself special-cases this: a GET to
-      /admin/login/ while already logged in redirects straight to
-      /admin/ and ignores `next` ENTIRELY (Django source, not something
-      overridable via next=), which is exactly what stranded logins here
-      before this existed. Checking auth ourselves first and bouncing
-      straight to `target` sidesteps that shortcut completely.
-    - Not authenticated — redirect to the real /admin/login/, with next=
-      pointing back at THIS view (same-origin, so it passes LoginView's
-      own redirect-safety check) so the browser lands here again post-login,
-      which then takes the branch above.
-
-    Either way, `target`'s origin is checked against FRONTEND_ORIGINS the
-    same way customer_api._origin_allowed does, so this can't become an
-    open redirect to an arbitrary site."""
-    target = request.GET.get("target", "")
-    parsed = urlparse(target)
-    origin = f"{parsed.scheme}://{parsed.netloc}"
-    if not parsed.scheme or not parsed.netloc or origin not in settings.FRONTEND_ORIGINS:
-        return HttpResponseBadRequest("Invalid redirect target.")
-
-    if request.user.is_active and request.user.is_staff:
-        return HttpResponseRedirect(target)
-
-    login_next = f"{reverse('admin-login-redirect')}?target={quote(target, safe='')}"
-    return HttpResponseRedirect(f"{reverse('admin:login')}?next={quote(login_next, safe='')}")

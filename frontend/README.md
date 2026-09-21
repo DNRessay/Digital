@@ -67,28 +67,23 @@ domain) to the backend's `FRONTEND_ORIGINS` env var (comma-separated) —
 see `backend/.env.example`. Without this, the backend's CORS config will
 reject that app's API calls even though the app itself loads fine.
 
-## Known limitation: `admin`'s cross-origin session cookie
+## Auth: both apps use bearer tokens, not session cookies
 
-`admin` authenticates by sending the browser's Django session cookie
-cross-origin (`credentials: 'include'`) rather than a token scheme. This
-requires `SameSite=None; Secure` cookies (already configured in production
-— see `backend/config/settings.py`), and works in current Chrome/Firefox,
-but browsers with stricter third-party cookie policies (notably Safari's
-ITP, and increasingly Chrome too) may block it intermittently — the page
-still loads fine (GET requests work), but a POST needing the matching CSRF
-cookie can fail with no earlier warning. `SameSite=None` also requires
-HTTPS, so this only actually works against the real deployed backend, not
-a plain-HTTP local one — testing `admin`'s login/upload flow end-to-end
-currently requires the real deployed backend.
+`admin` and `web-portal` both authenticate via a token (`CustomerAuthToken`
+— see `backend/README.md`'s section on it) returned from a login endpoint,
+stored in `localStorage`, and sent as an `Authorization` header — no
+cookies, no CSRF, no HTTPS requirement for local testing.
 
-**`web-portal` doesn't have this problem** — it hit exactly this failure
-mode in practice (registration 403ing on a phone whose browser silently
-never stored the cross-site cookie) and was switched to bearer-token auth
-instead (`src/api.js`: a token from login/register stored in
-`localStorage`, sent as an `Authorization` header). No cookies, no CSRF,
-and no HTTPS requirement for local testing — see `backend/README.md`'s
-`CustomerAuthToken` section. If `admin` ever hits the same problem in
-practice, the fix is the same pattern.
+`admin` didn't start out this way — it originally sent the browser's
+Django session cookie cross-origin (`credentials: 'include'`), the same
+approach `web-portal` briefly used before hitting the problem this section
+used to describe: a same-origin login works fine (cookies always attach to
+a real page load), but the SPA's own subsequent cross-origin `fetch()`
+calls can come back looking logged-out anyway, because browsers
+increasingly refuse to attach a cross-site cookie to a fetch even with
+`SameSite=None; Secure` set correctly (Safari's ITP, and increasingly
+Chrome too). `admin` hit this in practice — bearer tokens sidestep it
+entirely, which is why both apps use the same pattern now.
 
 ## Local development
 

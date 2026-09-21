@@ -291,15 +291,21 @@ class SiteSlotValue(models.Model):
 
 
 class CustomerAuthToken(models.Model):
-    """Bearer-token auth for the customer-facing API (builder/customer_api.py,
-    used by frontend/web-portal) — deliberately not session-cookie based.
+    """Bearer-token auth, shared by both the customer-facing API
+    (builder/customer_api.py, used by frontend/web-portal) and the admin
+    API (builder/api_views.py, used by frontend/admin) — deliberately not
+    session-cookie based for either. One key per Django user regardless of
+    which app it authenticates.
 
-    web-portal's backend is a different site (a different eTLD+1) from the
-    frontend, and browsers increasingly block third-party cookies by default
-    (this is Safari/Firefox's existing default and Chrome's own direction) —
-    a cross-site session cookie can silently never get set at all, which
-    looks fine (GET requests still "work" and render a normal-looking page)
-    right up until a POST needing a matching CSRF cookie 403s. A bearer
+    Both apps' backends are a different site (a different eTLD+1) from
+    their frontend, and browsers increasingly block third-party cookies by
+    default (this is Safari/Firefox's existing default and Chrome's own
+    direction) — a cross-site session cookie can silently never get sent
+    at all on a later fetch(), which looks fine right up until that call
+    401s (or, worse, a POST needing a matching CSRF cookie 403s) with no
+    earlier warning. admin hit exactly this in practice: a same-origin
+    login (cookies always attach on a real page load) immediately followed
+    by the SPA's own whoami() fetch() coming back unauthenticated. A bearer
     token sent as an explicit header sidesteps this entirely: it doesn't
     rely on the browser's cookie jar, and CSRF protection (which exists to
     stop a forged cross-site request from riding on ambient cookie auth)

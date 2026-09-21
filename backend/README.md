@@ -140,7 +140,7 @@ real money, set `PAYFAST_MERCHANT_ID`/`PAYFAST_MERCHANT_KEY`/
 ## Customer-facing API (`builder/customer_api.py`, `/api/customer/...`)
 
 **Bearer-token authenticated (`CustomerAuthToken`), not session-cookie
-based** — unlike the admin app's `/api/...`. web-portal's backend is a
+based** — same scheme the admin app's `/api/...` also uses. web-portal's backend is a
 different site from the frontend, and browsers increasingly block
 third-party cookies by default; a cross-site session cookie can silently
 never get set at all (the page still loads fine — only a later POST
@@ -383,9 +383,3 @@ lose every uploaded template's assets between invocations.
 - **AWS credentials in the GitHub Actions workflow use long-lived access
   keys**, not OIDC role assumption. Works, just less secure than the
   modern approach.
-- **`/api/...` (the admin app's, `api_views.py`) auth is a cross-origin
-  session cookie** (`SameSite=None`), not a token scheme — see
-  `../frontend/README.md`'s "Known limitation" section for the
-  browser-compatibility caveat this carries. `/api/customer/...` (this
-  section) doesn't have this problem — it already moved to bearer tokens
-  after hitting the same failure mode in practice.

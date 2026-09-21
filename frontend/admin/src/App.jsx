@@ -1,15 +1,39 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
-import { listTemplates, loginUrl, uploadTemplate, whoami } from './api.js'
+import { listTemplates, login, logout, uploadTemplate, whoami } from './api.js'
 
-function LoginPrompt() {
+function Login({ onLoggedIn }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      await login(username, password)
+      onLoggedIn()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="page login-prompt">
-      <div className="card">
+      <form className="card" onSubmit={handleSubmit}>
         <h1>Vicinic Admin</h1>
-        <p>Sign in with your superuser account.</p>
-        <a href={loginUrl()}>Sign in</a>
-      </div>
+        <p>Sign in with your staff account.</p>
+        {error && <div className="error">{error}</div>}
+        <label htmlFor="username">Username</label>
+        <input id="username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} required autoComplete="username" />
+        <label htmlFor="password">Password</label>
+        <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
+        <button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+      </form>
     </div>
   )
 }
@@ -136,7 +160,7 @@ export default function App() {
   const [status, setStatus] = useState('loading') // loading | anon | ready | error
   const [loadError, setLoadError] = useState(null)
 
-  useEffect(() => {
+  function checkAuth() {
     whoami()
       .then(() => setStatus('ready'))
       .catch((err) => {
@@ -147,10 +171,17 @@ export default function App() {
           setStatus('error')
         }
       })
-  }, [])
+  }
+
+  useEffect(checkAuth, [])
+
+  async function handleLogout() {
+    await logout().catch(() => {})
+    setStatus('anon')
+  }
 
   if (status === 'loading') return <div className="page">Loading…</div>
-  if (status === 'anon') return <LoginPrompt />
+  if (status === 'anon') return <Login onLoggedIn={() => setStatus('ready')} />
   if (status === 'error') return <div className="page error">Could not reach the backend. {loadError}</div>
 
   return (
@@ -164,6 +195,7 @@ export default function App() {
           <NavLink to="/sites">Sites</NavLink>
           <NavLink to="/templates">Templates</NavLink>
         </nav>
+        <button type="button" className="link-button" onClick={handleLogout}>Sign out</button>
       </aside>
       <main className="main">
         <Routes>

@@ -1,39 +1,64 @@
-"""JSON API for the 'admin' frontend app's Templates page (frontend/admin),
-which replaces the old server-rendered /manage/templates/ page. Session-cookie
-authenticated (the SPA sends the browser to Django's own /admin/login/ for
-the actual login step, then calls these endpoints with
-credentials:'include') rather than reusing login_required's decorators
-directly — those redirect to an HTML login page on failure, which isn't
-something a fetch() call can usefully follow cross-origin.
+"""JSON API for the 'admin' frontend app (frontend/admin) — the template
+manager, replacing the old server-rendered /manage/templates/ page.
+
+Bearer-token authenticated (CustomerAuthToken, shared with the customer-
+facing API — it's just a plain user->key mapping, nothing customer-specific
+about its shape), not session-cookie based. admin's backend is a different
+site from the frontend (a Cloudflare Pages origin), and a session cookie
+set there depends on the browser actually attaching it to a later
+cross-origin fetch() — which browsers increasingly refuse to do by default
+(third-party cookie blocking), even with SameSite=None/Secure set correctly.
+In practice this showed up as: log in fine (a same-origin page load, cookies
+always attach there), then immediately look logged-out again from the SPA's
+own fetch() calls. A bearer token sent as an explicit header sidesteps this
+entirely — see CustomerAuthToken's own docstring for the fuller version of
+this same argument, first hit (and fixed the same way) on web-portal.
 """
 import functools
+import json
 
 from django.conf import settings
+from django.contrib.auth import authenticate
 from django.db import IntegrityError
 from django.http import JsonResponse
 from django.utils.text import slugify
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import Template
+from .models import CustomerAuthToken, Template
 from .services.template_ingest import IngestError, ingest_converted_zip
 from .services.templify_client import TemplifyError, convert_template_zip
 
 
-def _is_superuser(user):
-    return user.is_active and user.is_superuser
+def _is_staff(user):
+    return user.is_active and user.is_staff
 
 
-def api_login_required(view):
+def _token_from_header(request):
+    header = request.META.get("HTTP_AUTHORIZATION", "")
+    scheme, _, key = header.partition(" ")
+    if scheme not in ("Token", "Bearer") or not key:
+        return None
+    return CustomerAuthToken.objects.filter(key=key).select_related("user").first()
+
+
+def admin_token_required(view):
     @functools.wraps(view)
     def wrapped(request, *args, **kwargs):
-        if not request.user.is_authenticated:
+        token = _token_from_header(request)
+        if token is None or not _is_staff(token.user):
             return JsonResponse({"error": "Authentication required."}, status=401)
-        if not _is_superuser(request.user):
-            return JsonResponse({"error": "Superuser access required."}, status=403)
+        request.admin_user = token.user
         return view(request, *args, **kwargs)
 
     return wrapped
+
+
+def _json_body(request):
+    try:
+        return json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return {}
 
 
 def _serialize_template(template):
@@ -48,19 +73,35 @@ def _serialize_template(template):
     }
 
 
-@ensure_csrf_cookie
+@admin_token_required
+@require_http_methods(["GET"])
 def api_whoami(request):
-    """Lets the SPA tell "logged in" from "not logged in" without following
-    a redirect. Not gated by api_login_required — that would 401/403 an
-    anonymous request before it even gets to say so.
-    """
-    if request.user.is_authenticated and _is_superuser(request.user):
-        return JsonResponse({"authenticated": True, "username": request.user.username})
-    return JsonResponse({"authenticated": False}, status=401)
+    return JsonResponse({"authenticated": True, "username": request.admin_user.username})
 
 
-@ensure_csrf_cookie
-@api_login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_admin_login(request):
+    body = _json_body(request)
+    username = str(body.get("username", "")).strip()
+    password = str(body.get("password", ""))
+    user = authenticate(username=username, password=password)
+    if user is None or not _is_staff(user):
+        return JsonResponse({"error": "Incorrect username or password."}, status=401)
+    token, _ = CustomerAuthToken.objects.get_or_create(user=user)
+    return JsonResponse({"authenticated": True, "token": token.key, "username": user.username})
+
+
+@csrf_exempt
+@admin_token_required
+@require_http_methods(["POST"])
+def api_admin_logout(request):
+    CustomerAuthToken.objects.filter(user=request.admin_user).delete()
+    return JsonResponse({"authenticated": False})
+
+
+@csrf_exempt
+@admin_token_required
 @require_http_methods(["GET", "POST"])
 def api_templates(request):
     if request.method == "GET":
