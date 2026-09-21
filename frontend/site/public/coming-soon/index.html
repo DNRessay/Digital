@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>Coming Soon - Vicinic</title>
+  <meta name="description" content="This site is launching soon.">
+  <meta name="robots" content="noindex">
+  <link href="../assets/img/favicon.png" rel="icon">
+  <link href="../assets/img/apple-touch-icon.png" rel="apple-touch-icon">
+  <link href="https://fonts.googleapis.com" rel="preconnect">
+  <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Raleway:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+  <link href="../assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link href="../assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+  <link href="../assets/css/main.css" rel="stylesheet">
+  <style>
+    html, body {
+      height: 100%;
+    }
+
+    body.status-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--background-color);
+      background-image:
+        radial-gradient(circle at 15% 20%, color-mix(in srgb, var(--accent-color), transparent 92%) 0%, transparent 45%),
+        radial-gradient(circle at 85% 80%, color-mix(in srgb, var(--accent-color), transparent 94%) 0%, transparent 50%),
+        linear-gradient(160deg, #000000 0%, #1e1e1e 45%, #000000 100%);
+      background-attachment: fixed;
+      padding: 24px;
+    }
+
+    .status-card {
+      max-width: 620px;
+      width: 100%;
+      text-align: center;
+      padding: 56px 40px;
+      border-radius: 20px;
+      background: var(--surface-color);
+      border: 1px solid color-mix(in srgb, var(--accent-color), transparent 75%);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+    }
+
+    .status-logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 36px;
+    }
+
+    .status-logo img {
+      max-height: 52px;
+      width: auto;
+    }
+
+    .status-logo .logo-mark-img {
+      margin-right: 10px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 24px;
+      background: color-mix(in srgb, var(--accent-color), transparent 88%);
+      color: var(--accent-color);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 24px;
+    }
+
+    .status-card h1 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      color: var(--heading-color);
+      margin-bottom: 18px;
+      padding-bottom: 18px;
+      position: relative;
+    }
+
+    .status-card h1::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60px;
+      height: 3px;
+      background: var(--accent-color);
+    }
+
+    .status-card p {
+      color: var(--default-color);
+      font-size: 1.0625rem;
+      line-height: 1.7;
+      margin-bottom: 0;
+    }
+  </style>
+</head>
+
+<body class="status-page">
+
+  <div class="status-card" data-aos="fade-up">
+    <div class="status-logo">
+      <img src="../assets/img/logo-mark.png" alt="" class="logo-mark-img">
+      <img src="../assets/img/logo-wordmark.png" alt="Vicinic" class="logo-wordmark-img">
+    </div>
+
+    <span class="status-badge"><i class="bi bi-hourglass-split"></i> Coming Soon</span>
+
+    <h1>Something new is on the way</h1>
+    <p>We're putting the finishing touches on this website. Check back soon.</p>
+  </div>
+
+</body>
+
+</html>
