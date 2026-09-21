@@ -11,8 +11,7 @@ across every site that uses them.
 backend/            Django + Mangum on Lambda (see backend/README.md)
 frontend/
   site/             Marketing site (vicinic.com) — Vite + React
-  admin/            Central admin dashboard — Vite + React
-  portal/           Template manager (upload/convert templates) — Vite + React
+  admin/            Admin dashboard: template manager (real) + sites/overview (placeholder) — Vite + React
   web-portal/       Customer-facing site editor (edit your own site's text) — Vite + React
 ```
 
@@ -22,7 +21,7 @@ app deployed to AWS Lambda — see `backend/README.md`.
 
 ## How the pieces talk to each other
 
-- **portal** and **web-portal** call the backend's JSON API
+- **admin** and **web-portal** call the backend's JSON API
   (`/api/...`) with the browser's session cookie
   (`credentials: 'include'`). The backend's `FRONTEND_ORIGINS` env var
   must list every such app's deployed origin (CORS + CSRF).

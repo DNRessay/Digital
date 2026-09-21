@@ -1,5 +1,5 @@
-"""JSON API for the 'portal' frontend app (frontend/portal), which replaces
-the old server-rendered /manage/templates/ page. Session-cookie
+"""JSON API for the 'admin' frontend app's Templates page (frontend/admin),
+which replaces the old server-rendered /manage/templates/ page. Session-cookie
 authenticated (the SPA sends the browser to Django's own /admin/login/ for
 the actual login step, then calls these endpoints with
 credentials:'include') rather than reusing login_required's decorators

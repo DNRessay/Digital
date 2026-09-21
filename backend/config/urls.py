@@ -8,7 +8,7 @@ from builder import api_views, customer_api, payfast_views
 urlpatterns = [
     path("admin/", admin.site.urls),
     # Reserved at the top level (like admin/) so a customer Site can never
-    # register a slug that collides with these — the JSON API the "portal"
+    # register a slug that collides with these — the JSON API the "admin"
     # frontend app uses in place of the old /manage/templates/ page.
     path("api/whoami/", api_views.api_whoami, name="api-whoami"),
     path("api/templates/", api_views.api_templates, name="api-templates"),

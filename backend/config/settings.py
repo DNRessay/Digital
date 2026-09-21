@@ -43,7 +43,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# The frontend/portal (and later web-portal/admin) React apps are deployed
+# The frontend/admin and frontend/web-portal React apps are deployed
 # separately on Cloudflare Pages — a different origin from this backend —
 # and need to call the JSON API with the session cookie attached.
 FRONTEND_ORIGINS = [o.strip() for o in os.environ.get("FRONTEND_ORIGINS", "").split(",") if o.strip()]

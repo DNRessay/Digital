@@ -23,18 +23,18 @@ markup/CSS/assets are shared and never touched per-site.
 
 ## Adding a template
 
-Templates are managed through **`frontend/portal`** (a separate React app —
-see `../frontend/README.md`), which calls this backend's JSON API
-(`builder/api_views.py`, `/api/templates/`). Upload a zip of a static HTML
-template (the usual multi-page-with-`assets/`-folder layout); it's sent to
-the deployed Templify conversion service (`TEMPLIFY_FUNCTION_URL`), then
-`builder/services/template_ingest.py` turns the result into a `Template`
-with its pages/slots/assets. No redeploy required — it's available to
-customers immediately.
+Templates are managed through **`frontend/admin`**'s Templates page (a
+separate React app — see `../frontend/README.md`), which calls this
+backend's JSON API (`builder/api_views.py`, `/api/templates/`). Upload a zip
+of a static HTML template (the usual multi-page-with-`assets/`-folder
+layout); it's sent to the deployed Templify conversion service
+(`TEMPLIFY_FUNCTION_URL`), then `builder/services/template_ingest.py` turns
+the result into a `Template` with its pages/slots/assets. No redeploy
+required — it's available to customers immediately.
 
 The old server-rendered `/manage/templates/` page (`builder/views.template_manager`)
 still exists and works — it's the same underlying logic — but is superseded
-by the portal app. Remove it once the portal app is deployed and verified.
+by the admin app. Remove it once the admin app is deployed and verified.
 
 A `Site` can also be set up through the **normal Django admin** at `/admin/`
 — that part is exactly as the stock admin provides — for cases where staff
@@ -140,7 +140,7 @@ real money, set `PAYFAST_MERCHANT_ID`/`PAYFAST_MERCHANT_KEY`/
 ## Customer-facing API (`builder/customer_api.py`, `/api/customer/...`)
 
 **Bearer-token authenticated (`CustomerAuthToken`), not session-cookie
-based** — unlike the portal's `/api/...`. web-portal's backend is a
+based** — unlike the admin app's `/api/...`. web-portal's backend is a
 different site from the frontend, and browsers increasingly block
 third-party cookies by default; a cross-site session cookie can silently
 never get set at all (the page still loads fine — only a later POST
@@ -316,7 +316,7 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-Run `frontend/portal` (`npm run dev`) to upload a template — or use
+Run `frontend/admin` (`npm run dev`) to upload a template — or use
 `/manage/templates/` directly if you'd rather skip running the frontend
 locally. Then use `/admin/` to create a `Site` using it, fill in its slot
 text, mark it "is_published", and visit `/<slug>/` to view it.
@@ -383,7 +383,7 @@ lose every uploaded template's assets between invocations.
 - **AWS credentials in the GitHub Actions workflow use long-lived access
   keys**, not OIDC role assumption. Works, just less secure than the
   modern approach.
-- **`/api/...` (the portal app's, `api_views.py`) auth is a cross-origin
+- **`/api/...` (the admin app's, `api_views.py`) auth is a cross-origin
   session cookie** (`SameSite=None`), not a token scheme — see
   `../frontend/README.md`'s "Known limitation" section for the
   browser-compatibility caveat this carries. `/api/customer/...` (this
