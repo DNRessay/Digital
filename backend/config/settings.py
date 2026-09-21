@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal
 from pathlib import Path
 
 import dj_database_url
@@ -165,5 +166,17 @@ CLOUDFLARE_ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
 PLATFORM_ORIGIN_HOST = os.environ.get(
     "PLATFORM_ORIGIN_HOST", "uoby5fryqkhbasb7wicrtg5oiq0pgwth.lambda-url.eu-west-1.on.aws"
 )
+
+# In-app domain purchase (builder/services/cloudflare.py check_domain/
+# register_domain, builder/customer_api.py domain-purchase endpoints).
+# Cloudflare Registrar bills Vicinic's own Cloudflare account directly, at
+# cost, usually in USD — DOMAIN_EXCHANGE_RATE_ZAR converts that to what the
+# customer is actually charged via PayFast (which only settles in ZAR), and
+# DOMAIN_MARKUP_ZAR is added on top. Both are plain settings rather than a
+# live FX API call: registrations are non-refundable, so a stale-but-known
+# rate that's manually nudged occasionally is safer than a live rate that
+# could put a purchase underwater between quote and payment.
+DOMAIN_EXCHANGE_RATE_ZAR = Decimal(os.environ.get("DOMAIN_EXCHANGE_RATE_ZAR", "18.50"))
+DOMAIN_MARKUP_ZAR = Decimal(os.environ.get("DOMAIN_MARKUP_ZAR", "30.00"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

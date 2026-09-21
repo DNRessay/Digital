@@ -11,10 +11,81 @@ from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from .models import Site
+from .models import DomainPurchase, Site
+from .services import cloudflare
+from .services.cloudflare import CloudflareError
 from .services.payfast import PACKAGES, confirm_with_payfast, verify_itn_signature
 
 logger = logging.getLogger(__name__)
+
+
+def _handle_domain_purchase_payment(purchase_id, payment_status, amount_gross):
+    purchase = DomainPurchase.objects.select_related("site").filter(id=purchase_id).first()
+    if purchase is None:
+        logger.warning("PayFast ITN: no DomainPurchase with id %r", purchase_id)
+        return HttpResponse("OK")
+
+    if payment_status != "COMPLETE":
+        logger.info("PayFast ITN: unhandled payment_status %r for domain purchase %s", payment_status, purchase_id)
+        return HttpResponse("OK")
+
+    if purchase.status != DomainPurchase.STATUS_PENDING_PAYMENT:
+        # Already processed (a retried ITN, or the customer paid twice) —
+        # never register the same domain twice for one payment.
+        return HttpResponse("OK")
+
+    try:
+        received = Decimal(amount_gross)
+    except InvalidOperation:
+        received = None
+    if received != purchase.price_zar:
+        logger.warning(
+            "PayFast ITN: amount mismatch for domain purchase %s (expected %s, got %s)",
+            purchase_id, purchase.price_zar, received,
+        )
+        return HttpResponse(status=400)
+
+    purchase.status = DomainPurchase.STATUS_PAID
+    purchase.save(update_fields=["status"])
+
+    # The charge has cleared and is non-refundable-on-our-end from here —
+    # any failure past this point needs a human to reconcile (see
+    # DomainPurchase.error_message's docstring), not a client retry.
+    try:
+        cloudflare.register_domain(
+            purchase.domain,
+            {
+                "name": purchase.registrant_name,
+                "email": purchase.registrant_email,
+                "phone": purchase.registrant_phone,
+                "address": {
+                    "street": purchase.registrant_address_street,
+                    "city": purchase.registrant_address_city,
+                    "state": purchase.registrant_address_state,
+                    "postal_code": purchase.registrant_address_postal_code,
+                    "country_code": purchase.registrant_address_country,
+                },
+            },
+        )
+        zone_id = cloudflare.find_zone_id_by_name(purchase.domain)
+        if zone_id is None:
+            zone_id, _ = cloudflare.create_zone(purchase.domain)
+    except CloudflareError as exc:
+        purchase.status = DomainPurchase.STATUS_FAILED
+        purchase.error_message = str(exc)[:500]
+        purchase.save(update_fields=["status", "error_message"])
+        logger.error("Domain purchase %s: payment cleared but registration failed: %s", purchase_id, exc)
+        return HttpResponse("OK")
+
+    purchase.status = DomainPurchase.STATUS_REGISTERED
+    purchase.save(update_fields=["status"])
+
+    site = purchase.site
+    site.custom_domain = purchase.domain
+    site.domain_status = Site.DOMAIN_ACTIVE
+    site.cloudflare_zone_id = zone_id
+    site.save(update_fields=["custom_domain", "domain_status", "cloudflare_zone_id"])
+    return HttpResponse("OK")
 
 
 @csrf_exempt
@@ -38,6 +109,9 @@ def payfast_notify(request):
     package_id = request.POST.get("custom_str2", "")
     payment_status = request.POST.get("payment_status", "")
     token = request.POST.get("token", "")
+
+    if package_id.startswith("domain:"):
+        return _handle_domain_purchase_payment(package_id.removeprefix("domain:"), payment_status, request.POST.get("amount_gross", ""))
 
     site = Site.objects.filter(slug=site_slug).first()
     if site is None:

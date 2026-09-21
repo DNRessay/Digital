@@ -12,6 +12,8 @@ with Vicinic's own token — nothing customer-specific to authenticate.
 
 Reference: https://developers.cloudflare.com/api/
 """
+from decimal import Decimal
+
 import requests
 from django.conf import settings
 
@@ -42,6 +44,80 @@ def _request(method, path, **kwargs):
         errors = "; ".join(e.get("message", "unknown error") for e in data.get("errors", []))
         raise CloudflareError(errors or f"Cloudflare API error (HTTP {response.status_code})")
     return data["result"]
+
+
+def check_domain(domain):
+    """Cloudflare Registrar's real-time availability + at-cost pricing
+    check — the "Check" step of Cloudflare's own documented Search -> Check
+    -> Register flow. Returns {"registrable": bool, "cost_amount": Decimal,
+    "cost_currency": str} or {"registrable": False, "reason": str} when it
+    can't be registered through the API at all (e.g. a TLD Cloudflare
+    Registrar doesn't support, like .za)."""
+    result = _request(
+        "POST",
+        f"/accounts/{settings.CLOUDFLARE_ACCOUNT_ID}/registrar/domain-check",
+        json={"domains": [domain]},
+    )
+    domains = result.get("domains") or []
+    if not domains:
+        raise CloudflareError(f"Cloudflare returned no result for {domain}")
+    info = domains[0]
+    if not info.get("registrable"):
+        return {"registrable": False, "reason": info.get("reason", "This domain isn't available.")}
+    pricing = info.get("pricing") or {}
+    return {
+        "registrable": True,
+        "cost_amount": Decimal(str(pricing.get("registration_cost", "0"))),
+        "cost_currency": pricing.get("currency", "USD"),
+    }
+
+
+def register_domain(domain, registrant):
+    """The "Register" step — actually purchases the domain, charged
+    immediately to Vicinic's own Cloudflare account payment method,
+    non-refundable. Only ever call this after the customer's own PayFast
+    payment has actually cleared (see models.DomainPurchase's docstring).
+    `registrant` is {"name", "email", "phone", "address": {"street",
+    "city", "state", "postal_code", "country_code"}} — passed inline
+    rather than relying on the account's default registrant contact, since
+    each domain belongs to a different Vicinic customer, not to Vicinic
+    itself."""
+    address = registrant["address"]
+    result = _request(
+        "POST",
+        f"/accounts/{settings.CLOUDFLARE_ACCOUNT_ID}/registrar/registrations",
+        json={
+            "domain_name": domain,
+            "contacts": {
+                "registrant": {
+                    "email": registrant["email"],
+                    "phone": registrant["phone"],
+                    "postal_info": {
+                        "name": registrant["name"],
+                        "address": {
+                            "street": address["street"],
+                            "city": address["city"],
+                            "state": address.get("state", ""),
+                            "postal_code": address["postal_code"],
+                            "country_code": address["country_code"],
+                        },
+                    },
+                }
+            },
+        },
+    )
+    return result
+
+
+def find_zone_id_by_name(domain):
+    """A domain Cloudflare just registered is added as a zone under the
+    same account automatically — this looks that zone up by name so the
+    Site record can be linked to it. Returns None if no such zone exists
+    yet (a genuine, if unlikely, gap between registration and zone
+    creation) rather than raising, so the caller can fall back to
+    create_zone."""
+    result = _request("GET", "/zones", params={"account.id": settings.CLOUDFLARE_ACCOUNT_ID, "name": domain})
+    return result[0]["id"] if result else None
 
 
 def delete_zone(zone_id):

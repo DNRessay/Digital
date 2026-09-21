@@ -206,6 +206,75 @@ class EmailRoute(models.Model):
         return f"{self.from_address} → {self.to_address}"
 
 
+class DomainPurchase(models.Model):
+    """One attempt to buy a not-yet-owned domain for a Site directly through
+    Vicinic (as opposed to Site.custom_domain, which is for a domain the
+    customer already owns elsewhere) — via Cloudflare Registrar for most
+    TLDs (services.cloudflare.check_domain/register_domain); .za TLDs
+    aren't wired up yet (HostAfrica doesn't expose domain registration on
+    the same API used for Cloudflare-style automation).
+
+    Payment happens before registration, never after: a domain purchase is
+    non-refundable once Cloudflare registers it, so charging the customer
+    via PayFast first (this row starts PENDING_PAYMENT) and only
+    registering once that payment actually clears (payfast_views.payfast_notify
+    flips it to PAID then, on success, REGISTERED) means a failed/reversed
+    payment never costs Vicinic a real domain purchase.
+    """
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="domain_purchases")
+    domain = models.CharField(max_length=255)
+
+    PROVIDER_CLOUDFLARE = "cloudflare"
+    PROVIDER_HOSTAFRICA = "hostafrica"
+    PROVIDER_CHOICES = [
+        (PROVIDER_CLOUDFLARE, "Cloudflare Registrar"),
+        (PROVIDER_HOSTAFRICA, "HostAfrica (.za)"),
+    ]
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES)
+
+    cost_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, help_text="What the registrar itself charges Vicinic, in cost_currency."
+    )
+    cost_currency = models.CharField(max_length=3, default="USD")
+    price_zar = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        help_text="What the customer is actually charged (cost_amount converted to ZAR, plus DOMAIN_MARKUP_ZAR) "
+        "— locked in at purchase time so a later exchange-rate change can't retroactively change what was agreed.",
+    )
+
+    registrant_name = models.CharField(max_length=200)
+    registrant_email = models.EmailField()
+    registrant_phone = models.CharField(max_length=30)
+    registrant_address_street = models.CharField(max_length=200)
+    registrant_address_city = models.CharField(max_length=100)
+    registrant_address_state = models.CharField(max_length=100, blank=True)
+    registrant_address_postal_code = models.CharField(max_length=20)
+    registrant_address_country = models.CharField(max_length=2, help_text="ISO 3166-1 alpha-2, e.g. ZA")
+
+    STATUS_PENDING_PAYMENT = "pending_payment"
+    STATUS_PAID = "paid"
+    STATUS_REGISTERED = "registered"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_PENDING_PAYMENT, "Waiting on payment"),
+        (STATUS_PAID, "Paid — registering"),
+        (STATUS_REGISTERED, "Registered"),
+        (STATUS_FAILED, "Failed"),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING_PAYMENT)
+    error_message = models.CharField(
+        max_length=500, blank=True,
+        help_text="Set on STATUS_FAILED after payment already cleared — needs a human "
+        "to reconcile (retry registration, or refund the customer via the PayFast dashboard).",
+    )
+    payfast_m_payment_id = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.domain} ({self.get_status_display()})"
+
+
 class SiteSlotValue(models.Model):
     """A customer's override for one of their template's text slots. Blank
     means "use the template's own default text.\""""

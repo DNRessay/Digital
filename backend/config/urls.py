@@ -50,6 +50,16 @@ urlpatterns = [
         customer_api.api_customer_site_email_route_delete,
         name="api-customer-site-email-route-delete",
     ),
+    path(
+        "api/customer/sites/<slug:site_slug>/domain/check/",
+        customer_api.api_customer_domain_check,
+        name="api-customer-domain-check",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/domain/purchase/",
+        customer_api.api_customer_domain_purchase,
+        name="api-customer-domain-purchase",
+    ),
     # PayFast's own server-to-server webhook — see builder/payfast_views.py.
     path("api/payfast/notify/", payfast_views.payfast_notify, name="payfast-notify"),
     path("", include("builder.urls")),

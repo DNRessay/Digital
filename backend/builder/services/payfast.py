@@ -90,6 +90,28 @@ def build_checkout_payload(site, package_id, m_payment_id, return_url, cancel_ur
     return _process_url(), fields + [("signature", signature)]
 
 
+def build_domain_purchase_payload(purchase, return_url, cancel_url, notify_url):
+    """A plain once-off charge (no subscription_type/recurring_amount) for
+    buying a domain — unlike build_checkout_payload's recurring package
+    billing. custom_str2 is prefixed "domain:" so payfast_notify can tell
+    the two payment kinds apart."""
+    fields = [
+        ("merchant_id", settings.PAYFAST_MERCHANT_ID),
+        ("merchant_key", settings.PAYFAST_MERCHANT_KEY),
+        ("return_url", return_url),
+        ("cancel_url", cancel_url),
+        ("notify_url", notify_url),
+        ("m_payment_id", purchase.payfast_m_payment_id),
+        ("amount", f"{purchase.price_zar:.2f}"),
+        ("item_name", f"Vicinic — domain {purchase.domain}"),
+        ("custom_str1", purchase.site.slug),
+        ("custom_str2", f"domain:{purchase.id}"),
+        ("email_address", purchase.registrant_email),
+    ]
+    signature = _sign(fields)
+    return _process_url(), fields + [("signature", signature)]
+
+
 def verify_itn_signature(post_items):
     """`post_items` is the ITN POST body's items, in the order PayFast sent
     them (e.g. request.POST.items() — QueryDict preserves order)."""

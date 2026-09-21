@@ -30,14 +30,17 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import CustomerAuthToken, EmailRoute, Site, SiteSlotValue, Template
+from decimal import ROUND_HALF_UP, Decimal
+
+from .models import CustomerAuthToken, DomainPurchase, EmailRoute, Site, SiteSlotValue, Template
 from .services import cloudflare
 from .services.cloudflare import CloudflareError
-from .services.payfast import PACKAGES, PayFastError, build_checkout_payload
+from .services.payfast import PACKAGES, PayFastError, build_checkout_payload, build_domain_purchase_payload
 from .services.site_provisioning import apply_contact_info, provision_missing_slot_values
 
 HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 DOMAIN_RE = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$")
+ZA_TLD_RE = re.compile(r"\.za$", re.IGNORECASE)
 
 
 def _normalize_domain(raw):
@@ -573,3 +576,119 @@ def api_customer_site_email_route_delete(request, site_slug, route_id):
             return JsonResponse({"error": str(exc)}, status=400)
     route.delete()
     return JsonResponse({"deleted": True})
+
+
+def _price_zar_for_cost(cost_amount, cost_currency):
+    if cost_currency != "USD":
+        # Cloudflare Registrar prices almost everything in USD; anything
+        # else isn't a currency this platform knows how to convert yet.
+        raise CloudflareError(f"Can't price a {cost_currency} domain yet.")
+    zar = (cost_amount * settings.DOMAIN_EXCHANGE_RATE_ZAR) + settings.DOMAIN_MARKUP_ZAR
+    return zar.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+@customer_token_required
+@require_http_methods(["GET"])
+def api_customer_domain_check(request, site_slug):
+    """The "Buy a domain" flow's price-quote step — never trusted again at
+    purchase time, which re-checks fresh right before charging."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    if site.subscription_status != Site.SUBSCRIPTION_ACTIVE:
+        return JsonResponse({"error": "Buying a domain needs a paid plan."}, status=402)
+
+    domain = _normalize_domain(str(request.GET.get("domain", "")))
+    if not domain or not DOMAIN_RE.match(domain):
+        return JsonResponse({"error": "Enter a real domain, like mybusiness.com."}, status=400)
+    if ZA_TLD_RE.search(domain):
+        return JsonResponse(
+            {"available": False, "reason": "South African (.za) domains aren't available to buy in-app yet — "
+             "buy one yourself and connect it above instead."}
+        )
+
+    try:
+        result = cloudflare.check_domain(domain)
+    except CloudflareError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    if not result["registrable"]:
+        return JsonResponse({"available": False, "reason": result["reason"]})
+
+    try:
+        price_zar = _price_zar_for_cost(result["cost_amount"], result["cost_currency"])
+    except CloudflareError as exc:
+        return JsonResponse({"available": False, "reason": str(exc)})
+
+    return JsonResponse({"available": True, "domain": domain, "price_zar": str(price_zar)})
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["POST"])
+def api_customer_domain_purchase(request, site_slug):
+    """Kicks off a once-off PayFast charge for buying `domain` outright.
+    Registration itself only happens later, from the ITN webhook, once
+    that payment has actually cleared — see DomainPurchase's docstring."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    if site.subscription_status != Site.SUBSCRIPTION_ACTIVE:
+        return JsonResponse({"error": "Buying a domain needs a paid plan."}, status=402)
+
+    body = _json_body(request)
+    domain = _normalize_domain(str(body.get("domain", "")))
+    registrant = body.get("registrant") or {}
+    address = registrant.get("address") or {}
+    return_url = str(body.get("return_url", "")).strip()
+    cancel_url = str(body.get("cancel_url", "")).strip()
+
+    if not domain or not DOMAIN_RE.match(domain):
+        return JsonResponse({"error": "Enter a real domain, like mybusiness.com."}, status=400)
+    if ZA_TLD_RE.search(domain):
+        return JsonResponse({"error": "South African (.za) domains aren't available to buy in-app yet."}, status=400)
+    if not _origin_allowed(return_url) or not _origin_allowed(cancel_url):
+        return JsonResponse({"error": "return_url/cancel_url must be one of this site's known frontend origins."}, status=400)
+
+    missing = [f for f in ("name", "email", "phone") if not str(registrant.get(f, "")).strip()]
+    missing += [f"address.{f}" for f in ("street", "city", "postal_code", "country_code") if not str(address.get(f, "")).strip()]
+    if missing:
+        return JsonResponse({"error": f"Missing registrant details: {', '.join(missing)}."}, status=400)
+    try:
+        validate_email(str(registrant["email"]).strip())
+    except ValidationError:
+        return JsonResponse({"error": "Registrant email isn't valid."}, status=400)
+
+    try:
+        check = cloudflare.check_domain(domain)
+    except CloudflareError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    if not check["registrable"]:
+        return JsonResponse({"error": check["reason"]}, status=400)
+    try:
+        price_zar = _price_zar_for_cost(check["cost_amount"], check["cost_currency"])
+    except CloudflareError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
+    purchase = DomainPurchase.objects.create(
+        site=site,
+        domain=domain,
+        provider=DomainPurchase.PROVIDER_CLOUDFLARE,
+        cost_amount=check["cost_amount"],
+        cost_currency=check["cost_currency"],
+        price_zar=price_zar,
+        registrant_name=str(registrant["name"]).strip()[:200],
+        registrant_email=str(registrant["email"]).strip(),
+        registrant_phone=str(registrant["phone"]).strip()[:30],
+        registrant_address_street=str(address["street"]).strip()[:200],
+        registrant_address_city=str(address["city"]).strip()[:100],
+        registrant_address_state=str(address.get("state", "")).strip()[:100],
+        registrant_address_postal_code=str(address["postal_code"]).strip()[:20],
+        registrant_address_country=str(address["country_code"]).strip().upper()[:2],
+        payfast_m_payment_id=f"{site.slug}-domain-{uuid.uuid4().hex[:12]}",
+    )
+
+    notify_url = request.build_absolute_uri(reverse("payfast-notify"))
+    process_url, fields = build_domain_purchase_payload(purchase, return_url, cancel_url, notify_url)
+    return JsonResponse(
+        {"process_url": process_url, "fields": [{"name": k, "value": v} for k, v in fields]}, status=201
+    )
