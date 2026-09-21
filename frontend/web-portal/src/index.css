@@ -137,6 +137,18 @@ button:disabled {
   font-size: 13px;
 }
 
+.danger-zone {
+  border-color: #f3c2be;
+}
+
+.danger-zone h2 {
+  color: #b3261e;
+}
+
+.danger-button {
+  background: #b3261e;
+}
+
 .upgrade-card p {
   font-size: 14px;
   color: #333a46;

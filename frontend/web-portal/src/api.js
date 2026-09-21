@@ -93,6 +93,10 @@ export function updateSite(siteSlug, fields) {
   return apiFetch(`/api/customer/sites/${siteSlug}/`, { method: 'PATCH', body: fields })
 }
 
+export function deleteSite(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/`, { method: 'DELETE' })
+}
+
 export function getSiteSlots(siteSlug) {
   return apiFetch(`/api/customer/sites/${siteSlug}/slots/`)
 }

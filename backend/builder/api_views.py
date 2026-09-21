@@ -20,12 +20,13 @@ import json
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.db import IntegrityError
+from django.db.models import Count, ProtectedError
 from django.http import JsonResponse
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import CustomerAuthToken, Template
+from .models import CustomerAuthToken, DomainPurchase, EmailRoute, Site, Template
 from .services.template_ingest import IngestError, ingest_converted_zip
 from .services.templify_client import TemplifyError, convert_template_zip
 
@@ -126,3 +127,67 @@ def api_templates(request):
         return JsonResponse({"error": f'A template named "{name}" already exists — pick a different name.'}, status=409)
 
     return JsonResponse({"template": _serialize_template(template)}, status=201)
+
+
+@csrf_exempt
+@admin_token_required
+@require_http_methods(["DELETE"])
+def api_template_delete(request, template_id):
+    template = Template.objects.filter(id=template_id).first()
+    if template is None:
+        return JsonResponse({"error": "Template not found."}, status=404)
+    try:
+        template.delete()
+    except ProtectedError:
+        # Site.template is on_delete=PROTECT — a template still in use by
+        # at least one Site can't be deleted out from under it.
+        count = template.sites.count()
+        return JsonResponse(
+            {"error": f"Can't delete — {count} site{'s' if count != 1 else ''} still use this template."},
+            status=409,
+        )
+    return JsonResponse({"deleted": True})
+
+
+@admin_token_required
+@require_http_methods(["GET"])
+def api_admin_analytics(request):
+    """Everything the Dashboard shows — kept as one endpoint/query set
+    rather than one per widget, since it's all cheap aggregate counts over
+    the same handful of tables."""
+    sites_total = Site.objects.count()
+    sites_published = Site.objects.filter(is_published=True).count()
+    sites_paid = Site.objects.filter(subscription_status=Site.SUBSCRIPTION_ACTIVE).count()
+    sites_free = sites_total - sites_paid
+
+    by_subscription_status = {
+        row["subscription_status"]: row["count"]
+        for row in Site.objects.values("subscription_status").annotate(count=Count("id"))
+    }
+    by_package = {
+        (row["package"] or "none"): row["count"]
+        for row in Site.objects.values("package").annotate(count=Count("id"))
+    }
+    by_domain_status = {
+        row["domain_status"]: row["count"]
+        for row in Site.objects.values("domain_status").annotate(count=Count("id"))
+    }
+
+    return JsonResponse(
+        {
+            "sites_total": sites_total,
+            "sites_published": sites_published,
+            "sites_paid": sites_paid,
+            "sites_free": sites_free,
+            "by_subscription_status": by_subscription_status,
+            "by_package": by_package,
+            "by_domain_status": by_domain_status,
+            "templates_total": Template.objects.count(),
+            "email_routes_total": EmailRoute.objects.count(),
+            "email_routes_active": EmailRoute.objects.filter(status=EmailRoute.STATUS_ACTIVE).count(),
+            "domain_purchases_total": DomainPurchase.objects.count(),
+            "domain_purchases_registered": DomainPurchase.objects.filter(
+                status=DomainPurchase.STATUS_REGISTERED
+            ).count(),
+        }
+    )

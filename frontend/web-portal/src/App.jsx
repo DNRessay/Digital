@@ -8,6 +8,7 @@ import {
   createEmailRoute,
   createSite,
   deleteEmailRoute,
+  deleteSite,
   disconnectDomain,
   getDomain,
   getSiteSlots,
@@ -637,7 +638,49 @@ function DeployTab({ site, onSiteUpdated }) {
   )
 }
 
-function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
+function DeleteSiteSection({ site, onSiteDeleted }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function handleDelete() {
+    const confirmed = window.confirm(
+      `Delete "${site.name}"? This can't be undone — your site's text, editor history and email routing rules ` +
+      'all go with it.' +
+      (site.custom_domain
+        ? ` Your domain (${site.custom_domain}) is NOT affected — you keep it for whatever period you've already paid for; only stops pointing at this site.`
+        : '')
+    )
+    if (!confirmed) return
+    setBusy(true)
+    setError(null)
+    try {
+      await deleteSite(site.slug)
+      onSiteDeleted(site.slug)
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card danger-zone">
+      <h2>Danger zone</h2>
+      {error && <div className="error">{error}</div>}
+      <p>Deleting your site removes its text, editing history and email routing rules permanently.</p>
+      {site.custom_domain && (
+        <p className="field-hint">
+          Your domain <strong>{site.custom_domain}</strong> stays yours — you keep it for whatever period you've
+          already paid for. Deleting the site here only stops it pointing at Vicinic.
+        </p>
+      )}
+      <button type="button" className="danger-button" onClick={handleDelete} disabled={busy}>
+        {busy ? 'Deleting…' : 'Delete this site'}
+      </button>
+    </div>
+  )
+}
+
+function OverviewTab({ site, checkoutNotice, onSiteUpdated, onSiteDeleted }) {
   const [form, setForm] = useState(() => ({
     primary_color: site.primary_color || site.default_primary_color || '#2e8b57',
     email: site.email,
@@ -733,6 +776,8 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
           {saveState === 'saved' && <span className="save-status">Saved</span>}
         </div>
       </form>
+
+      <DeleteSiteSection site={site} onSiteDeleted={onSiteDeleted} />
     </>
   )
 }
@@ -1076,6 +1121,13 @@ export default function App() {
               site={selectedSite}
               checkoutNotice={checkoutNotice}
               onSiteUpdated={(updated) => setSites((prev) => prev.map((s) => (s.slug === updated.slug ? updated : s)))}
+              onSiteDeleted={(deletedSlug) => {
+                setSites((prev) => {
+                  const next = prev.filter((s) => s.slug !== deletedSlug)
+                  setSelectedSlug(next.length > 0 ? next[0].slug : null)
+                  return next
+                })
+              }}
             />
           )}
           {selectedSite && activeTab === 'edit' && <VisualEditor site={selectedSite} />}

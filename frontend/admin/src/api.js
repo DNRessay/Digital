@@ -77,3 +77,11 @@ export function uploadTemplate(name, zipFile) {
   formData.append('zip_file', zipFile)
   return apiFetch('/api/templates/', { method: 'POST', body: formData })
 }
+
+export function deleteTemplate(id) {
+  return apiFetch(`/api/templates/${id}/`, { method: 'DELETE' })
+}
+
+export function getAnalytics() {
+  return apiFetch('/api/admin/analytics/')
+}

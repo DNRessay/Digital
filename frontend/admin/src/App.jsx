@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
-import { listTemplates, login, logout, uploadTemplate, whoami } from './api.js'
+import { deleteTemplate, getAnalytics, listTemplates, login, logout, uploadTemplate, whoami } from './api.js'
 
 function Login({ onLoggedIn }) {
   const [username, setUsername] = useState('')
@@ -38,12 +38,68 @@ function Login({ onLoggedIn }) {
   )
 }
 
-function Dashboard() {
+const PACKAGE_LABELS = { none: 'Free (no package)', starter: 'Starter Site', growth: 'Growth Hub', business_os: 'Business OS' }
+const SUBSCRIPTION_LABELS = { none: 'None', pending: 'Pending', active: 'Active', cancelled: 'Cancelled' }
+const DOMAIN_LABELS = { none: 'Not connected', pending: 'Pending', active: 'Active', error: 'Error' }
+
+function StatTile({ label, value }) {
+  return (
+    <div className="stat-tile">
+      <div className="stat-tile-value">{value}</div>
+      <div className="stat-tile-label">{label}</div>
+    </div>
+  )
+}
+
+function BreakdownList({ title, counts, labels }) {
+  const entries = Object.entries(counts)
   return (
     <div className="card">
-      <h2>Dashboard</h2>
-      <p>Placeholder — overview of sites, templates, and activity goes here.</p>
+      <h2>{title}</h2>
+      {entries.length === 0 ? (
+        <p>No data yet.</p>
+      ) : (
+        <ul className="breakdown-list">
+          {entries.map(([key, count]) => (
+            <li key={key}>
+              <span>{labels[key] || key}</span>
+              <strong>{count}</strong>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
+  )
+}
+
+function Dashboard() {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    getAnalytics()
+      .then(setData)
+      .catch((err) => setError(err.message))
+  }, [])
+
+  if (error) return <div className="card error">Could not load analytics: {error}</div>
+  if (!data) return <div className="card">Loading analytics…</div>
+
+  return (
+    <>
+      <div className="stat-grid">
+        <StatTile label="Total sites" value={data.sites_total} />
+        <StatTile label="Published" value={data.sites_published} />
+        <StatTile label="Paid sites" value={data.sites_paid} />
+        <StatTile label="Free sites" value={data.sites_free} />
+        <StatTile label="Templates" value={data.templates_total} />
+        <StatTile label="Domains registered" value={data.domain_purchases_registered} />
+        <StatTile label="Active email routes" value={data.email_routes_active} />
+      </div>
+      <BreakdownList title="Sites by plan" counts={data.by_package} labels={PACKAGE_LABELS} />
+      <BreakdownList title="Sites by subscription status" counts={data.by_subscription_status} labels={SUBSCRIPTION_LABELS} />
+      <BreakdownList title="Sites by domain status" counts={data.by_domain_status} labels={DOMAIN_LABELS} />
+    </>
   )
 }
 
@@ -96,10 +152,11 @@ function UploadForm({ onUploaded }) {
   )
 }
 
-function TemplateList({ templates }) {
+function TemplateList({ templates, onDelete, deletingId, deleteError }) {
   return (
     <div className="card">
       <h2>Existing templates</h2>
+      {deleteError && <div className="error">{deleteError}</div>}
       {templates.length === 0 ? (
         <p>No templates yet.</p>
       ) : (
@@ -111,6 +168,7 @@ function TemplateList({ templates }) {
               <th>Pages</th>
               <th>Slots</th>
               <th>Added</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -121,6 +179,16 @@ function TemplateList({ templates }) {
                 <td>{t.pages}</td>
                 <td>{t.slots}</td>
                 <td>{new Date(t.created_at).toLocaleString()}</td>
+                <td>
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => onDelete(t)}
+                    disabled={deletingId === t.id}
+                  >
+                    {deletingId === t.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -133,6 +201,8 @@ function TemplateList({ templates }) {
 function Templates() {
   const [templates, setTemplates] = useState([])
   const [loadError, setLoadError] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
+  const [deleteError, setDeleteError] = useState(null)
 
   async function refresh() {
     try {
@@ -147,11 +217,25 @@ function Templates() {
     refresh()
   }, [])
 
+  async function handleDelete(template) {
+    if (!window.confirm(`Delete "${template.name}"? This can't be undone.`)) return
+    setDeletingId(template.id)
+    setDeleteError(null)
+    try {
+      await deleteTemplate(template.id)
+      await refresh()
+    } catch (err) {
+      setDeleteError(err.message)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <>
       {loadError && <div className="card error">Could not load templates: {loadError}</div>}
       <UploadForm onUploaded={refresh} />
-      <TemplateList templates={templates} />
+      <TemplateList templates={templates} onDelete={handleDelete} deletingId={deletingId} deleteError={deleteError} />
     </>
   )
 }
@@ -159,6 +243,7 @@ function Templates() {
 export default function App() {
   const [status, setStatus] = useState('loading') // loading | anon | ready | error
   const [loadError, setLoadError] = useState(null)
+  const [navOpen, setNavOpen] = useState(false)
 
   function checkAuth() {
     whoami()
@@ -186,9 +271,14 @@ export default function App() {
 
   return (
     <div className="layout">
-      <aside className="sidebar">
+      <div className="topbar-mobile">
+        <button type="button" className="hamburger" onClick={() => setNavOpen(true)} aria-label="Open menu">☰</button>
+        <span>Vicinic Admin</span>
+      </div>
+      {navOpen && <div className="sidebar-backdrop" onClick={() => setNavOpen(false)} />}
+      <aside className={`sidebar${navOpen ? ' open' : ''}`}>
         <h1>Vicinic Admin</h1>
-        <nav>
+        <nav onClick={() => setNavOpen(false)}>
           <NavLink to="/" end>
             Dashboard
           </NavLink>

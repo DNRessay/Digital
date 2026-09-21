@@ -286,7 +286,7 @@ def api_customer_sites(request):
 
 @csrf_exempt
 @customer_token_required
-@require_http_methods(["PATCH"])
+@require_http_methods(["PATCH", "DELETE"])
 def api_customer_site_update(request, site_slug):
     """Updates the Site's own profile fields — contact info and theme
     color override — as opposed to its page text, which goes through
@@ -297,10 +297,24 @@ def api_customer_site_update(request, site_slug):
     that, since a later rename has no reliable way to find and swap the
     old name back out of arbitrary page text without risking a false
     match inside an unrelated word (e.g. a site named "Tea" colliding
-    with a "Team" nav link) — simpler and safer to just not offer it."""
+    with a "Team" nav link) — simpler and safer to just not offer it.
+
+    DELETE removes the Site itself (and, via CASCADE, its slot values,
+    email routes, and domain purchase history) — deliberately the only
+    thing this does. It never touches Cloudflare: a connected/purchased
+    custom_domain's zone (and, for a domain bought through us, the
+    registration period already paid for) is the customer's regardless of
+    whether a Vicinic site exists on top of it, so nothing here releases
+    or cancels it. Once the Site row is gone, CustomDomainMiddleware just
+    stops finding a match for that host and requests to it 404 — the
+    domain itself is untouched and still theirs to point elsewhere."""
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
+
+    if request.method == "DELETE":
+        site.delete()
+        return JsonResponse({"deleted": True})
 
     body = _json_body(request)
     fields = {}
