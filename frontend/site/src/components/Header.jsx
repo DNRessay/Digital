@@ -24,7 +24,8 @@ export default function Header() {
       <div className="container position-relative d-flex align-items-center justify-content-between">
 
         <Link to="/" className="logo d-flex align-items-center me-auto me-xl-0">
-          <img src="/assets/img/logo.png" alt="Vicinic" className="logo-img" />
+          <img src="/assets/img/logo-mark.png" alt="" className="logo-mark-img" />
+          <img src="/assets/img/logo-wordmark.png" alt="Vicinic" className="logo-wordmark-img" />
         </Link>
 
         <nav id="navmenu" className="navmenu">

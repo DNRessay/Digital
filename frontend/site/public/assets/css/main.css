@@ -163,16 +163,21 @@ h6 {
   margin-right: 8px;
 }
 
-.header .logo .logo-img {
+.header .logo .logo-mark-img,
+.header .logo .logo-wordmark-img {
   max-height: 48px;
   width: auto;
 }
 
-/* logo.png is a black/dark-gray mark drawn for a light background;
-   invert it so it reads on the site's black header and footer. */
-.logo-img {
-  filter: invert(1) brightness(1.6);
+.header .logo .logo-mark-img {
+  margin-right: 8px;
 }
+
+/* logo-mark.png (the black/grey triangle) keeps its true brand colors.
+   logo-wordmark.png is a pre-recolored solid-white version of the
+   wordmark — the source wordmark art is black strokes drawn for a
+   light background and would be invisible on the site's black
+   header/footer otherwise. */
 
 .header .logo h1 {
   font-size: 30px;
@@ -478,9 +483,14 @@ h6 {
   line-height: 1;
 }
 
-.footer .footer-info .logo .logo-img {
+.footer .footer-info .logo .logo-mark-img,
+.footer .footer-info .logo .logo-wordmark-img {
   max-height: 56px;
   width: auto;
+}
+
+.footer .footer-info .logo .logo-mark-img {
+  margin-right: 8px;
 }
 
 .footer .footer-info .logo span {

@@ -8,7 +8,8 @@ export default function Footer() {
         <div className="row gy-4">
           <div className="col-lg-3 col-md-6 footer-info">
             <Link to="/" className="logo d-flex align-items-center mb-4">
-              <img src="/assets/img/logo.png" alt="Vicinic" className="logo-img" />
+              <img src="/assets/img/logo-mark.png" alt="" className="logo-mark-img" />
+              <img src="/assets/img/logo-wordmark.png" alt="Vicinic" className="logo-wordmark-img" />
             </Link>
             <p>Websites & WhatsApp systems for small and growing businesses across South Africa — hosted, secured, and supported.</p>
 
