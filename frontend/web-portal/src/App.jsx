@@ -274,7 +274,7 @@ function UpgradeCard({ site }) {
   )
 }
 
-function BuyDomainFields({ site, isFreeTier }) {
+function BuyDomainFields({ site }) {
   const [domainInput, setDomainInput] = useState('')
   const [checkResult, setCheckResult] = useState(null) // null | {available, price_zar} | {available: false, reason}
   const [checking, setChecking] = useState(false)
@@ -351,10 +351,10 @@ function BuyDomainFields({ site, isFreeTier }) {
             setDomainInput(e.target.value)
             setCheckResult(null)
           }}
-          disabled={isFreeTier || checking}
+          disabled={checking}
           required
         />
-        <button type="submit" disabled={isFreeTier || checking || !domainInput.trim()}>
+        <button type="submit" disabled={checking || !domainInput.trim()}>
           {checking ? 'Checking…' : 'Check availability'}
         </button>
       </form>
@@ -411,7 +411,6 @@ function BuyDomainFields({ site, isFreeTier }) {
 }
 
 function DomainSection({ site, onSiteUpdated }) {
-  const isFreeTier = site.subscription_status !== 'active'
   const [domainInput, setDomainInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -462,11 +461,6 @@ function DomainSection({ site, onSiteUpdated }) {
   return (
     <div className="card">
       <h2>Custom domain</h2>
-      {isFreeTier && (
-        <p className="notice">
-          Upgrade to a paid plan to connect your own domain instead of a shared address — it looks far more professional.
-        </p>
-      )}
       {error && <div className="error">{error}</div>}
 
       {!hasDomain ? (
@@ -488,15 +482,15 @@ function DomainSection({ site, onSiteUpdated }) {
                 placeholder="mybusiness.com"
                 value={domainInput}
                 onChange={(e) => setDomainInput(e.target.value)}
-                disabled={isFreeTier || busy}
+                disabled={busy}
                 required
               />
-              <button type="submit" disabled={isFreeTier || busy || !domainInput.trim()}>
+              <button type="submit" disabled={busy || !domainInput.trim()}>
                 {busy ? 'Connecting…' : 'Connect domain'}
               </button>
             </form>
           )}
-          {mode === 'buy' && <BuyDomainFields site={site} isFreeTier={isFreeTier} />}
+          {mode === 'buy' && <BuyDomainFields site={site} />}
         </>
       ) : (
         <>
@@ -526,9 +520,8 @@ function DomainSection({ site, onSiteUpdated }) {
 }
 
 function EmailRoutingSection({ site }) {
-  const isFreeTier = site.subscription_status !== 'active'
   const domainReady = site.domain_status === 'active'
-  const disabled = isFreeTier || !domainReady
+  const disabled = !domainReady
   const [routes, setRoutes] = useState(null)
   const [error, setError] = useState(null)
   const [fromLocal, setFromLocal] = useState('')
@@ -578,10 +571,7 @@ function EmailRoutingSection({ site }) {
   return (
     <div className="card">
       <h2>Email routing</h2>
-      {isFreeTier && (
-        <p className="notice">Upgrade to a paid plan to forward mail sent to your own domain to your real inbox.</p>
-      )}
-      {!isFreeTier && !domainReady && <p className="notice">Connect and activate your custom domain above first.</p>}
+      {!domainReady && <p className="notice">Connect and activate your custom domain above first.</p>}
       {error && <div className="error">{error}</div>}
 
       <form onSubmit={handleAdd} className="email-route-form">
@@ -635,9 +625,12 @@ function EmailRoutingSection({ site }) {
 }
 
 function DeployTab({ site, onSiteUpdated }) {
+  // UpgradeCard (subscription plans) is intentionally left out for now —
+  // plans aren't finalized yet, so domain connect/buy and email routing
+  // below are open to every site rather than gated behind one. Bring it
+  // back here once there's a plan to actually sell.
   return (
     <>
-      <UpgradeCard site={site} />
       <DomainSection site={site} onSiteUpdated={onSiteUpdated} />
       <EmailRoutingSection site={site} />
     </>

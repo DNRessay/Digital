@@ -452,9 +452,6 @@ def api_customer_site_domain(request, site_slug):
         return JsonResponse({"site": _serialize_site(site)})
 
     if request.method == "POST":
-        if site.subscription_status != Site.SUBSCRIPTION_ACTIVE:
-            return JsonResponse({"error": "Connecting a custom domain needs a paid plan."}, status=402)
-
         domain = _normalize_domain(str(_json_body(request).get("domain", "")))
         if not domain or not DOMAIN_RE.match(domain):
             return JsonResponse({"error": "Enter a real domain, like mybusiness.com."}, status=400)
@@ -507,8 +504,6 @@ def api_customer_site_email_routes(request, site_slug):
         return JsonResponse({"error": "Site not found."}, status=404)
 
     if request.method == "POST":
-        if site.subscription_status != Site.SUBSCRIPTION_ACTIVE:
-            return JsonResponse({"error": "Email routing needs a paid plan."}, status=402)
         if site.domain_status != Site.DOMAIN_ACTIVE:
             return JsonResponse({"error": "Connect and activate your custom domain first."}, status=400)
 
@@ -595,8 +590,6 @@ def api_customer_domain_check(request, site_slug):
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
-    if site.subscription_status != Site.SUBSCRIPTION_ACTIVE:
-        return JsonResponse({"error": "Buying a domain needs a paid plan."}, status=402)
 
     domain = _normalize_domain(str(request.GET.get("domain", "")))
     if not domain or not DOMAIN_RE.match(domain):
@@ -632,8 +625,6 @@ def api_customer_domain_purchase(request, site_slug):
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
-    if site.subscription_status != Site.SUBSCRIPTION_ACTIVE:
-        return JsonResponse({"error": "Buying a domain needs a paid plan."}, status=402)
 
     body = _json_body(request)
     domain = _normalize_domain(str(body.get("domain", "")))
