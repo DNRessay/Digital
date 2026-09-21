@@ -219,6 +219,45 @@ button:disabled {
   margin-bottom: 24px;
 }
 
+.email-route-from {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.email-route-from input {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.email-route-from span {
+  color: #565d6d;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.email-route-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.email-route-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid #e4e7ee;
+  font-size: 13px;
+}
+
+.email-route-list li:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
 .visual-editor-frame iframe {
   width: 100%;
   height: 65vh;

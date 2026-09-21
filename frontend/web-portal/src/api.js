@@ -145,6 +145,33 @@ export function checkout(siteSlug, packageId, returnUrl, cancelUrl) {
   })
 }
 
+export function getDomain(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/domain/`)
+}
+
+export function connectDomain(siteSlug, domain) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/domain/`, { method: 'POST', body: { domain } })
+}
+
+export function disconnectDomain(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/domain/`, { method: 'DELETE' })
+}
+
+export function listEmailRoutes(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/email-routes/`)
+}
+
+export function createEmailRoute(siteSlug, fromAddress, toAddress) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/email-routes/`, {
+    method: 'POST',
+    body: { from_address: fromAddress, to_address: toAddress },
+  })
+}
+
+export function deleteEmailRoute(siteSlug, routeId) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/email-routes/${routeId}/`, { method: 'DELETE' })
+}
+
 // PayFast needs a real browser form POST (not fetch) to its hosted
 // checkout page — build one on the fly, in the exact field order the
 // backend signed, and submit it.

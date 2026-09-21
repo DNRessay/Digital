@@ -3,8 +3,14 @@ import {
   API_BASE,
   checkout,
   clearDraft,
+  connectDomain,
+  createEmailRoute,
   createSite,
+  deleteEmailRoute,
+  disconnectDomain,
+  getDomain,
   getSiteSlots,
+  listEmailRoutes,
   listPackages,
   listPublicTemplates,
   listSites,
@@ -266,6 +272,226 @@ function UpgradeCard({ site }) {
   )
 }
 
+function DomainSection({ site, onSiteUpdated }) {
+  const isFreeTier = site.subscription_status !== 'active'
+  const [domainInput, setDomainInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  // While a domain is waiting on the customer's nameserver change to
+  // land, poll Cloudflare (via our own backend) every so often so this
+  // flips to "Active" without the customer having to refresh by hand.
+  useEffect(() => {
+    if (site.domain_status !== 'pending') return
+    const id = setInterval(() => {
+      getDomain(site.slug).then((data) => onSiteUpdated(data.site)).catch(() => {})
+    }, 15000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site.slug, site.domain_status])
+
+  async function handleConnect(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      const data = await connectDomain(site.slug, domainInput.trim())
+      onSiteUpdated(data.site)
+      setDomainInput('')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleDisconnect() {
+    setBusy(true)
+    setError(null)
+    try {
+      const data = await disconnectDomain(site.slug)
+      onSiteUpdated(data.site)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const hasDomain = site.custom_domain && site.domain_status !== 'none'
+
+  return (
+    <div className="card">
+      <h2>Custom domain</h2>
+      {isFreeTier && (
+        <p className="notice">
+          Upgrade to a paid plan to connect your own domain instead of a shared address — it looks far more professional.
+        </p>
+      )}
+      {error && <div className="error">{error}</div>}
+
+      {!hasDomain ? (
+        <form onSubmit={handleConnect}>
+          <label htmlFor="domain">Your domain</label>
+          <input
+            id="domain"
+            type="text"
+            placeholder="mybusiness.com"
+            value={domainInput}
+            onChange={(e) => setDomainInput(e.target.value)}
+            disabled={isFreeTier || busy}
+            required
+          />
+          <button type="submit" disabled={isFreeTier || busy || !domainInput.trim()}>
+            {busy ? 'Connecting…' : 'Connect domain'}
+          </button>
+        </form>
+      ) : (
+        <>
+          <p>
+            <strong>{site.custom_domain}</strong>
+            {' — '}
+            {site.domain_status === 'active' && <span className="save-status">Active</span>}
+            {site.domain_status === 'pending' && 'waiting for nameservers to update'}
+            {site.domain_status === 'error' && <span className="error">Something went wrong connecting this domain</span>}
+          </p>
+          {site.domain_status === 'pending' && site.cloudflare_nameservers.length > 0 && (
+            <div className="notice">
+              At your domain registrar, set your nameservers to:
+              <ul>
+                {site.cloudflare_nameservers.map((ns) => <li key={ns}><code>{ns}</code></li>)}
+              </ul>
+              This can take anywhere from a few minutes to a few hours.
+            </div>
+          )}
+          <button type="button" className="link-button" onClick={handleDisconnect} disabled={busy}>
+            {busy ? 'Removing…' : 'Disconnect domain'}
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+function EmailRoutingSection({ site }) {
+  const isFreeTier = site.subscription_status !== 'active'
+  const domainReady = site.domain_status === 'active'
+  const disabled = isFreeTier || !domainReady
+  const [routes, setRoutes] = useState(null)
+  const [error, setError] = useState(null)
+  const [fromLocal, setFromLocal] = useState('')
+  const [toAddress, setToAddress] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!domainReady) {
+      setRoutes([])
+      return
+    }
+    listEmailRoutes(site.slug)
+      .then((data) => setRoutes(data.email_routes))
+      .catch((err) => setError(err.message))
+  }, [site.slug, domainReady])
+
+  async function handleAdd(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      const fromAddress = `${fromLocal.trim()}@${site.custom_domain}`
+      const data = await createEmailRoute(site.slug, fromAddress, toAddress.trim())
+      setRoutes((prev) => [...(prev || []), data.route])
+      setFromLocal('')
+      setToAddress('')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleDelete(routeId) {
+    setBusy(true)
+    setError(null)
+    try {
+      await deleteEmailRoute(site.slug, routeId)
+      setRoutes((prev) => prev.filter((r) => r.id !== routeId))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Email routing</h2>
+      {isFreeTier && (
+        <p className="notice">Upgrade to a paid plan to forward mail sent to your own domain to your real inbox.</p>
+      )}
+      {!isFreeTier && !domainReady && <p className="notice">Connect and activate your custom domain above first.</p>}
+      {error && <div className="error">{error}</div>}
+
+      <form onSubmit={handleAdd} className="email-route-form">
+        <label htmlFor="route-from">Forward mail sent to</label>
+        <div className="email-route-from">
+          <input
+            id="route-from"
+            type="text"
+            placeholder="hello"
+            value={fromLocal}
+            onChange={(e) => setFromLocal(e.target.value)}
+            disabled={disabled || busy}
+            required
+          />
+          <span>@{site.custom_domain || 'yourdomain.com'}</span>
+        </div>
+        <label htmlFor="route-to">to</label>
+        <input
+          id="route-to"
+          type="email"
+          placeholder="you@gmail.com"
+          value={toAddress}
+          onChange={(e) => setToAddress(e.target.value)}
+          disabled={disabled || busy}
+          required
+        />
+        <button type="submit" disabled={disabled || busy || !fromLocal.trim() || !toAddress.trim()}>
+          {busy ? 'Adding…' : 'Add forwarding rule'}
+        </button>
+      </form>
+
+      {routes && routes.length > 0 && (
+        <ul className="email-route-list">
+          {routes.map((r) => (
+            <li key={r.id}>
+              <span>{r.from_address} → {r.to_address}</span>
+              <span className={r.status === 'active' ? 'save-status' : r.status === 'error' ? 'error' : ''}>
+                {r.status === 'active' && 'Active'}
+                {r.status === 'pending_verification' && 'Waiting on inbox verification'}
+                {r.status === 'error' && (r.error_message || 'Error')}
+              </span>
+              <button type="button" className="link-button" onClick={() => handleDelete(r.id)} disabled={busy}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function DeployTab({ site, onSiteUpdated }) {
+  return (
+    <>
+      <UpgradeCard site={site} />
+      <DomainSection site={site} onSiteUpdated={onSiteUpdated} />
+      <EmailRoutingSection site={site} />
+    </>
+  )
+}
+
 function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
   const [form, setForm] = useState(() => ({
     primary_color: site.primary_color || site.default_primary_color || '#2e8b57',
@@ -402,12 +628,12 @@ const TABS = [
     ),
   },
   {
-    key: 'pricing',
-    label: 'Pricing',
+    key: 'deploy',
+    label: 'Deploy',
     icon: (
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M20.5 12.5 12.9 20a2 2 0 0 1-2.8 0l-7-7a2 2 0 0 1-.6-1.4V4.5A1.5 1.5 0 0 1 4 3h7.1c.5 0 1 .2 1.4.6l8 8a2 2 0 0 1 0 2.9Z" strokeLinejoin="round" />
-        <circle cx="8" cy="8" r="1.5" />
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -573,7 +799,7 @@ function VisualEditor({ site }) {
       )}
       {isFreeTier && pages.length > 1 && (
         <div className="card notice">
-          Free sites can only edit the homepage — upgrade on the Pricing tab to edit every page.
+          Free sites can only edit the homepage — upgrade on the Deploy tab to edit every page.
         </div>
       )}
 
@@ -708,7 +934,12 @@ export default function App() {
             />
           )}
           {selectedSite && activeTab === 'edit' && <VisualEditor site={selectedSite} />}
-          {selectedSite && activeTab === 'pricing' && <UpgradeCard site={selectedSite} />}
+          {selectedSite && activeTab === 'deploy' && (
+            <DeployTab
+              site={selectedSite}
+              onSiteUpdated={(updated) => setSites((prev) => prev.map((s) => (s.slug === updated.slug ? updated : s)))}
+            />
+          )}
           {activeTab === 'profile' && (
             <ProfileTab displayName={displayName} username={username} email={email} onLogout={handleLogout} />
           )}
