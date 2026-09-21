@@ -7,6 +7,7 @@ Site "pending" and hands the browser off to PayFast.
 import logging
 from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -47,6 +48,17 @@ def _handle_domain_purchase_payment(purchase_id, payment_status, amount_gross):
 
     purchase.status = DomainPurchase.STATUS_PAID
     purchase.save(update_fields=["status"])
+
+    if settings.PAYFAST_SANDBOX:
+        # PayFast's sandbox only fakes the *payment* — Cloudflare Registrar
+        # has no equivalent test mode, so a real "COMPLETE" ITN here would
+        # otherwise register (and pay for) a genuine domain. Never let a
+        # sandbox payment reach the real registration call.
+        purchase.status = DomainPurchase.STATUS_FAILED
+        purchase.error_message = "PAYFAST_SANDBOX is on — registration was skipped, not actually performed."
+        purchase.save(update_fields=["status", "error_message"])
+        logger.info("Domain purchase %s: sandbox payment completed, registration intentionally skipped", purchase_id)
+        return HttpResponse("OK")
 
     # The charge has cleared and is non-refundable-on-our-end from here —
     # any failure past this point needs a human to reconcile (see
