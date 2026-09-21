@@ -254,10 +254,37 @@ def site_page(request, slug, page_slug):
     return _render_site_page(site, page, edit_mode=request.GET.get("vicinic_edit") == "1")
 
 
+# A connected custom domain (Site.domain_status == active) is routed here
+# instead of the slug-based views above — config.custom_domain_middleware
+# resolves the host to a Site and points request.urlconf at
+# config.custom_domain_urls, which is what wires these in. No slug in the
+# path at all: the domain itself is the site.
+def custom_domain_home(request):
+    site = request.custom_domain_site
+    page = get_object_or_404(TemplatePage, template=site.template, slug="")
+    return _render_site_page(site, page)
+
+
+def custom_domain_page(request, page_slug):
+    site = request.custom_domain_site
+    page = get_object_or_404(TemplatePage, template=site.template, slug=page_slug)
+    return _render_site_page(site, page)
+
+
+@csrf_exempt
+@require_POST
+def custom_domain_contact(request):
+    return _handle_contact(request.custom_domain_site, request)
+
+
 @csrf_exempt  # posted via the template's own bundled JS, without a Django CSRF token
 @require_POST
 def site_contact(request, slug):
     site = get_object_or_404(Site, slug=slug, is_published=True)
+    return _handle_contact(site, request)
+
+
+def _handle_contact(site, request):
     name = request.POST.get("name", "")
     email = request.POST.get("email", "")
     subject = request.POST.get("subject", "")

@@ -29,6 +29,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "config.request_log_middleware.RequestLogMiddleware",
+    "config.custom_domain_middleware.CustomDomainMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "config.trailing_slash_middleware.RestoreStrippedTrailingSlashMiddleware",

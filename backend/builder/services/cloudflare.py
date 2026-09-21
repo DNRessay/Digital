@@ -44,6 +44,13 @@ def _request(method, path, **kwargs):
     return data["result"]
 
 
+def delete_zone(zone_id):
+    """Removes a zone entirely — used when a customer disconnects their
+    custom domain. Safe to call on an already-gone zone (Cloudflare's own
+    404 is treated as success by the caller, not raised from here)."""
+    _request("DELETE", f"/zones/{zone_id}")
+
+
 def create_zone(domain):
     """Adds `domain` as a zone under Vicinic's own Cloudflare account.
     Returns (zone_id, nameservers) — the customer must set those

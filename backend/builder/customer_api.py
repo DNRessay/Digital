@@ -30,11 +30,21 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import CustomerAuthToken, Site, SiteSlotValue, Template
+from .models import CustomerAuthToken, EmailRoute, Site, SiteSlotValue, Template
+from .services import cloudflare
+from .services.cloudflare import CloudflareError
 from .services.payfast import PACKAGES, PayFastError, build_checkout_payload
 from .services.site_provisioning import apply_contact_info, provision_missing_slot_values
 
 HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+DOMAIN_RE = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$")
+
+
+def _normalize_domain(raw):
+    domain = re.sub(r"^https?://", "", raw.strip().lower()).split("/")[0].rstrip(".")
+    if domain.startswith("www."):
+        domain = domain[4:]
+    return domain
 
 
 def _origin_allowed(url):
@@ -98,6 +108,19 @@ def _serialize_site(site):
         "address": site.address,
         "primary_color": site.primary_color,
         "default_primary_color": site.template.default_primary_color,
+        "custom_domain": site.custom_domain or "",
+        "domain_status": site.domain_status,
+        "cloudflare_nameservers": [ns for ns in site.cloudflare_nameservers.split(",") if ns],
+    }
+
+
+def _serialize_email_route(route):
+    return {
+        "id": route.id,
+        "from_address": route.from_address,
+        "to_address": route.to_address,
+        "status": route.status,
+        "error_message": route.error_message,
     }
 
 
@@ -396,3 +419,157 @@ def api_customer_site_slots(request, site_slug):
     SiteSlotValue.objects.bulk_update(updated, ["value"])
 
     return JsonResponse({"site": _serialize_site(site), "groups": _serialize_slots(site)})
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "POST", "DELETE"])
+def api_customer_site_domain(request, site_slug):
+    """The "Deploy" tab's domain section — connecting a customer-owned
+    domain (they set its nameservers to Cloudflare's, which turns it into
+    a zone under Vicinic's own Cloudflare account; see services.cloudflare)
+    and polling until that change has propagated. Paid plans only —
+    web-portal still shows this section to free-tier sites, just disabled,
+    as an upgrade incentive, so this enforces that server-side too."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+
+    if request.method == "DELETE":
+        if site.cloudflare_zone_id:
+            try:
+                cloudflare.delete_zone(site.cloudflare_zone_id)
+            except CloudflareError:
+                pass  # already gone (or a Cloudflare hiccup) — clearing our own record still lets the customer retry
+        site.custom_domain = None
+        site.domain_status = Site.DOMAIN_NONE
+        site.cloudflare_zone_id = ""
+        site.cloudflare_nameservers = ""
+        site.save(update_fields=["custom_domain", "domain_status", "cloudflare_zone_id", "cloudflare_nameservers"])
+        return JsonResponse({"site": _serialize_site(site)})
+
+    if request.method == "POST":
+        if site.subscription_status != Site.SUBSCRIPTION_ACTIVE:
+            return JsonResponse({"error": "Connecting a custom domain needs a paid plan."}, status=402)
+
+        domain = _normalize_domain(str(_json_body(request).get("domain", "")))
+        if not domain or not DOMAIN_RE.match(domain):
+            return JsonResponse({"error": "Enter a real domain, like mybusiness.com."}, status=400)
+
+        try:
+            zone_id, nameservers = cloudflare.create_zone(domain)
+        except CloudflareError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+
+        site.custom_domain = domain
+        site.domain_status = Site.DOMAIN_PENDING
+        site.cloudflare_zone_id = zone_id
+        site.cloudflare_nameservers = ",".join(nameservers)
+        try:
+            site.save(update_fields=["custom_domain", "domain_status", "cloudflare_zone_id", "cloudflare_nameservers"])
+        except IntegrityError:
+            return JsonResponse({"error": "That domain is already connected to another site."}, status=409)
+        return JsonResponse({"site": _serialize_site(site)}, status=201)
+
+    # GET — poll Cloudflare for whether the nameserver change has landed.
+    if site.cloudflare_zone_id and site.domain_status == Site.DOMAIN_PENDING:
+        try:
+            zone_status = cloudflare.get_zone_status(site.cloudflare_zone_id)
+        except CloudflareError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+        if zone_status["status"] == "active":
+            try:
+                cloudflare.point_zone_at_origin(site.cloudflare_zone_id, settings.PLATFORM_ORIGIN_HOST)
+                cloudflare.enable_email_routing(site.cloudflare_zone_id)
+            except CloudflareError as exc:
+                site.domain_status = Site.DOMAIN_ERROR
+                site.save(update_fields=["domain_status"])
+                return JsonResponse({"error": str(exc)}, status=400)
+            site.domain_status = Site.DOMAIN_ACTIVE
+            if zone_status["name_servers"]:
+                site.cloudflare_nameservers = ",".join(zone_status["name_servers"])
+            site.save(update_fields=["domain_status", "cloudflare_nameservers"])
+
+    return JsonResponse({"site": _serialize_site(site)})
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "POST"])
+def api_customer_site_email_routes(request, site_slug):
+    """The "Deploy" tab's Email Routing section — forwarding rules on the
+    site's own connected custom_domain, via Cloudflare Email Routing."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+
+    if request.method == "POST":
+        if site.subscription_status != Site.SUBSCRIPTION_ACTIVE:
+            return JsonResponse({"error": "Email routing needs a paid plan."}, status=402)
+        if site.domain_status != Site.DOMAIN_ACTIVE:
+            return JsonResponse({"error": "Connect and activate your custom domain first."}, status=400)
+
+        body = _json_body(request)
+        from_address = str(body.get("from_address", "")).strip().lower()
+        to_address = str(body.get("to_address", "")).strip().lower()
+        try:
+            validate_email(from_address)
+            validate_email(to_address)
+        except ValidationError:
+            return JsonResponse({"error": "Both addresses must be valid emails."}, status=400)
+        if from_address.rsplit("@", 1)[-1] != site.custom_domain:
+            return JsonResponse({"error": f"The from-address must be on {site.custom_domain}."}, status=400)
+
+        route = EmailRoute(site=site, from_address=from_address, to_address=to_address)
+        try:
+            cloudflare.add_destination_address(to_address)
+            if cloudflare.is_destination_verified(to_address):
+                route.cloudflare_rule_id = cloudflare.create_routing_rule(site.cloudflare_zone_id, from_address, to_address)
+                route.status = EmailRoute.STATUS_ACTIVE
+            else:
+                route.status = EmailRoute.STATUS_PENDING_VERIFICATION
+        except CloudflareError as exc:
+            route.status = EmailRoute.STATUS_ERROR
+            route.error_message = str(exc)[:255]
+
+        try:
+            route.save()
+        except IntegrityError:
+            return JsonResponse({"error": f"A rule for {from_address} already exists."}, status=409)
+        return JsonResponse({"route": _serialize_email_route(route)}, status=201)
+
+    # GET — also promotes any pending routes whose destination has since verified.
+    routes = list(site.email_routes.order_by("id"))
+    for route in routes:
+        if route.status != EmailRoute.STATUS_PENDING_VERIFICATION:
+            continue
+        try:
+            if cloudflare.is_destination_verified(route.to_address):
+                route.cloudflare_rule_id = cloudflare.create_routing_rule(
+                    site.cloudflare_zone_id, route.from_address, route.to_address
+                )
+                route.status = EmailRoute.STATUS_ACTIVE
+                route.save(update_fields=["status", "cloudflare_rule_id"])
+        except CloudflareError:
+            pass  # leave it pending — the next poll tries again
+
+    return JsonResponse({"email_routes": [_serialize_email_route(r) for r in routes]})
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["DELETE"])
+def api_customer_site_email_route_delete(request, site_slug, route_id):
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    route = site.email_routes.filter(id=route_id).first()
+    if route is None:
+        return JsonResponse({"error": "Route not found."}, status=404)
+    if route.cloudflare_rule_id:
+        try:
+            cloudflare.delete_routing_rule(site.cloudflare_zone_id, route.cloudflare_rule_id)
+        except CloudflareError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+    route.delete()
+    return JsonResponse({"deleted": True})

@@ -42,6 +42,19 @@ Parameters:
     Type: String
     Default: "true"
     AllowedValues: ["true", "false"]
+  CloudflareApiToken:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Zone:Edit/Zone:DNS:Edit/Zone Email Routing Rules:Edit/Account:Zone:Edit token — see builder/services/cloudflare.py
+  CloudflareAccountId:
+    Type: String
+    Default: ""
+    Description: The Cloudflare account every connected customer domain becomes a zone under
+  PlatformOriginHost:
+    Type: String
+    Default: "uoby5fryqkhbasb7wicrtg5oiq0pgwth.lambda-url.eu-west-1.on.aws"
+    Description: This backend's own Lambda Function URL host (no scheme) — same pattern as TemplifyFunctionUrl above, a connected domain's zone gets pointed at this
   Stage:
     Type: String
     Default: prod
@@ -107,6 +120,9 @@ Resources:
           PAYFAST_MERCHANT_KEY: !Ref PayFastMerchantKey
           PAYFAST_PASSPHRASE: !Ref PayFastPassphrase
           PAYFAST_SANDBOX: !Ref PayFastSandbox
+          CLOUDFLARE_API_TOKEN: !Ref CloudflareApiToken
+          CLOUDFLARE_ACCOUNT_ID: !Ref CloudflareAccountId
+          PLATFORM_ORIGIN_HOST: !Ref PlatformOriginHost
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref TemplateAssetsBucket
