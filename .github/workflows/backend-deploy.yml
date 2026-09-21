@@ -128,7 +128,11 @@ jobs:
           [ -n "${AWS_PAYFAST_MERCHANT_ID}" ] && OVERRIDES+=("PayFastMerchantId=${AWS_PAYFAST_MERCHANT_ID}")
           [ -n "${AWS_PAYFAST_MERCHANT_KEY}" ] && OVERRIDES+=("PayFastMerchantKey=${AWS_PAYFAST_MERCHANT_KEY}")
           [ -n "${AWS_PAYFAST_PASSPHRASE}" ] && OVERRIDES+=("PayFastPassphrase=${AWS_PAYFAST_PASSPHRASE}")
-          [ -n "${AWS_PAYFAST_SANDBOX}" ] && OVERRIDES+=("PayFastSandbox=${AWS_PAYFAST_SANDBOX}")
+          # Normalized to lowercase: the template's AllowedValues are the
+          # literal strings "true"/"false" and CloudFormation's check is
+          # case-sensitive — a secret saved as "True"/"FALSE" would
+          # otherwise fail the whole deploy with a ValidationError.
+          [ -n "${AWS_PAYFAST_SANDBOX}" ] && OVERRIDES+=("PayFastSandbox=$(echo "${AWS_PAYFAST_SANDBOX}" | tr '[:upper:]' '[:lower:]')")
           [ -n "${AWS_CLOUDFLARE_API_TOKEN}" ] && OVERRIDES+=("CloudflareApiToken=${AWS_CLOUDFLARE_API_TOKEN}")
           [ -n "${AWS_CLOUDFLARE_ACCOUNT_ID}" ] && OVERRIDES+=("CloudflareAccountId=${AWS_CLOUDFLARE_ACCOUNT_ID}")
           [ -n "${AWS_PLATFORM_ORIGIN_HOST}" ] && OVERRIDES+=("PlatformOriginHost=${AWS_PLATFORM_ORIGIN_HOST}")
