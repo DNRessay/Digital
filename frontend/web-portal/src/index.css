@@ -219,6 +219,12 @@ button:disabled {
   margin-bottom: 24px;
 }
 
+.domain-mode-toggle {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
 .email-route-from {
   display: flex;
   align-items: center;

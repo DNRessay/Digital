@@ -157,6 +157,17 @@ export function disconnectDomain(siteSlug) {
   return apiFetch(`/api/customer/sites/${siteSlug}/domain/`, { method: 'DELETE' })
 }
 
+export function checkDomainAvailability(siteSlug, domain) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/domain/check/?domain=${encodeURIComponent(domain)}`)
+}
+
+export function purchaseDomain(siteSlug, domain, registrant, returnUrl, cancelUrl) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/domain/purchase/`, {
+    method: 'POST',
+    body: { domain, registrant, return_url: returnUrl, cancel_url: cancelUrl },
+  })
+}
+
 export function listEmailRoutes(siteSlug) {
   return apiFetch(`/api/customer/sites/${siteSlug}/email-routes/`)
 }

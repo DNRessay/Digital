@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   API_BASE,
+  checkDomainAvailability,
   checkout,
   clearDraft,
   connectDomain,
@@ -17,6 +18,7 @@ import {
   loadDraft,
   login,
   logout,
+  purchaseDomain,
   redirectToPayFast,
   register,
   saveSiteSlots,
@@ -272,11 +274,148 @@ function UpgradeCard({ site }) {
   )
 }
 
+function BuyDomainFields({ site, isFreeTier }) {
+  const [domainInput, setDomainInput] = useState('')
+  const [checkResult, setCheckResult] = useState(null) // null | {available, price_zar} | {available: false, reason}
+  const [checking, setChecking] = useState(false)
+  const [showRegistrantForm, setShowRegistrantForm] = useState(false)
+  const [registrant, setRegistrant] = useState({
+    name: '', email: '', phone: '', street: '', city: '', state: '', postal_code: '', country_code: 'ZA',
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  function setRegistrantField(key, value) {
+    setRegistrant((prev) => ({ ...prev, [key]: value }))
+  }
+
+  async function handleCheck(e) {
+    e.preventDefault()
+    setChecking(true)
+    setError(null)
+    setCheckResult(null)
+    setShowRegistrantForm(false)
+    try {
+      const data = await checkDomainAvailability(site.slug, domainInput.trim())
+      setCheckResult(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  async function handleBuy(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      const base = `${window.location.origin}${window.location.pathname}`
+      const data = await purchaseDomain(
+        site.slug,
+        checkResult.domain,
+        {
+          name: registrant.name,
+          email: registrant.email,
+          phone: registrant.phone,
+          address: {
+            street: registrant.street,
+            city: registrant.city,
+            state: registrant.state,
+            postal_code: registrant.postal_code,
+            country_code: registrant.country_code,
+          },
+        },
+        `${base}?checkout=success`,
+        `${base}?checkout=cancelled`
+      )
+      redirectToPayFast(data.process_url, data.fields)
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      {error && <div className="error">{error}</div>}
+
+      <form onSubmit={handleCheck}>
+        <label htmlFor="buy-domain">Domain you want</label>
+        <input
+          id="buy-domain"
+          type="text"
+          placeholder="mybusiness.com"
+          value={domainInput}
+          onChange={(e) => {
+            setDomainInput(e.target.value)
+            setCheckResult(null)
+          }}
+          disabled={isFreeTier || checking}
+          required
+        />
+        <button type="submit" disabled={isFreeTier || checking || !domainInput.trim()}>
+          {checking ? 'Checking…' : 'Check availability'}
+        </button>
+      </form>
+
+      {checkResult && !checkResult.available && (
+        <div className="notice">{checkResult.reason}</div>
+      )}
+
+      {checkResult && checkResult.available && !showRegistrantForm && (
+        <div className="notice">
+          <strong>{checkResult.domain}</strong> is available for <strong>R{checkResult.price_zar}</strong> (first year).
+          {' '}
+          <button type="button" className="link-button" onClick={() => setShowRegistrantForm(true)}>
+            Buy this domain
+          </button>
+        </div>
+      )}
+
+      {checkResult && checkResult.available && showRegistrantForm && (
+        <form onSubmit={handleBuy}>
+          <p className="field-hint">
+            Domain registries require real contact details for the registrant — this is who legally owns {checkResult.domain}.
+          </p>
+          <label htmlFor="registrant-name">Full name or business name</label>
+          <input id="registrant-name" type="text" value={registrant.name} onChange={(e) => setRegistrantField('name', e.target.value)} required />
+          <label htmlFor="registrant-email">Email</label>
+          <input id="registrant-email" type="email" value={registrant.email} onChange={(e) => setRegistrantField('email', e.target.value)} required />
+          <label htmlFor="registrant-phone">Phone (with country code, e.g. +27821234567)</label>
+          <input id="registrant-phone" type="text" value={registrant.phone} onChange={(e) => setRegistrantField('phone', e.target.value)} required />
+          <label htmlFor="registrant-street">Street address</label>
+          <input id="registrant-street" type="text" value={registrant.street} onChange={(e) => setRegistrantField('street', e.target.value)} required />
+          <label htmlFor="registrant-city">City</label>
+          <input id="registrant-city" type="text" value={registrant.city} onChange={(e) => setRegistrantField('city', e.target.value)} required />
+          <label htmlFor="registrant-state">Province/State (optional)</label>
+          <input id="registrant-state" type="text" value={registrant.state} onChange={(e) => setRegistrantField('state', e.target.value)} />
+          <label htmlFor="registrant-postal">Postal code</label>
+          <input id="registrant-postal" type="text" value={registrant.postal_code} onChange={(e) => setRegistrantField('postal_code', e.target.value)} required />
+          <label htmlFor="registrant-country">Country code (2 letters, e.g. ZA)</label>
+          <input
+            id="registrant-country"
+            type="text"
+            maxLength={2}
+            value={registrant.country_code}
+            onChange={(e) => setRegistrantField('country_code', e.target.value.toUpperCase())}
+            required
+          />
+          <button type="submit" disabled={busy}>
+            {busy ? 'Redirecting to PayFast…' : `Pay R${checkResult.price_zar} with PayFast`}
+          </button>
+        </form>
+      )}
+    </>
+  )
+}
+
 function DomainSection({ site, onSiteUpdated }) {
   const isFreeTier = site.subscription_status !== 'active'
   const [domainInput, setDomainInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [mode, setMode] = useState('connect') // 'connect' | 'buy'
 
   // While a domain is waiting on the customer's nameserver change to
   // land, poll Cloudflare (via our own backend) every so often so this
@@ -331,21 +470,34 @@ function DomainSection({ site, onSiteUpdated }) {
       {error && <div className="error">{error}</div>}
 
       {!hasDomain ? (
-        <form onSubmit={handleConnect}>
-          <label htmlFor="domain">Your domain</label>
-          <input
-            id="domain"
-            type="text"
-            placeholder="mybusiness.com"
-            value={domainInput}
-            onChange={(e) => setDomainInput(e.target.value)}
-            disabled={isFreeTier || busy}
-            required
-          />
-          <button type="submit" disabled={isFreeTier || busy || !domainInput.trim()}>
-            {busy ? 'Connecting…' : 'Connect domain'}
-          </button>
-        </form>
+        <>
+          <div className="domain-mode-toggle">
+            <button type="button" className={mode === 'connect' ? '' : 'link-button'} onClick={() => setMode('connect')}>
+              I already own a domain
+            </button>
+            <button type="button" className={mode === 'buy' ? '' : 'link-button'} onClick={() => setMode('buy')}>
+              Buy a new domain
+            </button>
+          </div>
+          {mode === 'connect' && (
+            <form onSubmit={handleConnect}>
+              <label htmlFor="domain">Your domain</label>
+              <input
+                id="domain"
+                type="text"
+                placeholder="mybusiness.com"
+                value={domainInput}
+                onChange={(e) => setDomainInput(e.target.value)}
+                disabled={isFreeTier || busy}
+                required
+              />
+              <button type="submit" disabled={isFreeTier || busy || !domainInput.trim()}>
+                {busy ? 'Connecting…' : 'Connect domain'}
+              </button>
+            </form>
+          )}
+          {mode === 'buy' && <BuyDomainFields site={site} isFreeTier={isFreeTier} />}
+        </>
       ) : (
         <>
           <p>
