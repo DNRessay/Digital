@@ -128,15 +128,17 @@ jobs:
           [ -n "${AWS_PAYFAST_MERCHANT_ID}" ] && OVERRIDES+=("PayFastMerchantId=${AWS_PAYFAST_MERCHANT_ID}")
           [ -n "${AWS_PAYFAST_MERCHANT_KEY}" ] && OVERRIDES+=("PayFastMerchantKey=${AWS_PAYFAST_MERCHANT_KEY}")
           [ -n "${AWS_PAYFAST_PASSPHRASE}" ] && OVERRIDES+=("PayFastPassphrase=${AWS_PAYFAST_PASSPHRASE}")
-          # Normalized to lowercase and trimmed: the template's
-          # AllowedValues are the literal strings "true"/"false" and
-          # CloudFormation's check is exact — a secret saved as "True",
-          # "FALSE", or with incidental leading/trailing whitespace (easy
-          # to introduce when pasting into GitHub's secret box) fails the
-          # whole deploy with a ValidationError otherwise.
-          PAYFAST_SANDBOX_NORMALIZED=$(echo "${AWS_PAYFAST_SANDBOX}" | xargs | tr '[:upper:]' '[:lower:]')
-          echo "DEBUG sam version: $(sam --version)"
-          echo "DEBUG PayFastSandbox normalized value='${PAYFAST_SANDBOX_NORMALIZED}' length=${#PAYFAST_SANDBOX_NORMALIZED}"
+          # The template's AllowedValues are the literal strings
+          # "true"/"false" and CloudFormation's check is exact — the
+          # PAYFAST_SANDBOX secret is actually stored as "1"/"0" (a common
+          # shape for a boolean env var), which fails that check outright
+          # regardless of case/whitespace. Map every common boolean
+          # spelling onto the two the template actually accepts.
+          case "$(echo "${AWS_PAYFAST_SANDBOX}" | xargs | tr '[:upper:]' '[:lower:]')" in
+            1|yes|on|true) PAYFAST_SANDBOX_NORMALIZED="true" ;;
+            0|no|off|false) PAYFAST_SANDBOX_NORMALIZED="false" ;;
+            *) PAYFAST_SANDBOX_NORMALIZED="" ;;
+          esac
           [ -n "${PAYFAST_SANDBOX_NORMALIZED}" ] && OVERRIDES+=("PayFastSandbox=${PAYFAST_SANDBOX_NORMALIZED}")
           [ -n "${AWS_CLOUDFLARE_API_TOKEN}" ] && OVERRIDES+=("CloudflareApiToken=${AWS_CLOUDFLARE_API_TOKEN}")
           [ -n "${AWS_CLOUDFLARE_ACCOUNT_ID}" ] && OVERRIDES+=("CloudflareAccountId=${AWS_CLOUDFLARE_ACCOUNT_ID}")
