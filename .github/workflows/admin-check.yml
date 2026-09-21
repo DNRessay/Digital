@@ -1,0 +1,24 @@
+name: Admin app deployment check (temporary, read-only)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch admin app index.html and find its JS bundle
+        run: |
+          curl -sS "https://vicinic-admin-portal.pages.dev/" -o index.html
+          echo "--- index.html ---"
+          cat index.html
+          echo "--- JS bundle filename ---"
+          BUNDLE=$(grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' index.html | head -1)
+          echo "Bundle: $BUNDLE"
+          echo "BUNDLE=$BUNDLE" >> "$GITHUB_ENV"
+
+      - name: Check whether the JS bundle contains the new admin-login-redirect code
+        run: |
+          curl -sS "https://vicinic-admin-portal.pages.dev${BUNDLE}" -o bundle.js
+          echo "--- Searching for admin-login-redirect ---"
+          grep -o "admin-login-redirect" bundle.js || echo "NOT FOUND — old bundle still being served"
