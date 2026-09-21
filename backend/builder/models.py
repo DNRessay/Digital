@@ -101,6 +101,17 @@ class Site(models.Model):
     whatsapp_number = models.CharField(max_length=30, blank=True, help_text="International format, e.g. 27821234567")
     email = models.EmailField(blank=True, help_text="Also where this site's own contact form (site_contact) sends messages.")
     address = models.CharField(max_length=255, blank=True)
+
+    ai_assistant_enabled = models.BooleanField(
+        default=False,
+        help_text="Shows a floating AI chat widget (services.ai_assistant) on this site's rendered pages, "
+        "plus a WhatsApp chat link when whatsapp_number is set.",
+    )
+    ai_assistant_description = models.TextField(
+        blank=True,
+        help_text="What this business does, in the owner's own words — given to the AI chat widget as "
+        "context so it can answer simple visitor questions without inventing details.",
+    )
     primary_color = models.CharField(
         max_length=7, blank=True, validators=[HEX_COLOR_VALIDATOR],
         help_text="Hex override (e.g. #2e8b57) for the template's own detected accent color "

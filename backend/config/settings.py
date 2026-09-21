@@ -179,4 +179,14 @@ PLATFORM_ORIGIN_HOST = os.environ.get(
 DOMAIN_EXCHANGE_RATE_ZAR = Decimal(os.environ.get("DOMAIN_EXCHANGE_RATE_ZAR", "18.50"))
 DOMAIN_MARKUP_ZAR = Decimal(os.environ.get("DOMAIN_MARKUP_ZAR", "30.00"))
 
+# AI chat widget (builder/services/ai_assistant.py) — a free-tier Hugging
+# Face model answers simple visitor questions on a Site's rendered pages,
+# using Site.ai_assistant_description as context. HUGGINGFACE_MODEL is a
+# setting rather than hardcoded because Hugging Face's free-tier hosted
+# models rotate over time; if the default stops responding, point this at
+# whatever small instruct model is currently free on
+# https://huggingface.co/models?inference=warm&pipeline_tag=text-generation
+HUGGINGFACE_API_TOKEN = os.environ.get("HUGGINGFACE_API_TOKEN", "")
+HUGGINGFACE_MODEL = os.environ.get("HUGGINGFACE_MODEL", "HuggingFaceH4/zephyr-7b-beta")
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

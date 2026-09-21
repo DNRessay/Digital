@@ -55,6 +55,14 @@ Parameters:
     Type: String
     Default: "uoby5fryqkhbasb7wicrtg5oiq0pgwth.lambda-url.eu-west-1.on.aws"
     Description: This backend's own Lambda Function URL host (no scheme) — same pattern as TemplifyFunctionUrl above, a connected domain's zone gets pointed at this
+  HuggingFaceApiToken:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Free-tier Hugging Face Inference API token for the AI chat widget — see builder/services/ai_assistant.py
+  HuggingFaceModel:
+    Type: String
+    Default: "HuggingFaceH4/zephyr-7b-beta"
   Stage:
     Type: String
     Default: prod
@@ -123,6 +131,8 @@ Resources:
           CLOUDFLARE_API_TOKEN: !Ref CloudflareApiToken
           CLOUDFLARE_ACCOUNT_ID: !Ref CloudflareAccountId
           PLATFORM_ORIGIN_HOST: !Ref PlatformOriginHost
+          HUGGINGFACE_API_TOKEN: !Ref HuggingFaceApiToken
+          HUGGINGFACE_MODEL: !Ref HuggingFaceModel
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref TemplateAssetsBucket

@@ -627,6 +627,97 @@ function EmailRoutingSection({ site }) {
   )
 }
 
+function AiAssistantSection({ site, onSiteUpdated }) {
+  const [form, setForm] = useState(() => ({
+    ai_assistant_enabled: site.ai_assistant_enabled,
+    ai_assistant_description: site.ai_assistant_description,
+    whatsapp_number: site.whatsapp_number,
+  }))
+  const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
+  const [saveError, setSaveError] = useState(null)
+
+  useEffect(() => {
+    setForm({
+      ai_assistant_enabled: site.ai_assistant_enabled,
+      ai_assistant_description: site.ai_assistant_description,
+      whatsapp_number: site.whatsapp_number,
+    })
+    setSaveState('idle')
+  }, [site.slug])
+
+  function setField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }))
+    setSaveState('idle')
+  }
+
+  async function handleSave(e) {
+    e.preventDefault()
+    setSaveState('saving')
+    setSaveError(null)
+    try {
+      const data = await updateSite(site.slug, form)
+      onSiteUpdated(data.site)
+      setSaveState('saved')
+    } catch (err) {
+      setSaveError(err.message)
+      setSaveState('error')
+    }
+  }
+
+  return (
+    <form className="card" onSubmit={handleSave}>
+      <h2>WhatsApp &amp; AI assistant</h2>
+      <p>
+        Adds a free AI chat bubble to your site that answers simple visitor questions using the description
+        below, plus a "Chat on WhatsApp" link if you add a number.
+      </p>
+      {saveError && <div className="error">{saveError}</div>}
+
+      <label htmlFor="ai-enabled">
+        <input
+          id="ai-enabled"
+          type="checkbox"
+          checked={form.ai_assistant_enabled}
+          onChange={(e) => setField('ai_assistant_enabled', e.target.checked)}
+          style={{ marginRight: '8px' }}
+        />
+        Show the AI chat assistant on my site
+      </label>
+
+      <label htmlFor="ai-business-name">Business name</label>
+      <input id="ai-business-name" type="text" value={site.name} disabled />
+      <p className="field-hint">Set once when you created the site — used as-is by the assistant.</p>
+
+      <label htmlFor="ai-description">Describe your business</label>
+      <textarea
+        id="ai-description"
+        rows={4}
+        maxLength={2000}
+        placeholder="What you sell or do, hours, what makes you different — whatever a customer would want to know."
+        value={form.ai_assistant_description}
+        onChange={(e) => setField('ai_assistant_description', e.target.value)}
+      />
+
+      <label htmlFor="ai-whatsapp">WhatsApp number</label>
+      <input
+        id="ai-whatsapp"
+        type="text"
+        placeholder="International format, e.g. 27821234567"
+        value={form.whatsapp_number}
+        onChange={(e) => setField('whatsapp_number', e.target.value)}
+      />
+      <p className="field-hint">Same number shown on the Overview tab — changing it here updates both.</p>
+
+      <div className="save-bar">
+        <button type="submit" disabled={saveState === 'saving'}>
+          {saveState === 'saving' ? 'Saving…' : 'Save'}
+        </button>
+        {saveState === 'saved' && <span className="save-status">Saved</span>}
+      </div>
+    </form>
+  )
+}
+
 function DeployTab({ site, onSiteUpdated }) {
   // Domain connect/buy and email routing below are still open to every
   // site regardless of plan (that gating was deliberately dropped
@@ -635,6 +726,7 @@ function DeployTab({ site, onSiteUpdated }) {
   return (
     <>
       <UpgradeCard site={site} />
+      <AiAssistantSection site={site} onSiteUpdated={onSiteUpdated} />
       <DomainSection site={site} onSiteUpdated={onSiteUpdated} />
       <EmailRoutingSection site={site} />
     </>

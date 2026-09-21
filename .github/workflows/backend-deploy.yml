@@ -109,6 +109,8 @@ jobs:
           AWS_CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           AWS_CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           AWS_PLATFORM_ORIGIN_HOST: ${{ secrets.PLATFORM_ORIGIN_HOST }}
+          AWS_HUGGINGFACE_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
+          AWS_HUGGINGFACE_MODEL: ${{ secrets.HUGGINGFACE_MODEL }}
         run: |
           # SAM's --parameter-overrides shorthand rejects an empty value
           # outright, so optional params (not every deploy has these
@@ -143,6 +145,8 @@ jobs:
           [ -n "${AWS_CLOUDFLARE_API_TOKEN}" ] && OVERRIDES+=("CloudflareApiToken=${AWS_CLOUDFLARE_API_TOKEN}")
           [ -n "${AWS_CLOUDFLARE_ACCOUNT_ID}" ] && OVERRIDES+=("CloudflareAccountId=${AWS_CLOUDFLARE_ACCOUNT_ID}")
           [ -n "${AWS_PLATFORM_ORIGIN_HOST}" ] && OVERRIDES+=("PlatformOriginHost=${AWS_PLATFORM_ORIGIN_HOST}")
+          [ -n "${AWS_HUGGINGFACE_API_TOKEN}" ] && OVERRIDES+=("HuggingFaceApiToken=${AWS_HUGGINGFACE_API_TOKEN}")
+          [ -n "${AWS_HUGGINGFACE_MODEL}" ] && OVERRIDES+=("HuggingFaceModel=${AWS_HUGGINGFACE_MODEL}")
 
           sam deploy \
             --stack-name viincci-digital-builder \

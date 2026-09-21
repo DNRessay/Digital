@@ -109,6 +109,8 @@ def _serialize_site(site):
         "whatsapp_number": site.whatsapp_number,
         "email": site.email,
         "address": site.address,
+        "ai_assistant_enabled": site.ai_assistant_enabled,
+        "ai_assistant_description": site.ai_assistant_description,
         "primary_color": site.primary_color,
         "default_primary_color": site.template.default_primary_color,
         "custom_domain": site.custom_domain or "",
@@ -327,6 +329,10 @@ def api_customer_site_update(request, site_slug):
         fields["whatsapp_number"] = str(body["whatsapp_number"]).strip()[:30]
     if "address" in body:
         fields["address"] = str(body["address"]).strip()[:255]
+    if "ai_assistant_enabled" in body:
+        fields["ai_assistant_enabled"] = bool(body["ai_assistant_enabled"])
+    if "ai_assistant_description" in body:
+        fields["ai_assistant_description"] = str(body["ai_assistant_description"]).strip()[:2000]
 
     if "email" in body:
         email = str(body["email"]).strip()

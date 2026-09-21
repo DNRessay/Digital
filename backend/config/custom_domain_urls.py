@@ -8,6 +8,7 @@ from builder import views
 # request.custom_domain_site, set by that same middleware).
 urlpatterns = [
     path("contact/", views.custom_domain_contact, name="custom-domain-contact"),
+    path("ai-chat/", views.custom_domain_ai_chat, name="custom-domain-ai-chat"),
     path("<slug:page_slug>/", views.custom_domain_page, name="custom-domain-page"),
     path("", views.custom_domain_home, name="custom-domain-home"),
 ]

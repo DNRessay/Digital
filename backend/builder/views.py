@@ -1,3 +1,4 @@
+import json
 import re
 from urllib.parse import quote
 
@@ -5,9 +6,10 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.mail import BadHeaderError, send_mail
 from django.db import IntegrityError
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template import engines
+from django.urls import reverse
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
 from django.utils.text import slugify
@@ -16,6 +18,7 @@ from django.views.decorators.http import require_POST
 
 from .forms import TemplateUploadForm
 from .models import Site, SiteSlotValue, Template, TemplatePage
+from .services.ai_assistant import AiAssistantError, ask_assistant
 from .services.slot_extractor import slot_tag
 from .services.template_ingest import IngestError, ingest_converted_zip
 from .services.templify_client import TemplifyError, convert_template_zip
@@ -40,6 +43,118 @@ def _inject_branding_badge(html):
     if idx == -1:
         return html + BRANDING_BADGE_HTML
     return html[:idx] + BRANDING_BADGE_HTML + html[idx:]
+
+
+# A floating chat bubble (bottom-left, so it never overlaps
+# BRANDING_BADGE_HTML's bottom-right placement) that POSTs a visitor's
+# question to `chat_url` and shows the AI's reply inline — plus a WhatsApp
+# deep link when the site has a whatsapp_number, for handing a
+# conversation off to a real person. Vanilla JS/CSS, no build step, since
+# it's injected into arbitrary customer-uploaded template HTML the same
+# way BRANDING_BADGE_HTML and EDITOR_BRIDGE_HTML are.
+def _ai_chat_widget_html(site, chat_url):
+    whatsapp_link_html = ""
+    if site.whatsapp_number:
+        wa_text = quote(f"Hi {site.name}, ")
+        whatsapp_link_html = (
+            f'<a href="https://wa.me/{escape(site.whatsapp_number)}?text={wa_text}" '
+            'target="_blank" rel="noopener" id="vicinic-chat-whatsapp">Chat on WhatsApp instead</a>'
+        )
+    business_name = escape(site.name)
+    return f"""
+<style>
+  #vicinic-chat-toggle {{
+    position: fixed; bottom: 12px; left: 12px; z-index: 2147483646;
+    width: 52px; height: 52px; border-radius: 50%; border: none;
+    background: #111; color: #fff; font-size: 22px; cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,.35);
+  }}
+  #vicinic-chat-panel {{
+    position: fixed; bottom: 76px; left: 12px; z-index: 2147483646;
+    width: min(320px, calc(100vw - 24px)); max-height: 420px; display: none;
+    flex-direction: column; background: #fff; border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.25); overflow: hidden;
+    font: 14px/1.4 system-ui,-apple-system,sans-serif; color: #111;
+  }}
+  #vicinic-chat-panel.vicinic-open {{ display: flex; }}
+  #vicinic-chat-header {{ background: #111; color: #fff; padding: 10px 14px; font-weight: 600; }}
+  #vicinic-chat-log {{ padding: 10px 14px; overflow-y: auto; flex: 1; min-height: 80px; }}
+  #vicinic-chat-log p {{ margin: 0 0 10px; }}
+  #vicinic-chat-log .vicinic-chat-you {{ color: #555; }}
+  #vicinic-chat-form {{ display: flex; border-top: 1px solid #eee; }}
+  #vicinic-chat-input {{ flex: 1; border: none; padding: 10px; font: inherit; }}
+  #vicinic-chat-input:focus {{ outline: none; }}
+  #vicinic-chat-form button {{ border: none; background: #111; color: #fff; padding: 0 14px; cursor: pointer; }}
+  #vicinic-chat-whatsapp {{
+    display: block; text-align: center; padding: 8px; font-size: 13px;
+    color: #075e54; text-decoration: none; border-top: 1px solid #eee;
+  }}
+</style>
+<button id="vicinic-chat-toggle" aria-label="Chat with {business_name}">&#128172;</button>
+<div id="vicinic-chat-panel">
+  <div id="vicinic-chat-header">Ask {business_name}</div>
+  <div id="vicinic-chat-log"><p>Ask a quick question — an AI assistant will do its best to help.</p></div>
+  <form id="vicinic-chat-form">
+    <input id="vicinic-chat-input" type="text" placeholder="Type a question…" maxlength="500" autocomplete="off">
+    <button type="submit">Send</button>
+  </form>
+  {whatsapp_link_html}
+</div>
+<script>
+(function () {{
+  var toggle = document.getElementById('vicinic-chat-toggle');
+  var panel = document.getElementById('vicinic-chat-panel');
+  var log = document.getElementById('vicinic-chat-log');
+  var form = document.getElementById('vicinic-chat-form');
+  var input = document.getElementById('vicinic-chat-input');
+
+  toggle.addEventListener('click', function () {{
+    panel.classList.toggle('vicinic-open');
+  }});
+
+  form.addEventListener('submit', function (e) {{
+    e.preventDefault();
+    var question = input.value.trim();
+    if (!question) return;
+    var you = document.createElement('p');
+    you.className = 'vicinic-chat-you';
+    you.textContent = question;
+    log.appendChild(you);
+    input.value = '';
+    input.disabled = true;
+    log.scrollTop = log.scrollHeight;
+
+    fetch({json.dumps(chat_url)}, {{
+      method: 'POST',
+      headers: {{ 'Content-Type': 'application/json' }},
+      body: JSON.stringify({{ question: question }})
+    }})
+      .then(function (r) {{ return r.json(); }})
+      .then(function (data) {{
+        var reply = document.createElement('p');
+        reply.textContent = data.answer || data.error || "Sorry, something went wrong.";
+        log.appendChild(reply);
+        log.scrollTop = log.scrollHeight;
+      }})
+      .catch(function () {{
+        var reply = document.createElement('p');
+        reply.textContent = "Sorry, couldn't reach the assistant just now.";
+        log.appendChild(reply);
+      }})
+      .finally(function () {{ input.disabled = false; input.focus(); }});
+  }});
+}})();
+</script>
+"""
+
+
+def _inject_ai_chat_widget(html, site, chat_url):
+    lower = html.lower()
+    idx = lower.rfind("</body>")
+    widget_html = _ai_chat_widget_html(site, chat_url)
+    if idx == -1:
+        return html + widget_html
+    return html[:idx] + widget_html + html[idx:]
 
 
 # Tags a slot's text can't be wrapped in a <span> without breaking the page
@@ -221,7 +336,7 @@ def _inject_map_address(html, address):
     return GOOGLE_MAPS_IFRAME_SRC_RE.sub(lambda m: m.group(1) + new_src + m.group(3), html)
 
 
-def _render_site_page(site, page, edit_mode=False):
+def _render_site_page(site, page, edit_mode=False, chat_url=None):
     context = _resolve_slots(site, page, edit_mode=edit_mode)
     template = django_engine.from_string(page.document)
     html = template.render(context)
@@ -230,8 +345,11 @@ def _render_site_page(site, page, edit_mode=False):
     html = _inject_map_address(html, site.address)
     if edit_mode:
         html = _inject_editor_bridge(html)
-    elif site.is_branded:
-        html = _inject_branding_badge(html)
+    else:
+        if site.is_branded:
+            html = _inject_branding_badge(html)
+        if site.ai_assistant_enabled and chat_url:
+            html = _inject_ai_chat_widget(html, site, chat_url)
     response = HttpResponse(html)
     if edit_mode:
         # web-portal (a different origin) embeds this in an iframe for the
@@ -244,13 +362,15 @@ def _render_site_page(site, page, edit_mode=False):
 def site_home(request, slug):
     site = get_object_or_404(Site, slug=slug, is_published=True)
     page = get_object_or_404(TemplatePage, template=site.template, slug="")
-    return _render_site_page(site, page, edit_mode=request.GET.get("vicinic_edit") == "1")
+    chat_url = reverse("builder:site-ai-chat", args=[slug])
+    return _render_site_page(site, page, edit_mode=request.GET.get("vicinic_edit") == "1", chat_url=chat_url)
 
 
 def site_page(request, slug, page_slug):
     site = get_object_or_404(Site, slug=slug, is_published=True)
     page = get_object_or_404(TemplatePage, template=site.template, slug=page_slug)
-    return _render_site_page(site, page, edit_mode=request.GET.get("vicinic_edit") == "1")
+    chat_url = reverse("builder:site-ai-chat", args=[slug])
+    return _render_site_page(site, page, edit_mode=request.GET.get("vicinic_edit") == "1", chat_url=chat_url)
 
 
 # A connected custom domain (Site.domain_status == active) is routed here
@@ -261,13 +381,13 @@ def site_page(request, slug, page_slug):
 def custom_domain_home(request):
     site = request.custom_domain_site
     page = get_object_or_404(TemplatePage, template=site.template, slug="")
-    return _render_site_page(site, page)
+    return _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat"))
 
 
 def custom_domain_page(request, page_slug):
     site = request.custom_domain_site
     page = get_object_or_404(TemplatePage, template=site.template, slug=page_slug)
-    return _render_site_page(site, page)
+    return _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat"))
 
 
 @csrf_exempt
@@ -281,6 +401,33 @@ def custom_domain_contact(request):
 def site_contact(request, slug):
     site = get_object_or_404(Site, slug=slug, is_published=True)
     return _handle_contact(site, request)
+
+
+def _handle_ai_chat(site, request):
+    if not site.ai_assistant_enabled:
+        return JsonResponse({"error": "This site's AI assistant isn't turned on."}, status=404)
+    try:
+        body = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid request."}, status=400)
+    try:
+        answer = ask_assistant(site, str(body.get("question", "")))
+    except AiAssistantError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
+    return JsonResponse({"answer": answer})
+
+
+@csrf_exempt  # called via fetch() from the injected widget's own JS, no Django CSRF token available
+@require_POST
+def custom_domain_ai_chat(request):
+    return _handle_ai_chat(request.custom_domain_site, request)
+
+
+@csrf_exempt  # same as custom_domain_ai_chat above
+@require_POST
+def site_ai_chat(request, slug):
+    site = get_object_or_404(Site, slug=slug, is_published=True)
+    return _handle_ai_chat(site, request)
 
 
 def _handle_contact(site, request):
