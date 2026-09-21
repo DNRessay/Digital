@@ -22,7 +22,13 @@ import requests
 from django.conf import settings
 
 PACKAGES = {
-    "starter": {"label": "Starter Site", "monthly": Decimal("99.00"), "setup": Decimal("900.00")},
+    # Once-off, not a subscription: pay this one time and branding stays
+    # off for that site permanently — no recurring bill, ever, for this
+    # tier. Partly a contribution toward the license cost of whichever
+    # template the site uses. "monthly": 0 is what build_checkout_payload
+    # below keys off of to build a plain once-off charge instead of a
+    # PayFast subscription.
+    "starter": {"label": "Starter Site", "monthly": Decimal("0.00"), "setup": Decimal("250.00")},
     "growth": {"label": "Growth Hub", "monthly": Decimal("349.00"), "setup": Decimal("2500.00")},
     "business_os": {"label": "Business OS", "monthly": Decimal("699.00"), "setup": Decimal("5500.00")},
 }
@@ -60,12 +66,20 @@ def _sign(ordered_fields):
 def build_checkout_payload(site, package_id, m_payment_id, return_url, cancel_url, notify_url):
     """Returns (process_url, ordered_fields) — ordered_fields is a list of
     (key, value) pairs the frontend must submit as a form POST to
-    process_url, in this exact order, for the signature to validate."""
+    process_url, in this exact order, for the signature to validate.
+
+    A package with no monthly component (currently just "starter") is a
+    plain once-off charge — no subscription_type/recurring_amount/
+    frequency/cycles fields at all, same shape as
+    build_domain_purchase_payload — rather than a PayFast subscription
+    billing R0.00/month forever, which is what a literal reading of the
+    old always-recurring code below would have set up."""
     package = PACKAGES.get(package_id)
     if package is None:
         raise PayFastError(f"Unknown package: {package_id}")
 
     first_payment = package["setup"] + package["monthly"]
+    is_once_off = package["monthly"] == 0
 
     fields = [
         ("merchant_id", settings.PAYFAST_MERCHANT_ID),
@@ -76,10 +90,15 @@ def build_checkout_payload(site, package_id, m_payment_id, return_url, cancel_ur
         ("m_payment_id", m_payment_id),
         ("amount", f"{first_payment:.2f}"),
         ("item_name", f"Vicinic — {package['label']} ({site.slug})"),
-        ("subscription_type", SUBSCRIPTION_TYPE_RECURRING),
-        ("recurring_amount", f"{package['monthly']:.2f}"),
-        ("frequency", FREQUENCY_MONTHLY),
-        ("cycles", CYCLES_INDEFINITE),
+    ]
+    if not is_once_off:
+        fields += [
+            ("subscription_type", SUBSCRIPTION_TYPE_RECURRING),
+            ("recurring_amount", f"{package['monthly']:.2f}"),
+            ("frequency", FREQUENCY_MONTHLY),
+            ("cycles", CYCLES_INDEFINITE),
+        ]
+    fields += [
         ("custom_str1", site.slug),
         ("custom_str2", package_id),
     ]

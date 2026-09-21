@@ -3,14 +3,15 @@ import SectionLink from '../components/SectionLink.jsx'
 const PLANS = [
   {
     name: 'Starter Site',
-    price: 'R99',
-    setup: 'R900',
+    price: 'R250',
+    onceOff: true,
     delay: 100,
     features: [
       'Professional static website (home, about, services, contact)',
       '1 admin login to manage content',
       'Contact form — enquiries land in your inbox',
       'Hosting, SSL security & support included',
+      'One-time payment — yours to keep, no monthly bill',
     ],
   },
   {
@@ -25,6 +26,7 @@ const PLANS = [
       'Online bookings or enquiry form with customer database',
       'Staff logins with secure Google Sign-In',
       'Basic analytics on visitor activity',
+      'Access to premium templates — contact us to pick one',
     ],
   },
   {
@@ -37,6 +39,7 @@ const PLANS = [
       'Everything in Growth Hub',
       'Online payments and order/booking management',
       'Customer profiles and purchase/service history',
+      'Premium templates, or a fully custom design — contact us',
     ],
   },
 ]
@@ -61,13 +64,15 @@ export default function Pricing({ standalone = false }) {
                   <div className="featured-badge"><i className={`bi ${plan.badge.icon}`}></i> {plan.badge.text}</div>
                 )}
                 <h3>{plan.name}</h3>
-                <div className="pricing-price">{plan.price}<span>/month</span></div>
+                <div className="pricing-price">{plan.price}<span>{plan.onceOff ? ' once-off' : '/month'}</span></div>
                 <ul className="pricing-features">
                   {plan.features.map((feature) => (
                     <li key={feature}><i className="bi bi-check-circle-fill"></i> {feature}</li>
                   ))}
                 </ul>
-                <div className="pricing-setup">Once-off setup fee <strong>{plan.setup}</strong></div>
+                {!plan.onceOff && (
+                  <div className="pricing-setup">Once-off setup fee <strong>{plan.setup}</strong></div>
+                )}
                 <SectionLink to="contact" className="btn-pricing">Get a Quote</SectionLink>
               </div>
             </div>

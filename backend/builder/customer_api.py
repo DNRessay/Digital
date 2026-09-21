@@ -362,7 +362,13 @@ def api_customer_packages(request):
     return JsonResponse(
         {
             "packages": [
-                {"id": pid, "label": p["label"], "monthly": str(p["monthly"]), "setup": str(p["setup"])}
+                {
+                    "id": pid,
+                    "label": p["label"],
+                    "monthly": str(p["monthly"]),
+                    "setup": str(p["setup"]),
+                    "once_off": p["monthly"] == 0,
+                }
                 for pid, p in PACKAGES.items()
             ]
         }

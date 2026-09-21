@@ -253,7 +253,7 @@ function UpgradeCard({ site }) {
   return (
     <form className="card upgrade-card" onSubmit={handleSubscribe}>
       <h2>Remove the "Powered by Vicinic" credit</h2>
-      <p>Your site currently shows a small credit linking back to us. Subscribing to a package removes it.</p>
+      <p>Your site currently shows a small credit linking back to us. Pick a plan below to remove it.</p>
       {site.subscription_status === 'pending' && (
         <div className="notice">Payment pending — this can take a minute to confirm after you pay.</div>
       )}
@@ -264,12 +264,14 @@ function UpgradeCard({ site }) {
       <select id="package" value={packageId} onChange={(e) => setPackageId(e.target.value)} disabled={!packages}>
         {!packages && <option value="">Loading…</option>}
         {packages && packages.map((p) => (
-          <option key={p.id} value={p.id}>{p.label} — R{p.monthly}/month (R{p.setup} once-off setup)</option>
+          <option key={p.id} value={p.id}>
+            {p.once_off ? `${p.label} — R${p.setup} once-off, yours forever` : `${p.label} — R${p.monthly}/month (R${p.setup} once-off setup)`}
+          </option>
         ))}
       </select>
 
       <button type="submit" disabled={busy || !packageId}>
-        {busy ? 'Redirecting to PayFast…' : 'Subscribe with PayFast'}
+        {busy ? 'Redirecting to PayFast…' : 'Pay with PayFast'}
       </button>
     </form>
   )
@@ -626,12 +628,13 @@ function EmailRoutingSection({ site }) {
 }
 
 function DeployTab({ site, onSiteUpdated }) {
-  // UpgradeCard (subscription plans) is intentionally left out for now —
-  // plans aren't finalized yet, so domain connect/buy and email routing
-  // below are open to every site rather than gated behind one. Bring it
-  // back here once there's a plan to actually sell.
+  // Domain connect/buy and email routing below are still open to every
+  // site regardless of plan (that gating was deliberately dropped
+  // earlier and hasn't been asked back) — this card is just the "remove
+  // branding" upsell, now with a finalized once-off first tier.
   return (
     <>
+      <UpgradeCard site={site} />
       <DomainSection site={site} onSiteUpdated={onSiteUpdated} />
       <EmailRoutingSection site={site} />
     </>
