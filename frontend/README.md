@@ -29,6 +29,23 @@ Do **not** add a `wrangler.toml` to any of these apps — its mere presence
 overrides the dashboard's build command field, which breaks git-integration
 deploys.
 
+### Client-side routing (`admin`, `site`) needs a `404.html` fallback
+
+Both apps use React Router (`BrowserRouter`), so a direct visit or refresh
+on a client-side route (e.g. `admin`'s `/templates`, `site`'s `/about`)
+needs the server to fall back to `index.html` and let the router take it
+from there. The classic fix is a `public/_redirects` file with
+`/* /index.html 200` — both apps still have one — but Cloudflare Pages'
+own build-time validator now rejects that exact rule as an "infinite loop"
+(it collides with Cloudflare's automatic trailing-slash/`.html`-stripping
+behavior) and silently drops it entirely, which would otherwise 404 every
+deep link in production. Each app's `package.json` has a `postbuild` step
+instead (`node -e "require('fs').copyFileSync('dist/index.html','dist/404.html')"`)
+— Cloudflare's static asset server serves `404.html` for any unmatched
+path by default, so the SPA shell loads either way and the router renders
+the right page client-side. `web-portal` doesn't need this — no client-side
+routes, so the root path it always serves is enough.
+
 > **If you have a live Cloudflare Pages project for `site` from before this
 > app went back to Vite+React**, update its build command back to
 > `npm run build` and its output directory back to `dist` — it was
