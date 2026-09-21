@@ -29,16 +29,14 @@ async function apiFetch(path, options = {}) {
 }
 
 export function loginUrl() {
-  // Django admin's own login only honors a same-origin `next=` redirect
-  // (its built-in open-redirect protection) — pointing it straight at
-  // this app's URL (a different origin, Cloudflare Pages) gets silently
-  // dropped, landing on the backend's own bare /admin/ index instead of
-  // bouncing back here. Routing through admin-login-redirect/ (same
-  // origin as the backend, so it passes that check) with the *real*
-  // destination as `target` fixes that — see builder/views.admin_login_redirect.
+  // admin-login-redirect/ (not /admin/login/ directly) handles both
+  // "already logged in" (Django's own admin login shortcuts straight to
+  // /admin/ in that case, ignoring next= entirely — a redirect-safety
+  // check can't fix that, it never even runs) and "needs to log in first"
+  // — see builder/views.admin_login_redirect for why this extra hop
+  // exists.
   const target = encodeURIComponent(window.location.href)
-  const next = encodeURIComponent(`${API_BASE}/admin-login-redirect/?target=${target}`)
-  return `${API_BASE}/admin/login/?next=${next}`
+  return `${API_BASE}/admin-login-redirect/?target=${target}`
 }
 
 export function whoami() {
