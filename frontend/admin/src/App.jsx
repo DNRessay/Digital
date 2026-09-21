@@ -149,7 +149,7 @@ export default function App() {
       })
   }, [])
 
-  if (status === 'loading') return null
+  if (status === 'loading') return <div className="page">Loading…</div>
   if (status === 'anon') return <LoginPrompt />
   if (status === 'error') return <div className="page error">Could not reach the backend. {loadError}</div>
 
