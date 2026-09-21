@@ -1,11 +1,11 @@
 import re
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.mail import BadHeaderError, send_mail
 from django.db import IntegrityError
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template import engines
 from django.urls import reverse
@@ -340,3 +340,26 @@ def template_manager(request):
         "builder/manager/templates.html",
         {"form": form, "templates": templates, "error": error},
     )
+
+
+@login_required(login_url="/admin/login/")
+def admin_login_redirect(request):
+    """Bounces the browser back to the admin React app (a different origin
+    — Cloudflare Pages) after signing in via Django's own /admin/login/.
+
+    Django's admin login only honors a `next=` redirect target that's on
+    the *same* host as the backend itself (LoginView's own open-redirect
+    protection) — pointing it straight at the React app's URL gets silently
+    rejected, landing the browser on the backend's own bare /admin/ index
+    instead. frontend/admin's loginUrl() points `next=` at this view
+    instead (same-origin, so it passes that check), passing the *real*
+    destination as `target`; this view then does the actual cross-origin
+    redirect itself, after checking `target`'s origin against
+    FRONTEND_ORIGINS the same way customer_api._origin_allowed does, so it
+    can't be turned into an open redirect to an arbitrary site."""
+    target = request.GET.get("target", "")
+    parsed = urlparse(target)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    if not parsed.scheme or not parsed.netloc or origin not in settings.FRONTEND_ORIGINS:
+        return HttpResponseBadRequest("Invalid redirect target.")
+    return HttpResponseRedirect(target)

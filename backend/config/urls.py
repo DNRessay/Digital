@@ -3,13 +3,14 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from builder import api_views, customer_api, payfast_views
+from builder import api_views, customer_api, payfast_views, views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     # Reserved at the top level (like admin/) so a customer Site can never
     # register a slug that collides with these — the JSON API the "admin"
     # frontend app uses in place of the old /manage/templates/ page.
+    path("admin-login-redirect/", views.admin_login_redirect, name="admin-login-redirect"),
     path("api/whoami/", api_views.api_whoami, name="api-whoami"),
     path("api/templates/", api_views.api_templates, name="api-templates"),
     # JSON API for "web-portal" — a customer editing their own Site's text.
