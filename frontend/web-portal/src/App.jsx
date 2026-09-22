@@ -5,11 +5,13 @@ import {
   checkout,
   clearDraft,
   connectDomain,
+  connectWhatsApp,
   createEmailRoute,
   createSite,
   deleteEmailRoute,
   deleteSite,
   disconnectDomain,
+  disconnectWhatsApp,
   getDomain,
   getSiteSlots,
   listEmailRoutes,
@@ -27,6 +29,30 @@ import {
   updateSite,
   whoami,
 } from './api.js'
+
+const WHATSAPP_APP_ID = import.meta.env.VITE_WHATSAPP_APP_ID || ''
+const WHATSAPP_CONFIG_ID = import.meta.env.VITE_WHATSAPP_CONFIG_ID || ''
+let fbSdkLoading = null
+
+// Loads Meta's JS SDK once per page (not once per component mount — several
+// DeployTab visits shouldn't inject the script tag repeatedly), and
+// resolves once window.FB is actually ready to call.
+function loadFacebookSdk() {
+  if (window.FB) return Promise.resolve(window.FB)
+  if (fbSdkLoading) return fbSdkLoading
+  fbSdkLoading = new Promise((resolve) => {
+    window.fbAsyncInit = function () {
+      window.FB.init({ appId: WHATSAPP_APP_ID, xfbml: false, version: 'v21.0' })
+      resolve(window.FB)
+    }
+    const script = document.createElement('script')
+    script.src = 'https://connect.facebook.net/en_US/sdk.js'
+    script.async = true
+    script.defer = true
+    document.body.appendChild(script)
+  })
+  return fbSdkLoading
+}
 
 // Tags whose text can never be wrapped for click-to-edit (a <title> or
 // <option> can only ever hold plain text) — mirrors
@@ -718,6 +744,108 @@ function AiAssistantSection({ site, onSiteUpdated }) {
   )
 }
 
+function WhatsAppConnectSection({ site, onSiteUpdated }) {
+  const [state, setState] = useState('idle') // idle | connecting | error
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    function handleMessage(event) {
+      if (event.origin !== 'https://www.facebook.com' && event.origin !== 'https://web.facebook.com') return
+      let data
+      try {
+        data = JSON.parse(event.data)
+      } catch {
+        return // Meta posts some non-JSON messages too — not ours to handle.
+      }
+      if (data.type !== 'WA_EMBEDDED_SIGNUP') return
+      if (data.event === 'FINISH' || data.event === 'FINISH_ONLY_WABA') {
+        const { waba_id: wabaId, phone_number_id: phoneNumberId } = data.data || {}
+        if (!wabaId || !phoneNumberId) {
+          setError("Facebook didn't return a phone number — try again.")
+          setState('error')
+          return
+        }
+        setState('connecting')
+        connectWhatsApp(site.slug, wabaId, phoneNumberId)
+          .then((res) => {
+            onSiteUpdated(res.site)
+            setState('idle')
+          })
+          .catch((err) => {
+            setError(err.message)
+            setState('error')
+          })
+      } else if (data.event === 'CANCEL' || data.event === 'ERROR') {
+        setError(data.data?.error_message || 'Connection cancelled.')
+        setState('error')
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [site.slug, onSiteUpdated])
+
+  async function handleConnect() {
+    setError(null)
+    if (!WHATSAPP_APP_ID || !WHATSAPP_CONFIG_ID) {
+      setError('WhatsApp connect is not configured yet.')
+      setState('error')
+      return
+    }
+    setState('connecting')
+    const FB = await loadFacebookSdk()
+    FB.login(
+      () => {
+        // The real result arrives via the WA_EMBEDDED_SIGNUP postMessage
+        // listener above, not this callback — this just fires when the
+        // popup itself closes, success or not.
+        setState((s) => (s === 'connecting' ? 'idle' : s))
+      },
+      {
+        config_id: WHATSAPP_CONFIG_ID,
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: { feature: 'whatsapp_embedded_signup', sessionInfoVersion: '3' },
+      },
+    )
+  }
+
+  async function handleDisconnect() {
+    setState('connecting')
+    try {
+      const res = await disconnectWhatsApp(site.slug)
+      onSiteUpdated(res.site)
+      setState('idle')
+    } catch (err) {
+      setError(err.message)
+      setState('error')
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Connect your own WhatsApp number</h2>
+      <p>
+        The AI assistant above answers on your site and via a wa.me link. Connecting your own number here goes
+        further — a real WhatsApp Business number that replies automatically using the same description, in
+        WhatsApp itself.
+      </p>
+      {error && <div className="error">{error}</div>}
+      {site.whatsapp_connected ? (
+        <>
+          <p className="save-status">Connected</p>
+          <button type="button" onClick={handleDisconnect} disabled={state === 'connecting'}>
+            {state === 'connecting' ? 'Disconnecting…' : 'Disconnect'}
+          </button>
+        </>
+      ) : (
+        <button type="button" onClick={handleConnect} disabled={state === 'connecting'}>
+          {state === 'connecting' ? 'Connecting…' : 'Connect your WhatsApp number'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 function DeployTab({ site, onSiteUpdated }) {
   // Domain connect/buy and email routing below are still open to every
   // site regardless of plan (that gating was deliberately dropped
@@ -727,6 +855,7 @@ function DeployTab({ site, onSiteUpdated }) {
     <>
       <UpgradeCard site={site} />
       <AiAssistantSection site={site} onSiteUpdated={onSiteUpdated} />
+      <WhatsAppConnectSection site={site} onSiteUpdated={onSiteUpdated} />
       <DomainSection site={site} onSiteUpdated={onSiteUpdated} />
       <EmailRoutingSection site={site} />
     </>

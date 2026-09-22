@@ -33,9 +33,10 @@ from django.views.decorators.http import require_http_methods
 from decimal import ROUND_HALF_UP, Decimal
 
 from .models import CustomerAuthToken, DomainPurchase, EmailRoute, Site, SiteSlotValue, Template
-from .services import cloudflare, hostafrica
+from .services import cloudflare, hostafrica, whatsapp
 from .services.cloudflare import CloudflareError
 from .services.hostafrica import HostAfricaError
+from .services.whatsapp import WhatsAppError
 from .services.payfast import PACKAGES, PayFastError, build_checkout_payload, build_domain_purchase_payload
 from .services.site_provisioning import apply_contact_info, provision_missing_slot_values
 
@@ -117,6 +118,7 @@ def _serialize_site(site):
         "custom_domain": site.custom_domain or "",
         "domain_status": site.domain_status,
         "cloudflare_nameservers": [ns for ns in site.cloudflare_nameservers.split(",") if ns],
+        "whatsapp_connected": bool(site.whatsapp_waba_id and site.whatsapp_phone_number_id),
     }
 
 
@@ -737,3 +739,38 @@ def api_customer_domain_purchase(request, site_slug):
     return JsonResponse(
         {"process_url": process_url, "fields": [{"name": k, "value": v} for k, v in fields]}, status=201
     )
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["POST", "DELETE"])
+def api_customer_site_whatsapp(request, site_slug):
+    """POST connects the customer's own WhatsApp number, right after Meta's
+    Embedded Signup popup (frontend) hands back waba_id/phone_number_id —
+    see services/whatsapp.py's docstring for why no per-customer credential
+    is needed beyond storing those two ids. DELETE disconnects it."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+
+    if request.method == "DELETE":
+        site.whatsapp_waba_id = ""
+        site.whatsapp_phone_number_id = ""
+        site.save(update_fields=["whatsapp_waba_id", "whatsapp_phone_number_id"])
+        return JsonResponse({"site": _serialize_site(site)})
+
+    body = _json_body(request)
+    waba_id = str(body.get("waba_id", "")).strip()[:50]
+    phone_number_id = str(body.get("phone_number_id", "")).strip()[:50]
+    if not waba_id or not phone_number_id:
+        return JsonResponse({"error": "waba_id and phone_number_id are required."}, status=400)
+
+    try:
+        whatsapp.subscribe_to_waba(waba_id)
+    except WhatsAppError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
+    site.whatsapp_waba_id = waba_id
+    site.whatsapp_phone_number_id = phone_number_id
+    site.save(update_fields=["whatsapp_waba_id", "whatsapp_phone_number_id"])
+    return JsonResponse({"site": _serialize_site(site)}, status=201)

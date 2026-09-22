@@ -99,6 +99,19 @@ class Site(models.Model):
 
     phone = models.CharField(max_length=30, blank=True)
     whatsapp_number = models.CharField(max_length=30, blank=True, help_text="International format, e.g. 27821234567")
+    whatsapp_waba_id = models.CharField(
+        max_length=50, blank=True,
+        help_text="Meta WhatsApp Business Account ID, set once the owner connects their own number via "
+        "Embedded Signup (customer_api.api_customer_whatsapp_connect) — a real in-WhatsApp AI bot on "
+        "their own number, distinct from the wa.me link/on-site chat widget above.",
+    )
+    whatsapp_phone_number_id = models.CharField(
+        max_length=50, blank=True,
+        help_text="The connected number's phone_number_id within whatsapp_waba_id — this is what an "
+        "inbound webhook payload's value.metadata.phone_number_id is matched against "
+        "(whatsapp_views.whatsapp_webhook) to find which Site a message belongs to, and what "
+        "services.whatsapp.send_message sends against.",
+    )
     email = models.EmailField(blank=True, help_text="Also where this site's own contact form (site_contact) sends messages.")
     address = models.CharField(max_length=255, blank=True)
 

@@ -189,6 +189,23 @@ DOMAIN_MARKUP_ZAR = Decimal(os.environ.get("DOMAIN_MARKUP_ZAR", "30.00"))
 HOSTAFRICA_API_EMAIL = os.environ.get("HOSTAFRICA_API_EMAIL", "")
 HOSTAFRICA_API_KEY = os.environ.get("HOSTAFRICA_API_KEY", "")
 
+# WhatsApp Cloud API (builder/services/whatsapp.py, builder/whatsapp_views.py,
+# customer_api.api_customer_site_whatsapp) — lets a customer connect their
+# own WhatsApp number to their Site via Meta's Embedded Signup, all through
+# Vicinic's single "BodCat" Meta app. WHATSAPP_ACCESS_TOKEN is that app's
+# System User token (needs whatsapp_business_management +
+# whatsapp_business_messaging permission, which requires Meta's Tech
+# Provider status — see the app's own setup flow for where that's applied
+# for). WHATSAPP_APP_ID/WHATSAPP_CONFIG_ID are what the Deploy tab's
+# Embedded Signup button needs client-side (App Dashboard → WhatsApp →
+# Embedded Signup → create a configuration to get WHATSAPP_CONFIG_ID).
+# WHATSAPP_VERIFY_TOKEN must match exactly what's entered in the App
+# Dashboard's Webhooks "Verify token" field (any string you choose).
+WHATSAPP_ACCESS_TOKEN = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
+WHATSAPP_APP_ID = os.environ.get("WHATSAPP_APP_ID", "")
+WHATSAPP_CONFIG_ID = os.environ.get("WHATSAPP_CONFIG_ID", "")
+WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")
+
 # AI chat widget (builder/services/ai_assistant.py) — a free-tier Hugging
 # Face model answers simple visitor questions on a Site's rendered pages,
 # using Site.ai_assistant_description as context. HUGGINGFACE_MODEL is a

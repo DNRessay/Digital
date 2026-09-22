@@ -72,6 +72,24 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: HostAfrica Domains Reseller API key (Client Area → Domains → Reseller Area → Integrations) — see builder/services/hostafrica.py
+  WhatsAppAccessToken:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: WhatsApp Cloud API System User token for the "BodCat" Meta app — see builder/services/whatsapp.py
+  WhatsAppAppId:
+    Type: String
+    Default: ""
+    Description: The "BodCat" Meta app's App ID — needed client-side for the Embedded Signup button
+  WhatsAppConfigId:
+    Type: String
+    Default: ""
+    Description: Embedded Signup configuration id (App Dashboard → WhatsApp → Embedded Signup)
+  WhatsAppVerifyToken:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Must match the Verify Token entered in the App Dashboard's Webhooks setup
   Stage:
     Type: String
     Default: prod
@@ -144,6 +162,10 @@ Resources:
           HUGGINGFACE_MODEL: !Ref HuggingFaceModel
           HOSTAFRICA_API_EMAIL: !Ref HostAfricaApiEmail
           HOSTAFRICA_API_KEY: !Ref HostAfricaApiKey
+          WHATSAPP_ACCESS_TOKEN: !Ref WhatsAppAccessToken
+          WHATSAPP_APP_ID: !Ref WhatsAppAppId
+          WHATSAPP_CONFIG_ID: !Ref WhatsAppConfigId
+          WHATSAPP_VERIFY_TOKEN: !Ref WhatsAppVerifyToken
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref TemplateAssetsBucket

@@ -24,7 +24,7 @@ class AiAssistantError(Exception):
     pass
 
 
-def _system_prompt(site):
+def system_prompt(site):
     description = site.ai_assistant_description.strip()
     context = f" {description}" if description else ""
     return (
@@ -52,7 +52,7 @@ def ask_assistant(site, question):
             json={
                 "model": settings.HUGGINGFACE_MODEL,
                 "messages": [
-                    {"role": "system", "content": _system_prompt(site)},
+                    {"role": "system", "content": system_prompt(site)},
                     {"role": "user", "content": question},
                 ],
                 "max_tokens": MAX_ANSWER_TOKENS,

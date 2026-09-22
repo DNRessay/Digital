@@ -165,6 +165,17 @@ export function checkDomainAvailability(siteSlug, domain) {
   return apiFetch(`/api/customer/sites/${siteSlug}/domain/check/?domain=${encodeURIComponent(domain)}`)
 }
 
+export function connectWhatsApp(siteSlug, wabaId, phoneNumberId) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/whatsapp/`, {
+    method: 'POST',
+    body: { waba_id: wabaId, phone_number_id: phoneNumberId },
+  })
+}
+
+export function disconnectWhatsApp(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/whatsapp/`, { method: 'DELETE' })
+}
+
 export function purchaseDomain(siteSlug, domain, registrant, returnUrl, cancelUrl) {
   return apiFetch(`/api/customer/sites/${siteSlug}/domain/purchase/`, {
     method: 'POST',
