@@ -63,6 +63,15 @@ Parameters:
   HuggingFaceModel:
     Type: String
     Default: "HuggingFaceH4/zephyr-7b-beta"
+  HostAfricaApiEmail:
+    Type: String
+    Default: ""
+    Description: HostAfrica Domains Reseller account login email — see builder/services/hostafrica.py
+  HostAfricaApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: HostAfrica Domains Reseller API key (Client Area → Domains → Reseller Area → Integrations) — see builder/services/hostafrica.py
   Stage:
     Type: String
     Default: prod
@@ -133,6 +142,8 @@ Resources:
           PLATFORM_ORIGIN_HOST: !Ref PlatformOriginHost
           HUGGINGFACE_API_TOKEN: !Ref HuggingFaceApiToken
           HUGGINGFACE_MODEL: !Ref HuggingFaceModel
+          HOSTAFRICA_API_EMAIL: !Ref HostAfricaApiEmail
+          HOSTAFRICA_API_KEY: !Ref HostAfricaApiKey
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref TemplateAssetsBucket

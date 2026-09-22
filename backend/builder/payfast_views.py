@@ -13,8 +13,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .models import DomainPurchase, Site
-from .services import cloudflare
+from .services import cloudflare, hostafrica
 from .services.cloudflare import CloudflareError
+from .services.hostafrica import HostAfricaError
 from .services.payfast import PACKAGES, confirm_with_payfast, verify_itn_signature
 
 logger = logging.getLogger(__name__)
@@ -50,39 +51,49 @@ def _handle_domain_purchase_payment(purchase_id, payment_status, amount_gross):
     purchase.save(update_fields=["status"])
 
     if settings.PAYFAST_SANDBOX:
-        # PayFast's sandbox only fakes the *payment* — Cloudflare Registrar
-        # has no equivalent test mode, so a real "COMPLETE" ITN here would
-        # otherwise register (and pay for) a genuine domain. Never let a
-        # sandbox payment reach the real registration call.
+        # PayFast's sandbox only fakes the *payment* — neither Cloudflare
+        # Registrar nor HostAfrica's Domains Reseller API has an equivalent
+        # test mode, so a real "COMPLETE" ITN here would otherwise register
+        # (and pay for) a genuine domain. Never let a sandbox payment reach
+        # the real registration call.
         purchase.status = DomainPurchase.STATUS_FAILED
         purchase.error_message = "PAYFAST_SANDBOX is on — registration was skipped, not actually performed."
         purchase.save(update_fields=["status", "error_message"])
         logger.info("Domain purchase %s: sandbox payment completed, registration intentionally skipped", purchase_id)
         return HttpResponse("OK")
 
+    registrant = {
+        "name": purchase.registrant_name,
+        "email": purchase.registrant_email,
+        "phone": purchase.registrant_phone,
+        "address": {
+            "street": purchase.registrant_address_street,
+            "city": purchase.registrant_address_city,
+            "state": purchase.registrant_address_state,
+            "postal_code": purchase.registrant_address_postal_code,
+            "country_code": purchase.registrant_address_country,
+        },
+    }
+
     # The charge has cleared and is non-refundable-on-our-end from here —
     # any failure past this point needs a human to reconcile (see
     # DomainPurchase.error_message's docstring), not a client retry.
     try:
-        cloudflare.register_domain(
-            purchase.domain,
-            {
-                "name": purchase.registrant_name,
-                "email": purchase.registrant_email,
-                "phone": purchase.registrant_phone,
-                "address": {
-                    "street": purchase.registrant_address_street,
-                    "city": purchase.registrant_address_city,
-                    "state": purchase.registrant_address_state,
-                    "postal_code": purchase.registrant_address_postal_code,
-                    "country_code": purchase.registrant_address_country,
-                },
-            },
-        )
-        zone_id = cloudflare.find_zone_id_by_name(purchase.domain)
-        if zone_id is None:
-            zone_id, _ = cloudflare.create_zone(purchase.domain)
-    except CloudflareError as exc:
+        if purchase.provider == DomainPurchase.PROVIDER_HOSTAFRICA:
+            # HostAfrica registers the domain, but Vicinic still wants it
+            # served as a Cloudflare zone (same as every other connected
+            # domain) — so create that zone and hand the domain off to
+            # Cloudflare's nameservers for it, the automated equivalent of
+            # a customer manually re-pointing nameservers they already own.
+            hostafrica.register_domain(purchase.domain, registrant)
+            zone_id, nameservers = cloudflare.create_zone(purchase.domain)
+            hostafrica.update_nameservers(purchase.domain, nameservers)
+        else:
+            cloudflare.register_domain(purchase.domain, registrant)
+            zone_id = cloudflare.find_zone_id_by_name(purchase.domain)
+            if zone_id is None:
+                zone_id, _ = cloudflare.create_zone(purchase.domain)
+    except (CloudflareError, HostAfricaError) as exc:
         purchase.status = DomainPurchase.STATUS_FAILED
         purchase.error_message = str(exc)[:500]
         purchase.save(update_fields=["status", "error_message"])

@@ -33,8 +33,9 @@ from django.views.decorators.http import require_http_methods
 from decimal import ROUND_HALF_UP, Decimal
 
 from .models import CustomerAuthToken, DomainPurchase, EmailRoute, Site, SiteSlotValue, Template
-from .services import cloudflare
+from .services import cloudflare, hostafrica
 from .services.cloudflare import CloudflareError
+from .services.hostafrica import HostAfricaError
 from .services.payfast import PACKAGES, PayFastError, build_checkout_payload, build_domain_purchase_payload
 from .services.site_provisioning import apply_contact_info, provision_missing_slot_values
 
@@ -608,6 +609,13 @@ def _price_zar_for_cost(cost_amount, cost_currency):
     return zar.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def _price_zar_for_hostafrica_cost(cost_amount, cost_currency):
+    if cost_currency != "ZAR":
+        raise HostAfricaError(f"Expected a ZAR price from HostAfrica, got {cost_currency}.")
+    zar = cost_amount + settings.DOMAIN_MARKUP_ZAR
+    return zar.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
 @customer_token_required
 @require_http_methods(["GET"])
 def api_customer_domain_check(request, site_slug):
@@ -620,11 +628,19 @@ def api_customer_domain_check(request, site_slug):
     domain = _normalize_domain(str(request.GET.get("domain", "")))
     if not domain or not DOMAIN_RE.match(domain):
         return JsonResponse({"error": "Enter a real domain, like mybusiness.com."}, status=400)
+
     if ZA_TLD_RE.search(domain):
-        return JsonResponse(
-            {"available": False, "reason": "South African (.za) domains aren't available to buy in-app yet — "
-             "buy one yourself and connect it above instead."}
-        )
+        try:
+            result = hostafrica.check_domain(domain)
+        except HostAfricaError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+        if not result["registrable"]:
+            return JsonResponse({"available": False, "reason": result["reason"]})
+        try:
+            price_zar = _price_zar_for_hostafrica_cost(result["cost_amount"], result["cost_currency"])
+        except HostAfricaError as exc:
+            return JsonResponse({"available": False, "reason": str(exc)})
+        return JsonResponse({"available": True, "domain": domain, "price_zar": str(price_zar)})
 
     try:
         result = cloudflare.check_domain(domain)
@@ -661,8 +677,6 @@ def api_customer_domain_purchase(request, site_slug):
 
     if not domain or not DOMAIN_RE.match(domain):
         return JsonResponse({"error": "Enter a real domain, like mybusiness.com."}, status=400)
-    if ZA_TLD_RE.search(domain):
-        return JsonResponse({"error": "South African (.za) domains aren't available to buy in-app yet."}, status=400)
     if not _origin_allowed(return_url) or not _origin_allowed(cancel_url):
         return JsonResponse({"error": "return_url/cancel_url must be one of this site's known frontend origins."}, status=400)
 
@@ -675,21 +689,35 @@ def api_customer_domain_purchase(request, site_slug):
     except ValidationError:
         return JsonResponse({"error": "Registrant email isn't valid."}, status=400)
 
-    try:
-        check = cloudflare.check_domain(domain)
-    except CloudflareError as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
-    if not check["registrable"]:
-        return JsonResponse({"error": check["reason"]}, status=400)
-    try:
-        price_zar = _price_zar_for_cost(check["cost_amount"], check["cost_currency"])
-    except CloudflareError as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
+    if ZA_TLD_RE.search(domain):
+        provider = DomainPurchase.PROVIDER_HOSTAFRICA
+        try:
+            check = hostafrica.check_domain(domain)
+        except HostAfricaError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+        if not check["registrable"]:
+            return JsonResponse({"error": check["reason"]}, status=400)
+        try:
+            price_zar = _price_zar_for_hostafrica_cost(check["cost_amount"], check["cost_currency"])
+        except HostAfricaError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+    else:
+        provider = DomainPurchase.PROVIDER_CLOUDFLARE
+        try:
+            check = cloudflare.check_domain(domain)
+        except CloudflareError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+        if not check["registrable"]:
+            return JsonResponse({"error": check["reason"]}, status=400)
+        try:
+            price_zar = _price_zar_for_cost(check["cost_amount"], check["cost_currency"])
+        except CloudflareError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
 
     purchase = DomainPurchase.objects.create(
         site=site,
         domain=domain,
-        provider=DomainPurchase.PROVIDER_CLOUDFLARE,
+        provider=provider,
         cost_amount=check["cost_amount"],
         cost_currency=check["cost_currency"],
         price_zar=price_zar,

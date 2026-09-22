@@ -221,9 +221,12 @@ class DomainPurchase(models.Model):
     """One attempt to buy a not-yet-owned domain for a Site directly through
     Vicinic (as opposed to Site.custom_domain, which is for a domain the
     customer already owns elsewhere) — via Cloudflare Registrar for most
-    TLDs (services.cloudflare.check_domain/register_domain); .za TLDs
-    aren't wired up yet (HostAfrica doesn't expose domain registration on
-    the same API used for Cloudflare-style automation).
+    TLDs (services.cloudflare.check_domain/register_domain), or HostAfrica's
+    Domains Reseller API for .za TLDs specifically (services.hostafrica —
+    Cloudflare Registrar doesn't sell .za at all). Once a HostAfrica
+    registration succeeds, the domain is still handed off to a Cloudflare
+    zone (payfast_views._handle_domain_purchase_payment), so every
+    purchased domain ends up served the same way regardless of provider.
 
     Payment happens before registration, never after: a domain purchase is
     non-refundable once Cloudflare registers it, so charging the customer

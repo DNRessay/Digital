@@ -179,6 +179,16 @@ PLATFORM_ORIGIN_HOST = os.environ.get(
 DOMAIN_EXCHANGE_RATE_ZAR = Decimal(os.environ.get("DOMAIN_EXCHANGE_RATE_ZAR", "18.50"))
 DOMAIN_MARKUP_ZAR = Decimal(os.environ.get("DOMAIN_MARKUP_ZAR", "30.00"))
 
+# HostAfrica Domains Reseller (builder/services/hostafrica.py) — the .co.za
+# counterpart to Cloudflare Registrar above, since Cloudflare doesn't sell
+# .za domains. HOSTAFRICA_API_EMAIL is the reseller account's login email
+# (used as the HMAC key, not sent as a password); HOSTAFRICA_API_KEY is the
+# API key from Client Area → Domains → Reseller Area → Integrations. Prices
+# here are already ZAR, so only DOMAIN_MARKUP_ZAR applies — no exchange
+# rate, unlike the Cloudflare (USD) path.
+HOSTAFRICA_API_EMAIL = os.environ.get("HOSTAFRICA_API_EMAIL", "")
+HOSTAFRICA_API_KEY = os.environ.get("HOSTAFRICA_API_KEY", "")
+
 # AI chat widget (builder/services/ai_assistant.py) — a free-tier Hugging
 # Face model answers simple visitor questions on a Site's rendered pages,
 # using Site.ai_assistant_description as context. HUGGINGFACE_MODEL is a
