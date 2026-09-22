@@ -6,11 +6,25 @@ one of the packages below via PayFast's hosted checkout removes it.
 
 Signature algorithm (PayFast's own spec, used both for the checkout payload
 we send and for verifying the ITN webhook PayFast sends back): concatenate
-the fields as "key=value&key=value&...", in the exact order given, skipping
-any field with an empty value, URL-encoding each value the way PHP's
-urlencode() does (spaces as "+" — Python's urllib.parse.quote_plus matches
-this), then append "&passphrase=<urlencoded passphrase>" if one is set, and
-take the MD5 hex digest of the whole string.
+the fields as "key=value&key=value&...", skipping any field with an empty
+value, URL-encoding each value the way PHP's urlencode() does (spaces as
+"+" — Python's urllib.parse.quote_plus matches this), then append
+"&passphrase=<urlencoded passphrase>" if one is set, and take the MD5 hex
+digest of the whole string.
+
+For the checkout payload specifically (build_checkout_payload/
+build_domain_purchase_payload), the field order is NOT a free choice —
+PayFast recomputes the expected signature using its own documented
+canonical field order (merchant_id, merchant_key, return_url, cancel_url,
+notify_url, email_address, m_payment_id, amount, item_name, custom_str*,
+then subscription_type/recurring_amount/frequency/cycles last), so the
+`fields` list below must match that order exactly, not just be
+internally self-consistent between signing and the actual form submission
+— getting this wrong looks identical to a passphrase mismatch (same
+"Generated signature does not match submitted signature." error) but has
+nothing to do with the passphrase. verify_itn_signature below is
+different: PayFast's own ITN POST arrives in whatever order PayFast sent
+it, and that received order is what's re-signed and compared against.
 
 Reference: https://developers.payfast.co.za/docs
 """
@@ -87,23 +101,27 @@ def build_checkout_payload(site, package_id, m_payment_id, return_url, cancel_ur
         ("return_url", return_url),
         ("cancel_url", cancel_url),
         ("notify_url", notify_url),
+    ]
+    if site.email:
+        fields.append(("email_address", site.email))
+    fields += [
         ("m_payment_id", m_payment_id),
         ("amount", f"{first_payment:.2f}"),
         ("item_name", f"Vicinic — {package['label']} ({site.slug})"),
+        ("custom_str1", site.slug),
+        ("custom_str2", package_id),
     ]
     if not is_once_off:
+        # PayFast's documented field order puts recurring-billing fields
+        # after the custom_str/custom_int fields, not before — matching
+        # that exactly is what makes the signature validate at all, not
+        # just internal self-consistency between signing and submission.
         fields += [
             ("subscription_type", SUBSCRIPTION_TYPE_RECURRING),
             ("recurring_amount", f"{package['monthly']:.2f}"),
             ("frequency", FREQUENCY_MONTHLY),
             ("cycles", CYCLES_INDEFINITE),
         ]
-    fields += [
-        ("custom_str1", site.slug),
-        ("custom_str2", package_id),
-    ]
-    if site.email:
-        fields.append(("email_address", site.email))
 
     signature = _sign(fields)
     return _process_url(), fields + [("signature", signature)]
@@ -120,12 +138,12 @@ def build_domain_purchase_payload(purchase, return_url, cancel_url, notify_url):
         ("return_url", return_url),
         ("cancel_url", cancel_url),
         ("notify_url", notify_url),
+        ("email_address", purchase.registrant_email),
         ("m_payment_id", purchase.payfast_m_payment_id),
         ("amount", f"{purchase.price_zar:.2f}"),
         ("item_name", f"Vicinic — domain {purchase.domain}"),
         ("custom_str1", purchase.site.slug),
         ("custom_str2", f"domain:{purchase.id}"),
-        ("email_address", purchase.registrant_email),
     ]
     signature = _sign(fields)
     return _process_url(), fields + [("signature", signature)]
