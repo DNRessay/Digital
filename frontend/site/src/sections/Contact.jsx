@@ -104,7 +104,7 @@ export default function Contact({ standalone = false }) {
 
               <form className="php-email-form" onSubmit={handleSubmit}>
                 {/* Replace with your own key from https://web3forms.com */}
-                <input type="hidden" name="access_key" value="YOUR_WEB3FORMS_ACCESS_KEY" />
+                <input type="hidden" name="access_key" value="65acf526-d27b-4f78-865b-5a6115838996" />
                 {/* Honeypot field — hidden from real users, catches spam bots */}
                 <input type="checkbox" name="botcheck" className="d-none" style={{ display: 'none' }} tabIndex="-1" autoComplete="off" />
 
