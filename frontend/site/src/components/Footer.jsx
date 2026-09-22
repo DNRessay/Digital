@@ -12,6 +12,7 @@ export default function Footer() {
               <img src="/assets/img/logo-wordmark.png" alt="Vicinic" className="logo-wordmark-img" />
             </Link>
             <p>Websites & WhatsApp systems for small and growing businesses across South Africa — hosted, secured, and supported.</p>
+            <p><a href="mailto:info@vicinic.co.za">info@vicinic.co.za</a></p>
 
             <div className="social-links d-flex mt-4">
               <a href="https://github.com/MrViincciLeRoy" aria-label="GitHub" target="_blank" rel="noopener"><i className="bi bi-github"></i></a>
@@ -52,6 +53,7 @@ export default function Footer() {
           <div className="col-md-6 order-2 order-md-1">
             <div className="copyright">
               <p>© <span>Copyright</span> <strong className="sitename">Vicinic</strong>. All Rights Reserved.</p>
+              <p className="registration-status">Trading name "VICINIC" reserved with the CIPC (South Africa) — company registration in progress.</p>
             </div>
             <div className="credits">
               {/* All the links in the footer should remain intact. */}

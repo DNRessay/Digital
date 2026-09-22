@@ -86,6 +86,16 @@ export default function Contact({ standalone = false }) {
                     <span>South Africa</span>
                   </div>
                 </div>
+
+                <div className="method-item">
+                  <div className="method-icon">
+                    <i className="bi bi-envelope-fill"></i>
+                  </div>
+                  <div className="method-details">
+                    <span className="method-label">Email</span>
+                    <a href="mailto:info@vicinic.co.za">info@vicinic.co.za</a>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
