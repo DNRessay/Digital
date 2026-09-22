@@ -49,6 +49,11 @@ def _normalize_domain(raw):
     domain = re.sub(r"^https?://", "", raw.strip().lower()).split("/")[0].rstrip(".")
     if domain.startswith("www."):
         domain = domain[4:]
+    if domain and "." not in domain:
+        # A bare name with no TLD ("vicinix") defaults to .co.za, matching
+        # Vicinic's own local-first positioning — most customers typing
+        # just their business name mean their local domain, not any TLD.
+        domain = f"{domain}.co.za"
     return domain
 
 
