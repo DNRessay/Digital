@@ -32,6 +32,11 @@ urlpatterns = [
         name="api-customer-site-update",
     ),
     path(
+        "api/customer/sites/<slug:site_slug>/visitors/",
+        customer_api.api_customer_site_visitors,
+        name="api-customer-site-visitors",
+    ),
+    path(
         "api/customer/sites/<slug:site_slug>/slots/",
         customer_api.api_customer_site_slots,
         name="api-customer-site-slots",
