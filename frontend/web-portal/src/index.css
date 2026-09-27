@@ -697,3 +697,39 @@ fieldset:disabled .image-replace {
   background: #9aa1ae;
   cursor: not-allowed;
 }
+
+.image-badges {
+  display: flex;
+  gap: 6px;
+  min-height: 0;
+}
+
+.image-badges .domain-badge {
+  margin-left: 0;
+}
+
+.pending-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fff4d6;
+  color: #7a5a00;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.image-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-scale-label {
+  display: block;
+  margin-top: 16px;
+}
+
+input[type='range'] {
+  width: 100%;
+  accent-color: #2e8b57;
+}

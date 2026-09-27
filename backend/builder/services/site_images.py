@@ -11,6 +11,7 @@ import io
 import re
 import uuid
 
+from bs4 import BeautifulSoup
 from django.core.files.base import ContentFile
 from PIL import Image, UnidentifiedImageError
 
@@ -35,6 +36,38 @@ def image_urls(document):
             seen.add(url)
             out.append(url)
     return out
+
+
+def logo_urls(document):
+    """Best guess at a page's logo image(s): an <img> whose own attributes
+    (src/alt/class/id) or a wrapping element's class/id mention "logo" —
+    the near-universal template convention — else the first image inside
+    the <header>/<nav>."""
+    soup = BeautifulSoup(document, "html.parser")
+    found = []
+    for img in soup.find_all("img", src=True):
+        haystack = " ".join(
+            [img.get("src", ""), img.get("alt", ""), " ".join(img.get("class", [])), img.get("id", "")]
+            + [" ".join(p.get("class", [])) + " " + (p.get("id") or "") for p in img.parents if p.name][:3]
+        ).lower()
+        if "logo" in haystack and img["src"] not in found:
+            found.append(img["src"])
+    if not found:
+        for container in soup.find_all(["header", "nav"]):
+            img = container.find("img", src=True)
+            if img:
+                found.append(img["src"])
+                break
+    return [url for url in found if IMAGE_URL_RE.fullmatch(url)]
+
+
+def logo_scale_css(logo_srcs, scale):
+    """Scales the logo with CSS zoom (unlike transform, it resizes the
+    layout box too, so the header reflows around it instead of overlapping)."""
+    if scale == 100 or not logo_srcs:
+        return ""
+    selectors = ",".join(f'img[src="{src}"]' for src in logo_srcs)
+    return f"{selectors}{{zoom:{scale / 100:.2f}}}"
 
 
 def apply_overrides(html, overrides):

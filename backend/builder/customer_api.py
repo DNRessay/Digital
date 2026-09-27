@@ -26,6 +26,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
+from django.db import models
 from django.db.models import Count
 from django.http import JsonResponse
 from django.urls import reverse
@@ -971,8 +972,26 @@ def api_customer_profile(request):
     return JsonResponse({"profile": _serialize_profile(profile)})
 
 
-def _serialize_site_image(original, override):
-    return {"original": original, "current": override.file.url if override else original, "replaced": override is not None}
+def _serialize_site_image(original, override, logos=()):
+    draft_url = override.url(draft=True) if override else None
+    live_url = override.url() if override else None
+    return {
+        "original": original,
+        "current": draft_url or original,
+        "replaced": draft_url is not None,
+        "pending": bool(override and override.has_draft),
+        "live": live_url or original,
+        "logo": original in logos,
+    }
+
+
+def _image_state(site):
+    pending = site.images.filter(models.Q(pending_reset=True) | ~models.Q(draft_file="")).exists()
+    return {
+        "available": site.has_paid_plan,
+        "logo_scale": site.draft_logo_scale if site.draft_logo_scale is not None else site.logo_scale,
+        "has_pending": pending or site.draft_logo_scale is not None,
+    }
 
 
 @csrf_exempt
@@ -980,9 +999,10 @@ def _serialize_site_image(original, override):
 @require_http_methods(["GET", "POST", "DELETE"])
 def api_customer_site_images(request, site_slug):
     """The editor's Images panel. GET ?page=<slug> lists the images on one
-    page (header/footer included) with any replacement; POST (multipart:
-    original, file) replaces one; DELETE ?original=<url> resets it to the
-    template's own image. Replacing images is a paid-plan feature."""
+    page (header/footer included, logos flagged first); POST (multipart:
+    original, file) stages a replacement; DELETE ?original=<url> stages a
+    reset to the template's own image. Nothing goes live until
+    .../images/publish/. Replacing images is a paid-plan feature."""
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
@@ -993,11 +1013,11 @@ def api_customer_site_images(request, site_slug):
         page = site.template.pages.filter(slug=request.GET.get("page", "")).first()
         if page is None:
             return JsonResponse({"error": "Page not found."}, status=404)
+        logos = site_images.logo_urls(page.document)
+        urls = site_images.image_urls(page.document)
+        urls.sort(key=lambda u: u not in logos)
         return JsonResponse(
-            {
-                "available": site.has_paid_plan,
-                "images": [_serialize_site_image(url, overrides.get(url)) for url in site_images.image_urls(page.document)],
-            }
+            {**_image_state(site), "images": [_serialize_site_image(u, overrides.get(u), logos) for u in urls]}
         )
 
     if not site.has_paid_plan:
@@ -1008,12 +1028,18 @@ def api_customer_site_images(request, site_slug):
     if original not in known:
         return JsonResponse({"error": "That image isn't part of this site's template."}, status=400)
 
-    existing = overrides.get(original)
+    image = overrides.get(original) or SiteImage(site=site, original_url=original)
+    if image.draft_file:
+        image.draft_file.delete(save=False)
+
     if request.method == "DELETE":
-        if existing:
-            existing.file.delete(save=False)
-            existing.delete()
-        return JsonResponse({"image": _serialize_site_image(original, None)})
+        image.pending_reset = bool(image.file)
+        if image.pending_reset:
+            image.save()
+        elif image.pk:
+            image.delete()
+            image = None
+        return JsonResponse({**_image_state(site), "image": _serialize_site_image(original, image)})
 
     uploaded = request.FILES.get("file")
     if uploaded is None:
@@ -1022,9 +1048,66 @@ def api_customer_site_images(request, site_slug):
         name, content = site_images.process_upload(uploaded, site.slug)
     except ImageUploadError as exc:
         return JsonResponse({"error": str(exc)}, status=400)
-    image = existing or SiteImage(site=site, original_url=original)
-    old_file = image.file.name if existing else None
-    image.file.save(name, content, save=True)
-    if old_file:
-        image.file.storage.delete(old_file)
-    return JsonResponse({"image": _serialize_site_image(original, image)})
+    image.pending_reset = False
+    image.draft_file.save(name, content, save=True)
+    return JsonResponse({**_image_state(site), "image": _serialize_site_image(original, image)})
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["POST"])
+def api_customer_site_logo_scale(request, site_slug):
+    """Stages a logo size (50-200% of the template's own); published with
+    the rest of the editor's changes. Paid plans only."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    if not site.has_paid_plan:
+        return JsonResponse({"error": "Resizing the logo comes with every paid plan — upgrade to use it."}, status=403)
+    try:
+        scale = int(_json_body(request).get("logo_scale"))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "logo_scale must be a whole number."}, status=400)
+    site.draft_logo_scale = max(50, min(200, scale))
+    site.save(update_fields=["draft_logo_scale"])
+    return JsonResponse(_image_state(site))
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["POST"])
+def api_customer_site_images_commit(request, site_slug, action):
+    """action "publish": staged image replacements/resets and logo size go
+    live; "discard": throw them away."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    if action not in ("publish", "discard"):
+        return JsonResponse({"error": "Unknown action."}, status=404)
+
+    for image in site.images.all():
+        if not image.has_draft:
+            continue
+        if action == "discard":
+            if image.draft_file:
+                image.draft_file.delete(save=False)
+            image.pending_reset = False
+        elif image.pending_reset:
+            image.file.delete(save=False)
+            image.pending_reset = False
+        else:
+            if image.file:
+                image.file.delete(save=False)
+            image.file.name = image.draft_file.name
+            image.draft_file.name = ""
+        if not image.file and not image.draft_file:
+            image.delete()
+        else:
+            image.save()
+
+    if site.draft_logo_scale is not None:
+        if action == "publish":
+            site.logo_scale = site.draft_logo_scale
+        site.draft_logo_scale = None
+        site.save(update_fields=["logo_scale", "draft_logo_scale"])
+    return JsonResponse(_image_state(site))

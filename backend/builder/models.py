@@ -159,6 +159,8 @@ class Site(models.Model):
         (SUBSCRIPTION_ACTIVE, "Active"),
         (SUBSCRIPTION_CANCELLED, "Cancelled"),
     ]
+    logo_scale = models.PositiveSmallIntegerField(default=100, help_text="Logo size in percent of the template's own.")
+    draft_logo_scale = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Unpublished editor change to logo_scale.")
     free_domain_available = models.BooleanField(
         default=False,
         help_text="One .co.za included with a paid plan (R50 of the plan price reserved for it) — set when the plan's "
@@ -454,8 +456,23 @@ class SiteImage(models.Model):
 
     site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="images")
     original_url = models.CharField(max_length=1000)
-    file = models.FileField(upload_to="site_images/")
+    file = models.FileField(upload_to="site_images/", blank=True, help_text="The live replacement (empty until published).")
+    draft_file = models.FileField(upload_to="site_images/", blank=True, help_text="Uploaded in the editor, not published yet.")
+    pending_reset = models.BooleanField(default=False, help_text="Publishing will revert to the template's own image.")
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def has_draft(self):
+        return bool(self.draft_file) or self.pending_reset
+
+    def url(self, draft=False):
+        """The image to show: the live one, or (draft=True, the editor
+        preview) whatever publishing would make live. None = template's own."""
+        if draft and self.pending_reset:
+            return None
+        if draft and self.draft_file:
+            return self.draft_file.url
+        return self.file.url if self.file else None
 
     class Meta:
         unique_together = [("site", "original_url")]

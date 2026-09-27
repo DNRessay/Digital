@@ -39,6 +39,16 @@ urlpatterns = [
         name="api-customer-site-visitors",
     ),
     path(
+        "api/customer/sites/<slug:site_slug>/images/<str:action>/",
+        customer_api.api_customer_site_images_commit,
+        name="api-customer-site-images-commit",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/logo-scale/",
+        customer_api.api_customer_site_logo_scale,
+        name="api-customer-site-logo-scale",
+    ),
+    path(
         "api/customer/sites/<slug:site_slug>/images/",
         customer_api.api_customer_site_images,
         name="api-customer-site-images",

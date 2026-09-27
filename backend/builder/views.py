@@ -23,7 +23,7 @@ from .forms import TemplateUploadForm
 from .branding_assets import LOGO_WHITE_DATA_URI
 from .models import Site, SiteSlotValue, SiteVisit, Template, TemplatePage
 from .services.ai_assistant import AiAssistantError, ask_assistant
-from .services.site_images import apply_overrides
+from .services.site_images import apply_overrides, logo_scale_css, logo_urls
 from .services.slot_extractor import slot_tag
 from .services.template_ingest import IngestError, ingest_converted_zip
 from .services.templify_client import TemplifyError, convert_template_zip
@@ -359,9 +359,17 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None):
     context = _resolve_slots(site, page, edit_mode=edit_mode)
     template = django_engine.from_string(page.document)
     html = template.render(context)
-    overrides = {image.original_url: image.file.url for image in site.images.all()}
+    overrides = {}
+    for image in site.images.all():
+        url = image.url(draft=edit_mode)
+        if url:
+            overrides[image.original_url] = url
     if overrides:
         html = apply_overrides(html, overrides)
+    scale = site.draft_logo_scale if edit_mode and site.draft_logo_scale is not None else site.logo_scale
+    logo_css = logo_scale_css([overrides.get(u, u) for u in logo_urls(page.document)], scale)
+    if logo_css:
+        html = _inject_head_style(html, logo_css)
     if site.primary_color and HEX_COLOR_RE.match(site.primary_color):
         html = _inject_head_style(html, f":root{{--vicinic-primary:{site.primary_color};}}")
     html = _inject_map_address(html, site.address)

@@ -254,3 +254,15 @@ export function uploadSiteImage(siteSlug, original, file) {
 export function resetSiteImage(siteSlug, original) {
   return apiFetch(`/api/customer/sites/${siteSlug}/images/?original=${encodeURIComponent(original)}`, { method: 'DELETE' })
 }
+
+export function setLogoScale(siteSlug, logoScale) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/logo-scale/`, { method: 'POST', body: { logo_scale: logoScale } })
+}
+
+export function publishSiteImages(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/images/publish/`, { method: 'POST' })
+}
+
+export function discardSiteImages(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/images/discard/`, { method: 'POST' })
+}

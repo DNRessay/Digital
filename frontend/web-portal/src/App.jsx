@@ -9,6 +9,7 @@ import {
   createSite,
   addEmailDestination,
   deleteEmailDestination,
+  discardSiteImages,
   deleteEmailRoute,
   deleteSite,
   disconnectDomain,
@@ -26,12 +27,14 @@ import {
   loadDraft,
   login,
   logout,
+  publishSiteImages,
   purchaseDomain,
   redirectToPayFast,
   resetSiteImage,
   register,
   saveSiteSlots,
   searchDomains,
+  setLogoScale,
   storeDraft,
   updateProfile,
   updateSite,
@@ -1595,22 +1598,59 @@ async function shrinkImage(file) {
   return new File([blob], file.name.replace(/\.\w+$/, type === 'image/jpeg' ? '.jpg' : '.webp'), { type })
 }
 
-function ImagesPanel({ site, page, selectedSrc, onChanged }) {
+function ImageTile({ img, selected, busy, tileRef, onFile, onReset }) {
+  return (
+    <div ref={tileRef} className={`image-tile${selected ? ' selected' : ''}`}>
+      <div className="image-thumb"><img src={img.current} alt="" loading="lazy" /></div>
+      <div className="image-badges">
+        {img.logo && <span className="domain-badge">Logo</span>}
+        {img.pending && <span className="pending-badge">Unpublished</span>}
+      </div>
+      <div className="image-actions">
+        <label className="image-replace">
+          {busy ? 'Uploading…' : 'Replace'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={(e) => {
+              onFile(e.target.files[0])
+              e.target.value = ''
+            }}
+          />
+        </label>
+        {img.replaced && (
+          <button type="button" className="link-button" onClick={onReset}>Reset</button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ImagesPanel({ site, page, selectedSrc, refreshKey, onChanged, onPendingChange }) {
   const [images, setImages] = useState(null)
-  const [available, setAvailable] = useState(true)
+  const [state, setState] = useState({ available: true, logo_scale: 100, has_pending: false })
   const [busy, setBusy] = useState(null) // original url being changed
   const [error, setError] = useState(null)
   const tileRefs = useRef({})
+  const scaleTimer = useRef(null)
+
+  function applyState(data) {
+    const next = { available: data.available, logo_scale: data.logo_scale, has_pending: data.has_pending }
+    setState(next)
+    onPendingChange(next.has_pending)
+  }
 
   useEffect(() => {
     setImages(null)
+    setError(null)
     getSiteImages(site.slug, page)
       .then((data) => {
         setImages(data.images)
-        setAvailable(data.available)
+        applyState(data)
       })
       .catch((err) => setError(err.message))
-  }, [site.slug, page])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site.slug, page, refreshKey])
 
   const selected = images && selectedSrc
     ? images.find((img) => img.current === selectedSrc || img.original === selectedSrc || selectedSrc.endsWith(img.current))
@@ -1620,13 +1660,13 @@ function ImagesPanel({ site, page, selectedSrc, onChanged }) {
     if (selected) tileRefs.current[selected.original]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [selected])
 
-  async function handleFile(image, file) {
-    if (!file) return
+  async function run(image, action) {
     setBusy(image.original)
     setError(null)
     try {
-      const data = await uploadSiteImage(site.slug, image.original, await shrinkImage(file))
-      setImages((prev) => prev.map((img) => (img.original === image.original ? data.image : img)))
+      const data = await action()
+      setImages((prev) => prev.map((img) => (img.original === image.original ? { ...data.image, logo: img.logo } : img)))
+      applyState(data)
       onChanged()
     } catch (err) {
       setError(err.message)
@@ -1635,62 +1675,73 @@ function ImagesPanel({ site, page, selectedSrc, onChanged }) {
     }
   }
 
-  async function handleReset(image) {
-    setBusy(image.original)
-    setError(null)
-    try {
-      const data = await resetSiteImage(site.slug, image.original)
-      setImages((prev) => prev.map((img) => (img.original === image.original ? data.image : img)))
-      onChanged()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(null)
-    }
+  function handleScale(value) {
+    setState((prev) => ({ ...prev, logo_scale: value }))
+    clearTimeout(scaleTimer.current)
+    scaleTimer.current = setTimeout(async () => {
+      try {
+        applyState(await setLogoScale(site.slug, value))
+        onChanged()
+      } catch (err) {
+        setError(err.message)
+      }
+    }, 400)
   }
 
   if (images && images.length === 0) return null
 
+  const logos = images ? images.filter((img) => img.logo) : []
+  const others = images ? images.filter((img) => !img.logo) : []
+  const tile = (img) => (
+    <ImageTile
+      key={img.original}
+      img={img}
+      selected={selected && selected.original === img.original}
+      busy={busy === img.original}
+      tileRef={(el) => { tileRefs.current[img.original] = el }}
+      onFile={(file) => file && run(img, async () => uploadSiteImage(site.slug, img.original, await shrinkImage(file)))}
+      onReset={() => run(img, () => resetSiteImage(site.slug, img.original))}
+    />
+  )
+
   return (
     <div className="card">
       <h2>Images</h2>
-      {available ? (
-        <p className="field-hint images-hint">Tap an image on the preview, or pick one below. Replacements go live straight away.</p>
+      {state.available ? (
+        <p className="field-hint images-hint">
+          Tap an image on the preview, or pick one below. Changes show in the preview and go live when you tap Publish changes.
+        </p>
       ) : (
         <div className="notice">Replacing your logo and images comes with every paid plan — upgrade on the Deploy tab.</div>
       )}
       {error && <div className="error">{error}</div>}
       {!images && !error && <p className="field-hint">Loading images…</p>}
       {images && (
-        <fieldset className={available ? 'plain-fieldset' : 'plain-fieldset locked-section'} disabled={!available}>
-          <div className="image-grid">
-            {images.map((img) => (
-              <div
-                key={img.original}
-                ref={(el) => { tileRefs.current[img.original] = el }}
-                className={`image-tile${selected && selected.original === img.original ? ' selected' : ''}`}
-              >
-                <div className="image-thumb"><img src={img.current} alt="" loading="lazy" /></div>
-                <label className="image-replace">
-                  {busy === img.original ? 'Uploading…' : 'Replace'}
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    onChange={(e) => {
-                      handleFile(img, e.target.files[0])
-                      e.target.value = ''
-                    }}
-                    disabled={busy !== null}
-                  />
-                </label>
-                {img.replaced && (
-                  <button type="button" className="link-button" onClick={() => handleReset(img)} disabled={busy !== null}>
-                    Reset
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+        <fieldset className={state.available ? 'plain-fieldset' : 'plain-fieldset locked-section'} disabled={!state.available || busy !== null}>
+          {logos.length > 0 && (
+            <>
+              <h3 className="domain-list-title">Logo</h3>
+              <div className="image-grid">{logos.map(tile)}</div>
+              <label htmlFor="logo-scale" className="logo-scale-label">
+                Logo size <strong>{state.logo_scale}%</strong>
+              </label>
+              <input
+                id="logo-scale"
+                type="range"
+                min="50"
+                max="200"
+                step="5"
+                value={state.logo_scale}
+                onChange={(e) => handleScale(Number(e.target.value))}
+              />
+            </>
+          )}
+          {others.length > 0 && (
+            <>
+              <h3 className="domain-list-title">Other images</h3>
+              <div className="image-grid">{others.map(tile)}</div>
+            </>
+          )}
         </fieldset>
       )}
     </div>
@@ -1705,7 +1756,13 @@ function VisualEditor({ site }) {
   const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
   const [saveError, setSaveError] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)
+  const [imagesPending, setImagesPending] = useState(false)
+  const [previewNonce, setPreviewNonce] = useState(0)
+  const [imagesRefresh, setImagesRefresh] = useState(0)
   const iframeRef = useRef(null)
+  // The preview is on another origin, so it can't be reloaded through
+  // contentWindow.location — changing its URL reloads it instead.
+  const reloadPreview = () => setPreviewNonce((n) => n + 1)
 
   useEffect(() => {
     setGroups(null)
@@ -1766,10 +1823,17 @@ function VisualEditor({ site }) {
     setSaveState('saving')
     setSaveError(null)
     try {
-      const data = await saveSiteSlots(site.slug, drafts)
-      setGroups(data.groups)
-      clearDraft(site.slug)
-      setDrafts({})
+      if (Object.keys(drafts).length > 0) {
+        const data = await saveSiteSlots(site.slug, drafts)
+        setGroups(data.groups)
+        clearDraft(site.slug)
+        setDrafts({})
+      }
+      if (imagesPending) {
+        await publishSiteImages(site.slug)
+        setImagesPending(false)
+        setImagesRefresh((n) => n + 1)
+      }
       setSaveState('saved')
     } catch (err) {
       setSaveError(err.message)
@@ -1777,11 +1841,20 @@ function VisualEditor({ site }) {
     }
   }
 
-  function handleDiscard() {
+  async function handleDiscard() {
     clearDraft(site.slug)
     setDrafts({})
     setSaveState('idle')
-    iframeRef.current?.contentWindow?.location.reload()
+    if (imagesPending) {
+      try {
+        await discardSiteImages(site.slug)
+      } catch (err) {
+        setSaveError(err.message)
+      }
+      setImagesPending(false)
+      setImagesRefresh((n) => n + 1)
+    }
+    reloadPreview()
   }
 
   if (loadError) return <div className="card error">Could not load this site's text: {loadError}</div>
@@ -1789,8 +1862,8 @@ function VisualEditor({ site }) {
 
   const pages = groups.filter((g) => g.page !== null)
   const isFreeTier = site.subscription_status !== 'active'
-  const isDirty = Object.keys(drafts).length > 0
-  const previewUrl = `${API_BASE}/${site.slug}/${activePage ? `${activePage}/` : ''}?vicinic_edit=1`
+  const isDirty = Object.keys(drafts).length > 0 || imagesPending
+  const previewUrl = `${API_BASE}/${site.slug}/${activePage ? `${activePage}/` : ''}?vicinic_edit=1&v=${previewNonce}`
   const fallbackSlots = groups
     .filter((g) => g.page === null || g.page === activePage)
     .flatMap((g) => g.slots.filter((s) => NON_INLINE_TAGS.has(slotTag(s.label))))
@@ -1823,7 +1896,9 @@ function VisualEditor({ site }) {
         site={site}
         page={activePage}
         selectedSrc={selectedImage}
-        onChanged={() => iframeRef.current?.contentWindow?.location.reload()}
+        refreshKey={imagesRefresh}
+        onChanged={reloadPreview}
+        onPendingChange={setImagesPending}
       />
 
       {fallbackSlots.length > 0 && (
