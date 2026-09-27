@@ -479,3 +479,29 @@ class SiteImage(models.Model):
 
     def __str__(self):
         return f"{self.site.slug}: {self.original_url}"
+
+
+class SiteLink(models.Model):
+    """Where one of a Site's template buttons/links points, overridden by the
+    customer. `key` identifies the link by its template href + the
+    template source of its label (see services.site_links), so a header
+    button is the same link on every page."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="links")
+    key = models.CharField(max_length=16)
+    href = models.CharField(max_length=500, blank=True, help_text="Live override; blank = the template's own link.")
+    draft_href = models.CharField(
+        max_length=500, null=True, blank=True,
+        help_text="Unpublished editor change; empty string = revert to the template's own link.",
+    )
+
+    class Meta:
+        unique_together = [("site", "key")]
+
+    def current(self, draft=False):
+        if draft and self.draft_href is not None:
+            return self.draft_href
+        return self.href
+
+    def __str__(self):
+        return f"{self.site.slug}: {self.key} -> {self.href}"

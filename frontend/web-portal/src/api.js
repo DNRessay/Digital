@@ -266,3 +266,11 @@ export function publishSiteImages(siteSlug) {
 export function discardSiteImages(siteSlug) {
   return apiFetch(`/api/customer/sites/${siteSlug}/images/discard/`, { method: 'POST' })
 }
+
+export function getSiteLinks(siteSlug, page) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/links/?page=${encodeURIComponent(page)}`)
+}
+
+export function setSiteLink(siteSlug, key, href) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/links/`, { method: 'POST', body: { key, href } })
+}

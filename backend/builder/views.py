@@ -23,6 +23,7 @@ from .forms import TemplateUploadForm
 from .branding_assets import LOGO_WHITE_DATA_URI
 from .models import Site, SiteSlotValue, SiteVisit, Template, TemplatePage
 from .services.ai_assistant import AiAssistantError, ask_assistant
+from .services import site_links
 from .services.site_images import apply_overrides, logo_scale_css, logo_urls
 from .services.slot_extractor import slot_tag
 from .services.template_ingest import IngestError, ingest_converted_zip
@@ -230,6 +231,17 @@ EDITOR_BRIDGE_HTML = """
     );
   });
 
+  // Tapping a button/link also tells the portal which one, so its
+  // "Buttons & links" panel can offer to change where it points.
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[data-vicinic-link]');
+    if (!a) return;
+    window.parent.postMessage(
+      { source: 'vicinic-editor', type: 'link-clicked', key: a.getAttribute('data-vicinic-link') },
+      '*'
+    );
+  });
+
   document.addEventListener('click', function (e) {
     var el = e.target.closest && e.target.closest('.vicinic-editable');
     if (!el || el === current) return;
@@ -357,7 +369,13 @@ def _inject_map_address(html, address):
 
 def _render_site_page(site, page, edit_mode=False, chat_url=None):
     context = _resolve_slots(site, page, edit_mode=edit_mode)
-    template = django_engine.from_string(page.document)
+    link_overrides = {}
+    for link in site.links.all():
+        href = link.current(draft=edit_mode)
+        if href:
+            link_overrides[link.key] = href
+    document = site_links.apply(page.document, link_overrides, annotate=edit_mode)
+    template = django_engine.from_string(document)
     html = template.render(context)
     overrides = {}
     for image in site.images.all():

@@ -35,10 +35,11 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteImage, SiteSlotValue, SiteVisit, Template
+from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteImage, SiteLink, SiteSlotValue, SiteVisit, Template
 from .payfast_views import _start_manual_za_registration
-from .services import cloudflare, domain_search, site_images, whatsapp
+from .services import cloudflare, domain_search, site_images, site_links, whatsapp
 from .services.site_images import ImageUploadError
+from .services.site_links import InvalidLinkError
 from .services.cloudflare import CloudflareError
 from .services.whatsapp import WhatsAppError
 from .services.payfast import PACKAGES, PayFastError, build_checkout_payload, build_domain_purchase_payload
@@ -986,11 +987,15 @@ def _serialize_site_image(original, override, logos=()):
 
 
 def _image_state(site):
-    pending = site.images.filter(models.Q(pending_reset=True) | ~models.Q(draft_file="")).exists()
+    pending = (
+        site.images.filter(models.Q(pending_reset=True) | ~models.Q(draft_file="")).exists()
+        or site.links.filter(draft_href__isnull=False).exists()
+        or site.draft_logo_scale is not None
+    )
     return {
         "available": site.has_paid_plan,
         "logo_scale": site.draft_logo_scale if site.draft_logo_scale is not None else site.logo_scale,
-        "has_pending": pending or site.draft_logo_scale is not None,
+        "has_pending": pending,
     }
 
 
@@ -1077,8 +1082,8 @@ def api_customer_site_logo_scale(request, site_slug):
 @customer_token_required
 @require_http_methods(["POST"])
 def api_customer_site_images_commit(request, site_slug, action):
-    """action "publish": staged image replacements/resets and logo size go
-    live; "discard": throw them away."""
+    """action "publish": staged image replacements/resets, link changes and
+    logo size go live; "discard": throw them away."""
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
@@ -1105,9 +1110,96 @@ def api_customer_site_images_commit(request, site_slug, action):
         else:
             image.save()
 
+    for link in site.links.filter(draft_href__isnull=False):
+        if action == "publish":
+            link.href = link.draft_href
+        link.draft_href = None
+        if link.href:
+            link.save()
+        else:
+            link.delete()
+
     if site.draft_logo_scale is not None:
         if action == "publish":
             site.logo_scale = site.draft_logo_scale
         site.draft_logo_scale = None
         site.save(update_fields=["logo_scale", "draft_logo_scale"])
     return JsonResponse(_image_state(site))
+
+
+def _link_label(inner, context):
+    from django.template import engines
+    from django.utils.html import strip_tags
+
+    try:
+        text = strip_tags(engines["django"].from_string(inner).render(context))
+    except Exception:
+        text = strip_tags(inner)
+    text = " ".join(text.split())
+    if text:
+        return text[:80]
+    icon = re.search(r"\b(?:bi|fa|fab|fas|bx|bxl|ri|icofont)-([a-z0-9]+)", inner, re.IGNORECASE)
+    if icon and icon.group(1).lower() not in ("arrow", "chevron", "plus", "check"):
+        return f"{icon.group(1).replace('-', ' ').title()} icon"
+    return "Image link" if "<img" in inner.lower() else "Icon link"
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "POST"])
+def api_customer_site_links(request, site_slug):
+    """The editor's "Buttons & links" panel. GET ?page=<slug> lists the
+    page's links (label, template target, current target); POST {key, href}
+    stages a new target (blank = back to the template's). Goes live with
+    .../images/publish/. Paid plans only."""
+    from .views import _resolve_slots
+
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    overrides = {link.key: link for link in site.links.all()}
+
+    if request.method == "GET":
+        page = site.template.pages.filter(slug=request.GET.get("page", "")).first()
+        if page is None:
+            return JsonResponse({"error": "Page not found."}, status=404)
+        context = _resolve_slots(site, page)
+        items = []
+        for key, href, inner in site_links.find_links(page.document):
+            link = overrides.get(key)
+            default = _link_label(href, context) if "{" in href else href
+            draft = link.current(draft=True) if link else ""
+            items.append(
+                {
+                    "key": key,
+                    "label": _link_label(inner, context),
+                    "default": default,
+                    "href": draft or default,
+                    "changed": bool(draft),
+                    "pending": bool(link and link.draft_href is not None),
+                }
+            )
+        return JsonResponse({**_image_state(site), "links": items})
+
+    if not site.has_paid_plan:
+        return JsonResponse({"error": "Changing links comes with every paid plan — upgrade to use it."}, status=403)
+    body = _json_body(request)
+    key = str(body.get("key", ""))
+    known = {k for page in site.template.pages.all() for k, _h, _i in site_links.find_links(page.document)}
+    if key not in known:
+        return JsonResponse({"error": "That link isn't part of this site's template."}, status=400)
+    try:
+        href = site_links.clean_href(str(body.get("href", "")))
+    except InvalidLinkError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
+    link = overrides.get(key) or SiteLink(site=site, key=key)
+    if href == link.href or (not href and not link.href):
+        link.draft_href = None
+    else:
+        link.draft_href = href
+    if link.href or link.draft_href is not None:
+        link.save()
+    elif link.pk:
+        link.delete()
+    return JsonResponse({**_image_state(site), "href": href})

@@ -17,6 +17,7 @@ import {
   getDomain,
   getProfile,
   getSiteImages,
+  getSiteLinks,
   getSiteSlots,
   getVisitors,
   listEmailDestinations,
@@ -35,6 +36,7 @@ import {
   saveSiteSlots,
   searchDomains,
   setLogoScale,
+  setSiteLink,
   storeDraft,
   updateProfile,
   updateSite,
@@ -1748,6 +1750,129 @@ function ImagesPanel({ site, page, selectedSrc, refreshKey, onChanged, onPending
   )
 }
 
+function LinkRow({ link, site, selected, rowRef, disabled, onSave }) {
+  const [value, setValue] = useState(link.href)
+  useEffect(() => setValue(link.href), [link.href])
+
+  const quick = [
+    site.whatsapp_number && { label: 'WhatsApp', href: `https://wa.me/${site.whatsapp_number.replace(/\D/g, '')}` },
+    site.phone && { label: 'Call', href: `tel:${site.phone.replace(/[^\d+]/g, '')}` },
+    site.email && { label: 'Email', href: `mailto:${site.email}` },
+  ].filter(Boolean)
+
+  function save(href) {
+    if (href.trim() !== link.href) onSave(href.trim())
+  }
+
+  return (
+    <li ref={rowRef} className={`link-row${selected ? ' selected' : ''}`}>
+      <div className="link-row-head">
+        <strong>{link.label}</strong>
+        {link.pending && <span className="pending-badge">Unpublished</span>}
+      </div>
+      <input
+        type="text"
+        inputMode="url"
+        value={value}
+        disabled={disabled}
+        aria-label={`Where "${link.label}" goes`}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => save(value)}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      />
+      <div className="link-quick">
+        {quick.map((q) => (
+          <button key={q.label} type="button" className="chip" disabled={disabled} onClick={() => { setValue(q.href); save(q.href) }}>
+            {q.label}
+          </button>
+        ))}
+        {link.changed && (
+          <button type="button" className="link-button" disabled={disabled} onClick={() => { setValue(link.default); save('') }}>
+            Reset
+          </button>
+        )}
+      </div>
+    </li>
+  )
+}
+
+function LinksPanel({ site, page, selectedKey, refreshKey, onChanged, onPendingChange }) {
+  const [links, setLinks] = useState(null)
+  const [available, setAvailable] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const rowRefs = useRef({})
+
+  function load() {
+    return getSiteLinks(site.slug, page).then((data) => {
+      setLinks(data.links)
+      setAvailable(data.available)
+      onPendingChange(data.has_pending)
+    })
+  }
+
+  useEffect(() => {
+    setLinks(null)
+    setError(null)
+    load().catch((err) => setError(err.message))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site.slug, page, refreshKey])
+
+  useEffect(() => {
+    if (selectedKey) rowRefs.current[selectedKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [selectedKey])
+
+  async function handleSave(key, href) {
+    setBusy(true)
+    setError(null)
+    try {
+      await setSiteLink(site.slug, key, href)
+      await load()
+      onChanged()
+    } catch (err) {
+      setError(err.message)
+      await load().catch(() => {})
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (links && links.length === 0) return null
+
+  return (
+    <div className="card">
+      <h2>Buttons &amp; links</h2>
+      {available ? (
+        <p className="field-hint images-hint">
+          Tap a button on the preview, or pick one below, to change where it goes — a web address, #section, or a quick
+          WhatsApp / Call / Email link. Goes live when you tap Publish changes.
+        </p>
+      ) : (
+        <div className="notice">Changing where your buttons and links go comes with every paid plan — upgrade on the Deploy tab.</div>
+      )}
+      {error && <div className="error">{error}</div>}
+      {!links && !error && <p className="field-hint">Loading links…</p>}
+      {links && (
+        <fieldset className={available ? 'plain-fieldset' : 'plain-fieldset locked-section'} disabled={!available}>
+          <ul className="link-list">
+            {links.map((link) => (
+              <LinkRow
+                key={link.key}
+                link={link}
+                site={site}
+                selected={selectedKey === link.key}
+                disabled={busy}
+                rowRef={(el) => { rowRefs.current[link.key] = el }}
+                onSave={(href) => handleSave(link.key, href)}
+              />
+            ))}
+          </ul>
+        </fieldset>
+      )}
+    </div>
+  )
+}
+
 function VisualEditor({ site }) {
   const [groups, setGroups] = useState(null)
   const [loadError, setLoadError] = useState(null)
@@ -1756,6 +1881,7 @@ function VisualEditor({ site }) {
   const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
   const [saveError, setSaveError] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)
+  const [selectedLink, setSelectedLink] = useState(null)
   const [imagesPending, setImagesPending] = useState(false)
   const [previewNonce, setPreviewNonce] = useState(0)
   const [imagesRefresh, setImagesRefresh] = useState(0)
@@ -1791,6 +1917,10 @@ function VisualEditor({ site }) {
       const msg = e.data
       if (msg && msg.source === 'vicinic-editor' && msg.type === 'image-clicked') {
         setSelectedImage(msg.src)
+        return
+      }
+      if (msg && msg.source === 'vicinic-editor' && msg.type === 'link-clicked') {
+        setSelectedLink(msg.key)
         return
       }
       if (!msg || msg.source !== 'vicinic-editor' || msg.type !== 'slot-changed') return
@@ -1886,7 +2016,7 @@ function VisualEditor({ site }) {
         </div>
       )}
 
-      <div className="card notice">Tap any text on the preview to edit it, or tap an image to replace it.</div>
+      <div className="card notice">Tap any text on the preview to edit it — or tap an image or button to change it below.</div>
 
       <div className="visual-editor-frame">
         <iframe ref={iframeRef} src={previewUrl} title="Site preview" onLoad={sendDraftToPreview} />
@@ -1896,6 +2026,15 @@ function VisualEditor({ site }) {
         site={site}
         page={activePage}
         selectedSrc={selectedImage}
+        refreshKey={imagesRefresh}
+        onChanged={reloadPreview}
+        onPendingChange={setImagesPending}
+      />
+
+      <LinksPanel
+        site={site}
+        page={activePage}
+        selectedKey={selectedLink}
         refreshKey={imagesRefresh}
         onChanged={reloadPreview}
         onPendingChange={setImagesPending}
