@@ -66,11 +66,12 @@ def _validate_url():
     return f"https://{host}/eng/query/validate"
 
 
-def _sign(ordered_fields):
+def _sign(ordered_fields, skip_empty=True):
     """`ordered_fields` is a list of (key, value) pairs, already in the
     exact order to sign — the caller controls this, since it must match the
-    order the fields are actually submitted/received."""
-    parts = [f"{key}={quote_plus(str(value))}" for key, value in ordered_fields if str(value) != ""]
+    order the fields are actually submitted/received. Checkout signing skips
+    empty values; ITN verification must not (see verify_itn_signature)."""
+    parts = [f"{key}={quote_plus(str(value))}" for key, value in ordered_fields if not skip_empty or str(value) != ""]
     param_string = "&".join(parts)
     if settings.PAYFAST_PASSPHRASE:
         param_string += f"&passphrase={quote_plus(settings.PAYFAST_PASSPHRASE)}"
@@ -151,7 +152,11 @@ def build_domain_purchase_payload(purchase, return_url, cancel_url, notify_url):
 
 def verify_itn_signature(post_items):
     """`post_items` is the ITN POST body's items, in the order PayFast sent
-    them (e.g. request.POST.items() — QueryDict preserves order)."""
+    them (e.g. request.POST.items() — QueryDict preserves order). Unlike the
+    checkout signature, PayFast signs the ITN over every posted field
+    except `signature` itself, empty ones included (its reference PHP only
+    skips 'signature') — dropping empty fields like a blank custom_str2 or
+    email_address makes every real ITN fail verification."""
     received_signature = None
     fields = []
     for key, value in post_items:
@@ -161,7 +166,7 @@ def verify_itn_signature(post_items):
             fields.append((key, value))
     if received_signature is None:
         return False
-    return _sign(fields) == received_signature
+    return _sign(fields, skip_empty=False) == received_signature
 
 
 def confirm_with_payfast(raw_body):
