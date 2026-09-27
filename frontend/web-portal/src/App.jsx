@@ -393,7 +393,7 @@ function DomainSearchSheet({ site, onClose }) {
     }
   }
 
-  const nothingFound = results && !results.recommended && results.options.length === 0
+  const nothingFound = results && !results.searched && !results.recommended && results.options.length === 0
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
@@ -432,6 +432,17 @@ function DomainSearchSheet({ site, onClose }) {
 
               {results && (
                 <>
+                  {results.searched && (
+                    <ul className="domain-list">
+                      <DomainOption option={results.searched} onBuy={setSelected} />
+                    </ul>
+                  )}
+                  {results.searched_taken && (
+                    <div className="notice"><strong>{results.searched_domain}</strong> is already taken.</div>
+                  )}
+                  {results.searched_domain && !results.searched && !results.searched_taken && (
+                    <div className="notice">We couldn't check <strong>{results.searched_domain}</strong> right now.</div>
+                  )}
                   {results.recommended && (
                     <ul className="domain-list">
                       <DomainOption option={results.recommended} onBuy={setSelected} />
