@@ -67,6 +67,72 @@ function loadFacebookSdk() {
 // every slot's label.
 const NON_INLINE_TAGS = new Set(['title', 'option', 'textarea', 'noscript', '[document]'])
 
+const DIAL_CODES = [
+  { code: '27', label: '🇿🇦 +27' },
+  { code: '264', label: '🇳🇦 +264' },
+  { code: '267', label: '🇧🇼 +267' },
+  { code: '263', label: '🇿🇼 +263' },
+  { code: '258', label: '🇲🇿 +258' },
+  { code: '266', label: '🇱🇸 +266' },
+  { code: '268', label: '🇸🇿 +268' },
+  { code: '260', label: '🇿🇲 +260' },
+  { code: '265', label: '🇲🇼 +265' },
+  { code: '254', label: '🇰🇪 +254' },
+  { code: '234', label: '🇳🇬 +234' },
+  { code: '233', label: '🇬🇭 +233' },
+  { code: '44', label: '🇬🇧 +44' },
+  { code: '1', label: '🇺🇸 +1' },
+  { code: '61', label: '🇦🇺 +61' },
+  { code: '971', label: '🇦🇪 +971' },
+]
+
+function splitPhone(value) {
+  const digits = (value || '').replace(/\D/g, '')
+  if (!digits) return { code: '27', local: '' }
+  if (digits.startsWith('0')) return { code: '27', local: digits.slice(1) }
+  const match = [...DIAL_CODES].sort((a, b) => b.code.length - a.code.length).find((d) => digits.startsWith(d.code))
+  return match ? { code: match.code, local: digits.slice(match.code.length) } : { code: '27', local: digits }
+}
+
+// Country-code picker (South Africa by default) + local number. Calls
+// onChange with the full international number, e.g. "+27821234567".
+function PhoneInput({ id, value, onChange, disabled, required }) {
+  const initial = splitPhone(value)
+  const [code, setCode] = useState(initial.code)
+  const local = splitPhone(value).code === code ? splitPhone(value).local : initial.local
+
+  function emit(nextCode, nextLocal) {
+    const digits = nextLocal.replace(/\D/g, '').replace(/^0+/, '')
+    onChange(digits ? `+${nextCode}${digits}` : '')
+  }
+
+  return (
+    <div className="phone-input">
+      <select
+        aria-label="Country code"
+        value={code}
+        disabled={disabled}
+        onChange={(e) => {
+          setCode(e.target.value)
+          emit(e.target.value, local)
+        }}
+      >
+        {DIAL_CODES.map((d) => <option key={d.code} value={d.code}>{d.label}</option>)}
+      </select>
+      <input
+        id={id}
+        type="text"
+        inputMode="tel"
+        placeholder="82 123 4567"
+        value={local}
+        disabled={disabled}
+        required={required}
+        onChange={(e) => emit(code, e.target.value)}
+      />
+    </div>
+  )
+}
+
 function slotTag(label) {
   if (label.startsWith('<')) {
     const end = label.indexOf('>')
@@ -542,11 +608,10 @@ function DomainSearchSheet({ site, onClose, onSiteUpdated, onGoToProfile }) {
   )
 }
 
-function DomainSection({ site, onSiteUpdated, onGoToProfile }) {
+function DomainSection({ site, onSiteUpdated, onGoToProfile, onOpenSearch }) {
   const [domainInput, setDomainInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
-  const [showSearch, setShowSearch] = useState(false)
 
   // While a domain is waiting on the customer's nameserver change to
   // land, poll Cloudflare (via our own backend) every so often so this
@@ -593,14 +658,6 @@ function DomainSection({ site, onSiteUpdated, onGoToProfile }) {
   return (
     <div className="card">
       <h2>Custom domain</h2>
-      {showSearch && (
-        <DomainSearchSheet
-          site={site}
-          onSiteUpdated={onSiteUpdated}
-          onGoToProfile={onGoToProfile}
-          onClose={() => setShowSearch(false)}
-        />
-      )}
       {error && <div className="error">{error}</div>}
 
       {!hasDomain ? (
@@ -608,7 +665,7 @@ function DomainSection({ site, onSiteUpdated, onGoToProfile }) {
           {site.free_domain_available && (
             <div className="notice">Your plan includes a free .co.za domain. Claim it below.</div>
           )}
-          <button type="button" className="buy-domain-button" onClick={() => setShowSearch(true)}>
+          <button type="button" className="buy-domain-button" onClick={onOpenSearch}>
             {site.free_domain_available ? 'Claim your free .co.za' : 'Buy a new domain'}
           </button>
           <p className="field-hint domain-or">or connect one you already own:</p>
@@ -738,7 +795,7 @@ function EmailInboxes({ site, destinations, setDestinations }) {
   )
 }
 
-function EmailRoutingSection({ site }) {
+function EmailRoutingSection({ site, onOpenSearch }) {
   const domainReady = site.domain_status === 'active'
   const [routes, setRoutes] = useState(null)
   const [externalRoutes, setExternalRoutes] = useState([])
@@ -806,9 +863,17 @@ function EmailRoutingSection({ site }) {
       <h2>Email routing</h2>
       {!available && (
         <div className="notice">
-          {site.ai_assistant_available
-            ? 'Email forwarding switches on once your custom domain above is connected and active.'
-            : 'Email forwarding (e.g. hello@yourbusiness.co.za to your Gmail) comes with every paid plan and your own domain — upgrade above to set it up.'}
+          {!site.ai_assistant_available
+            ? 'Email forwarding (e.g. hello@yourbusiness.co.za to your Gmail) comes with every paid plan and your own domain — upgrade above to set it up.'
+            : site.free_domain_available
+              ? 'Email forwarding needs your own domain — and your plan includes a free .co.za.'
+              : 'Email forwarding switches on once your custom domain above is connected and active.'}
+          {site.ai_assistant_available && site.free_domain_available && !site.custom_domain && (
+            <>
+              {' '}
+              <button type="button" className="link-button" onClick={onOpenSearch}>Claim your free .co.za</button>
+            </>
+          )}
         </div>
       )}
       {error && available && <div className="error">{error}</div>}
@@ -928,21 +993,9 @@ function AiAssistantSection({ site, onSiteUpdated }) {
       )}
       {saveError && <div className="error">{saveError}</div>}
 
-      <label htmlFor="ai-enabled">
-        <input
-          id="ai-enabled"
-          type="checkbox"
-          disabled={!site.ai_assistant_available}
-          checked={site.ai_assistant_available && form.ai_assistant_enabled}
-          onChange={(e) => setField('ai_assistant_enabled', e.target.checked)}
-          style={{ marginRight: '8px' }}
-        />
-        Show the AI chat assistant on my site
-      </label>
-
-      <label htmlFor="ai-business-name">Business name</label>
-      <input id="ai-business-name" type="text" value={site.name} disabled />
-      <p className="field-hint">Set once when you created the site — used as-is by the assistant.</p>
+      <label htmlFor="ai-whatsapp">WhatsApp number</label>
+      <PhoneInput id="ai-whatsapp" value={form.whatsapp_number} onChange={(v) => setField('whatsapp_number', v)} />
+      <p className="field-hint">Same number shown on the Overview tab — changing it here updates both.</p>
 
       <label htmlFor="ai-description">Describe your business</label>
       <textarea
@@ -954,15 +1007,21 @@ function AiAssistantSection({ site, onSiteUpdated }) {
         onChange={(e) => setField('ai_assistant_description', e.target.value)}
       />
 
-      <label htmlFor="ai-whatsapp">WhatsApp number</label>
-      <input
-        id="ai-whatsapp"
-        type="text"
-        placeholder="International format, e.g. 27821234567"
-        value={form.whatsapp_number}
-        onChange={(e) => setField('whatsapp_number', e.target.value)}
-      />
-      <p className="field-hint">Same number shown on the Overview tab — changing it here updates both.</p>
+      <label htmlFor="ai-business-name">Business name</label>
+      <input id="ai-business-name" type="text" value={site.name} disabled />
+      <p className="field-hint">Set once when you created the site — used as-is by the assistant.</p>
+
+      <label htmlFor="ai-enabled" className="checkbox-label">
+        <input
+          id="ai-enabled"
+          type="checkbox"
+          disabled={!site.ai_assistant_available}
+          checked={site.ai_assistant_available && form.ai_assistant_enabled}
+          onChange={(e) => setField('ai_assistant_enabled', e.target.checked)}
+          style={{ marginRight: '8px' }}
+        />
+        Show the AI chat assistant on my site
+      </label>
 
       <div className="save-bar">
         <button type="submit" disabled={saveState === 'saving'}>
@@ -1080,6 +1139,7 @@ function WhatsAppConnectSection({ site, onSiteUpdated }) {
 }
 
 function DeployTab({ site, onSiteUpdated, onGoToProfile }) {
+  const [showSearch, setShowSearch] = useState(false)
   // Domain connect/buy and email routing below are still open to every
   // site regardless of plan (that gating was deliberately dropped
   // earlier and hasn't been asked back) — this card is just the "remove
@@ -1089,8 +1149,16 @@ function DeployTab({ site, onSiteUpdated, onGoToProfile }) {
       <UpgradeCard site={site} />
       <AiAssistantSection site={site} onSiteUpdated={onSiteUpdated} />
       <WhatsAppConnectSection site={site} onSiteUpdated={onSiteUpdated} />
-      <DomainSection site={site} onSiteUpdated={onSiteUpdated} onGoToProfile={onGoToProfile} />
-      <EmailRoutingSection site={site} />
+      <DomainSection site={site} onSiteUpdated={onSiteUpdated} onGoToProfile={onGoToProfile} onOpenSearch={() => setShowSearch(true)} />
+      <EmailRoutingSection site={site} onOpenSearch={() => setShowSearch(true)} />
+      {showSearch && (
+        <DomainSearchSheet
+          site={site}
+          onSiteUpdated={onSiteUpdated}
+          onGoToProfile={onGoToProfile}
+          onClose={() => setShowSearch(false)}
+        />
+      )}
     </>
   )
   if (!site.managed_deploy) return sections
@@ -1306,15 +1374,10 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
         <input id="site-profile-email" type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} />
 
         <label htmlFor="site-profile-phone">Phone</label>
-        <input id="site-profile-phone" type="text" value={form.phone} onChange={(e) => setField('phone', e.target.value)} />
+        <PhoneInput id="site-profile-phone" value={form.phone} onChange={(v) => setField('phone', v)} />
 
         <label htmlFor="site-profile-whatsapp">WhatsApp number</label>
-        <input
-          id="site-profile-whatsapp"
-          type="text"
-          value={form.whatsapp_number}
-          onChange={(e) => setField('whatsapp_number', e.target.value)}
-        />
+        <PhoneInput id="site-profile-whatsapp" value={form.whatsapp_number} onChange={(v) => setField('whatsapp_number', v)} />
 
         <div className="save-bar">
           <button type="submit" disabled={saveState === 'saving'}>
@@ -1329,7 +1392,7 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
 
 const PROFILE_FIELDS = [
   { key: 'legal_name', label: 'Full name or business name', hint: "The legal owner of any domain you buy." },
-  { key: 'phone', label: 'Phone (with country code, e.g. +27821234567)', inputMode: 'tel' },
+  { key: 'phone', label: 'Phone', phone: true },
   { key: 'street', label: 'Street address' },
   { key: 'city', label: 'City' },
   { key: 'state', label: 'Province/State (optional)', optional: true },
@@ -1382,15 +1445,18 @@ function ProfileDetails({ onCompleteChange }) {
       {PROFILE_FIELDS.map((f) => (
         <div key={f.key}>
           <label htmlFor={`profile-${f.key}`}>{f.label}</label>
+          {f.phone ? (
+            <PhoneInput id={`profile-${f.key}`} value={form[f.key] || ''} onChange={(v) => setField(f.key, v)} required />
+          ) : (
           <input
             id={`profile-${f.key}`}
             type="text"
-            inputMode={f.inputMode}
             maxLength={f.maxLength}
             value={form[f.key] || ''}
             onChange={(e) => setField(f.key, f.key === 'country_code' ? e.target.value.toUpperCase() : e.target.value)}
             required={!f.optional}
           />
+          )}
           {f.hint && <p className="field-hint">{f.hint}</p>}
         </div>
       ))}

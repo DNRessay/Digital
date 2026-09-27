@@ -376,7 +376,8 @@ def api_customer_site_update(request, site_slug):
     if "phone" in body:
         fields["phone"] = str(body["phone"]).strip()[:30]
     if "whatsapp_number" in body:
-        fields["whatsapp_number"] = str(body["whatsapp_number"]).strip()[:30]
+        # wa.me links need bare digits with the country code (27821234567).
+        fields["whatsapp_number"] = re.sub(r"\D", "", str(body["whatsapp_number"]))[:20]
     if "address" in body:
         fields["address"] = str(body["address"]).strip()[:255]
     if "ai_assistant_enabled" in body:

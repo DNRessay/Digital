@@ -613,3 +613,24 @@ button:disabled {
   padding: 0;
   min-width: 0;
 }
+
+.phone-input {
+  display: flex;
+  gap: 8px;
+}
+
+.phone-input select {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.phone-input input {
+  flex: 1;
+  min-width: 0;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  margin: 8px 0 16px;
+}
