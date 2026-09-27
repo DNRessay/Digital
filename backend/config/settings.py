@@ -198,7 +198,7 @@ HOSTAFRICA_API_KEY = os.environ.get("HOSTAFRICA_API_KEY", "")
 # emails ADMIN_NOTIFY_EMAIL (see payfast_views). Set HOSTAFRICA_MANUAL_ZA=false
 # once the API works to go back to automatic registration.
 HOSTAFRICA_MANUAL_ZA = os.environ.get("HOSTAFRICA_MANUAL_ZA", "true").lower() == "true"
-ZA_DOMAIN_PRICE_ZAR = Decimal(os.environ.get("ZA_DOMAIN_PRICE_ZAR", "150.00"))
+ZA_DOMAIN_PRICE_ZAR = Decimal(os.environ.get("ZA_DOMAIN_PRICE_ZAR", "79.00"))
 
 # WhatsApp Cloud API (builder/services/whatsapp.py, builder/whatsapp_views.py,
 # customer_api.api_customer_site_whatsapp) — lets a customer connect their
