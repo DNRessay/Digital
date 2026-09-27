@@ -193,12 +193,20 @@ DOMAIN_MARKUP_ZAR = Decimal(os.environ.get("DOMAIN_MARKUP_ZAR", "30.00"))
 # rate, unlike the Cloudflare (USD) path.
 HOSTAFRICA_API_EMAIL = os.environ.get("HOSTAFRICA_API_EMAIL", "")
 HOSTAFRICA_API_KEY = os.environ.get("HOSTAFRICA_API_KEY", "")
-# Until HostAfrica issues Domains Reseller API credentials, .za domains are
-# sold at this flat first-year price (automatic mode too) and registered by hand: the paid order
-# emails ADMIN_NOTIFY_EMAIL (see payfast_views). Set HOSTAFRICA_MANUAL_ZA=false
-# once the API works to go back to automatic registration.
+# While HOSTAFRICA_MANUAL_ZA is on, HostAfrica domains are registered by hand:
+# the paid order emails ADMIN_NOTIFY_EMAIL (see payfast_views). Set it to
+# false once reseller credits are topped up for automatic registration.
 HOSTAFRICA_MANUAL_ZA = os.environ.get("HOSTAFRICA_MANUAL_ZA", "true").lower() == "true"
-ZA_DOMAIN_PRICE_ZAR = Decimal(os.environ.get("ZA_DOMAIN_PRICE_ZAR", "150.00"))
+# Customer pricing (builder/services/domain_search.py): TLDs listed here sell
+# at that fixed first-year price ("co.za=150,org.za=120"); everything else is
+# registrar cost (converted to ZAR) + DOMAIN_MARKUP_PERCENT.
+DOMAIN_FLAT_PRICES_ZAR = {
+    "." + tld.strip().lstrip("."): Decimal(price)
+    for tld, _, price in (
+        item.partition("=") for item in os.environ.get("DOMAIN_FLAT_PRICES_ZAR", "co.za=150").split(",") if "=" in item
+    )
+}
+DOMAIN_MARKUP_PERCENT = Decimal(os.environ.get("DOMAIN_MARKUP_PERCENT", "35"))
 
 # WhatsApp Cloud API (builder/services/whatsapp.py, builder/whatsapp_views.py,
 # customer_api.api_customer_site_whatsapp) — lets a customer connect their

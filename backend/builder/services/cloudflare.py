@@ -72,6 +72,34 @@ def check_domain(domain):
     }
 
 
+def check_domains(domains):
+    """Batch form of check_domain — Cloudflare's domain-check takes a list.
+    Returns {domain: check_domain-shaped dict} for every domain it answered."""
+    domains = list(domains)
+    result = _request(
+        "POST",
+        f"/accounts/{settings.CLOUDFLARE_ACCOUNT_ID}/registrar/domain-check",
+        json={"domains": domains},
+    )
+    out = {}
+    for i, info in enumerate(result.get("domains") or []):
+        name = str(info.get("name") or info.get("domain_name") or info.get("domain") or "").lower()
+        if not name and i < len(domains):
+            name = domains[i].lower()
+        if not name:
+            continue
+        if not info.get("registrable"):
+            out[name] = {"registrable": False, "reason": info.get("reason", "This domain isn't available.")}
+            continue
+        pricing = info.get("pricing") or {}
+        out[name] = {
+            "registrable": True,
+            "cost_amount": Decimal(str(pricing.get("registration_cost", "0"))),
+            "cost_currency": pricing.get("currency", "USD"),
+        }
+    return out
+
+
 def register_domain(domain, registrant):
     """The "Register" step — actually purchases the domain, charged
     immediately to Vicinic's own Cloudflare account payment method,

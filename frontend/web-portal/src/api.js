@@ -161,8 +161,8 @@ export function disconnectDomain(siteSlug) {
   return apiFetch(`/api/customer/sites/${siteSlug}/domain/`, { method: 'DELETE' })
 }
 
-export function checkDomainAvailability(siteSlug, domain) {
-  return apiFetch(`/api/customer/sites/${siteSlug}/domain/check/?domain=${encodeURIComponent(domain)}`)
+export function searchDomains(siteSlug, query) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/domain/search/?q=${encodeURIComponent(query)}`)
 }
 
 export function connectWhatsApp(siteSlug, wabaId, phoneNumberId) {

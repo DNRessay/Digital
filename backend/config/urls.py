@@ -62,6 +62,11 @@ urlpatterns = [
         name="api-customer-site-email-route-delete",
     ),
     path(
+        "api/customer/sites/<slug:site_slug>/domain/search/",
+        customer_api.api_customer_domain_search,
+        name="api-customer-domain-search",
+    ),
+    path(
         "api/customer/sites/<slug:site_slug>/domain/check/",
         customer_api.api_customer_domain_check,
         name="api-customer-domain-check",
