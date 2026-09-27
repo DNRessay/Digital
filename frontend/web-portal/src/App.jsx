@@ -1050,6 +1050,9 @@ function WhatsAppConnectSection({ site, onSiteUpdated }) {
         further — a real WhatsApp Business number that replies automatically using the same description, in
         WhatsApp itself.
       </p>
+      {!site.ai_assistant_available && !site.whatsapp_connected && (
+        <div className="notice">The WhatsApp AI bot comes with every paid plan — upgrade above to connect your number.</div>
+      )}
       {error && <div className="error">{error}</div>}
       {site.whatsapp_connected ? (
         <>
@@ -1059,7 +1062,7 @@ function WhatsAppConnectSection({ site, onSiteUpdated }) {
           </button>
         </>
       ) : (
-        <button type="button" onClick={handleConnect} disabled={state === 'connecting'}>
+        <button type="button" onClick={handleConnect} disabled={state === 'connecting' || !site.ai_assistant_available}>
           {state === 'connecting' ? 'Connecting…' : 'Connect your WhatsApp number'}
         </button>
       )}
@@ -1658,7 +1661,16 @@ export default function App() {
   const [selectedSlug, setSelectedSlug] = useState(null)
   const [loadError, setLoadError] = useState(null)
   const [checkoutNotice, setCheckoutNotice] = useState(null) // null | 'success' | 'cancelled'
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTabState] = useState(() => {
+    const fromHash = window.location.hash.replace('#', '')
+    return TABS.some((t) => t.key === fromHash) ? fromHash : 'overview'
+  })
+
+  // Keep the open tab in the URL (#profile, #deploy, ...) so a refresh stays put.
+  function setActiveTab(tab) {
+    setActiveTabState(tab)
+    window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}#${tab}`)
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -1667,7 +1679,7 @@ export default function App() {
     setCheckoutNotice(notice)
     params.delete('checkout')
     const rest = params.toString()
-    window.history.replaceState({}, '', window.location.pathname + (rest ? `?${rest}` : ''))
+    window.history.replaceState({}, '', window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash)
   }, [])
 
   async function loadSites() {

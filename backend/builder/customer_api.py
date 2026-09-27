@@ -818,6 +818,9 @@ def api_customer_site_whatsapp(request, site_slug):
     if (locked := _managed_deploy_error(site)) is not None:
         return locked
 
+    if request.method == "POST" and not site.ai_assistant_available:
+        return JsonResponse({"error": "The WhatsApp AI bot comes with every paid plan — upgrade to connect your number."}, status=403)
+
     if request.method == "DELETE":
         site.whatsapp_waba_id = ""
         site.whatsapp_phone_number_id = ""
