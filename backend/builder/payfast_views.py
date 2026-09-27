@@ -8,6 +8,7 @@ import logging
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
+from django.db import IntegrityError
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -16,6 +17,7 @@ from .models import DomainPurchase, Site
 from .services import cloudflare, hostafrica
 from .services.cloudflare import CloudflareError
 from .services.hostafrica import HostAfricaError
+from .services.notify import notify_admin
 from .services.payfast import PACKAGES, confirm_with_payfast, verify_itn_signature
 
 logger = logging.getLogger(__name__)
@@ -49,6 +51,10 @@ def _handle_domain_purchase_payment(purchase_id, payment_status, amount_gross):
 
     purchase.status = DomainPurchase.STATUS_PAID
     purchase.save(update_fields=["status"])
+
+    if purchase.provider == DomainPurchase.PROVIDER_HOSTAFRICA and settings.HOSTAFRICA_MANUAL_ZA:
+        _start_manual_za_registration(purchase)
+        return HttpResponse("OK")
 
     if settings.PAYFAST_SANDBOX:
         # PayFast's sandbox only fakes the *payment* — neither Cloudflare
@@ -109,6 +115,58 @@ def _handle_domain_purchase_payment(purchase_id, payment_status, amount_gross):
     site.cloudflare_zone_id = zone_id
     site.save(update_fields=["custom_domain", "domain_status", "cloudflare_zone_id"])
     return HttpResponse("OK")
+
+
+def _start_manual_za_registration(purchase):
+    """Paid .za order while HostAfrica's reseller API isn't available: set up
+    the Cloudflare zone now (so the nameservers are known), point the Site at
+    the domain as "pending" — the Deploy tab's existing polling flips it to
+    active once the nameservers land — and email the team to register the
+    domain by hand in the HostAfrica panel with those nameservers."""
+    site = purchase.site
+    test = settings.PAYFAST_SANDBOX
+    nameservers, zone_error = [], ""
+    if not test:
+        try:
+            zone_id = cloudflare.find_zone_id_by_name(purchase.domain)
+            if zone_id is None:
+                zone_id, nameservers = cloudflare.create_zone(purchase.domain)
+            else:
+                nameservers = cloudflare.get_zone_status(zone_id)["name_servers"]
+            site.custom_domain = purchase.domain
+            site.domain_status = Site.DOMAIN_PENDING
+            site.cloudflare_zone_id = zone_id
+            site.cloudflare_nameservers = ",".join(nameservers)
+            site.save(update_fields=["custom_domain", "domain_status", "cloudflare_zone_id", "cloudflare_nameservers"])
+        except (CloudflareError, IntegrityError) as exc:
+            zone_error = str(exc)
+            logger.error("Domain purchase %s: Cloudflare zone setup failed: %s", purchase.id, exc)
+
+    body = "\n".join(
+        [
+            f"A customer paid R{purchase.price_zar} for {purchase.domain} — register it by hand in the HostAfrica panel.",
+            "",
+            f"Site: {site.name} ({site.slug})",
+            f"PayFast reference: {purchase.payfast_m_payment_id}",
+            "",
+            "Registrant:",
+            f"  Name: {purchase.registrant_name}",
+            f"  Email: {purchase.registrant_email}",
+            f"  Phone: {purchase.registrant_phone}",
+            f"  Address: {purchase.registrant_address_street}, {purchase.registrant_address_city}, "
+            f"{purchase.registrant_address_state} {purchase.registrant_address_postal_code}, {purchase.registrant_address_country}",
+            "",
+            "Set these nameservers when registering:",
+            *([f"  {ns}" for ns in nameservers] or ["  (none — see below)"]),
+            "",
+            f"Cloudflare zone setup failed: {zone_error} — attach the domain with the admin domain-attach endpoint after registering."
+            if zone_error
+            else "Once the nameservers are live the site goes active on its own (Deploy tab polling).",
+            "",
+            "Then mark this DomainPurchase as registered in Django admin.",
+        ]
+    )
+    notify_admin(f"{'[TEST] ' if test else ''}Register {purchase.domain} (paid .co.za order)", body)
 
 
 @csrf_exempt

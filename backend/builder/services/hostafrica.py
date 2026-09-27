@@ -97,6 +97,28 @@ def check_domain(domain):
     return {"registrable": True, "cost_amount": Decimal(str(price)), "cost_currency": "ZAR"}
 
 
+def looks_available(domain):
+    """Best-effort .za availability for the manual flow (no reseller API
+    access yet): a registered domain has NS records, an unregistered one
+    returns NXDOMAIN. Uses Cloudflare's public DNS-over-HTTPS resolver.
+    Returns True/False, or None when the lookup itself failed."""
+    try:
+        response = requests.get(
+            "https://cloudflare-dns.com/dns-query",
+            params={"name": domain, "type": "NS"},
+            headers={"Accept": "application/dns-json"},
+            timeout=10,
+        )
+        data = response.json()
+    except (requests.RequestException, ValueError):
+        return None
+    if data.get("Status") == 3:
+        return True
+    if data.get("Status") == 0:
+        return not data.get("Answer")
+    return None
+
+
 def register_domain(domain, registrant, period_years=1):
     """Registers `domain` via /order/domains/register — charged immediately
     against Vicinic's HostAfrica reseller balance, non-refundable. Only

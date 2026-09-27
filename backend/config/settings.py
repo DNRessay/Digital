@@ -136,6 +136,10 @@ TEMPLIFY_FUNCTION_URL = os.environ.get(
 )
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "")
 CONTACT_RECIPIENT_EMAIL = os.environ.get("CONTACT_RECIPIENT_EMAIL", "")
+# Operational alerts to the Vicinic team (builder/services/notify.py, via SES)
+# — e.g. a paid .co.za order waiting to be registered by hand.
+ADMIN_NOTIFY_EMAIL = os.environ.get("ADMIN_NOTIFY_EMAIL", "")
+SES_REGION = os.environ.get("SES_REGION") or os.environ.get("AWS_REGION", "eu-west-1")
 
 # PayFast (builder/services/payfast.py) — removes a Site's "Powered by
 # Vicinic" credit once a package subscription is active. Defaults are
@@ -189,6 +193,12 @@ DOMAIN_MARKUP_ZAR = Decimal(os.environ.get("DOMAIN_MARKUP_ZAR", "30.00"))
 # rate, unlike the Cloudflare (USD) path.
 HOSTAFRICA_API_EMAIL = os.environ.get("HOSTAFRICA_API_EMAIL", "")
 HOSTAFRICA_API_KEY = os.environ.get("HOSTAFRICA_API_KEY", "")
+# Until HostAfrica issues Domains Reseller API credentials, .za domains are
+# sold at this flat first-year price and registered by hand: the paid order
+# emails ADMIN_NOTIFY_EMAIL (see payfast_views). Set HOSTAFRICA_MANUAL_ZA=false
+# once the API works to go back to automatic registration.
+HOSTAFRICA_MANUAL_ZA = os.environ.get("HOSTAFRICA_MANUAL_ZA", "true").lower() == "true"
+ZA_DOMAIN_PRICE_ZAR = Decimal(os.environ.get("ZA_DOMAIN_PRICE_ZAR", "150.00"))
 
 # WhatsApp Cloud API (builder/services/whatsapp.py, builder/whatsapp_views.py,
 # customer_api.api_customer_site_whatsapp) — lets a customer connect their

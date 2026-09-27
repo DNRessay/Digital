@@ -664,6 +664,13 @@ def api_customer_domain_check(request, site_slug):
     if not domain or not DOMAIN_RE.match(domain):
         return JsonResponse({"error": "Enter a real domain, like mybusiness.com."}, status=400)
 
+    if ZA_TLD_RE.search(domain) and settings.HOSTAFRICA_MANUAL_ZA:
+        if hostafrica.looks_available(domain) is False:
+            return JsonResponse({"available": False, "reason": f"{domain} is already registered."})
+        return JsonResponse(
+            {"available": True, "domain": domain, "price_zar": str(settings.ZA_DOMAIN_PRICE_ZAR), "manual": True}
+        )
+
     if ZA_TLD_RE.search(domain):
         try:
             result = hostafrica.check_domain(domain)
@@ -726,7 +733,13 @@ def api_customer_domain_purchase(request, site_slug):
     except ValidationError:
         return JsonResponse({"error": "Registrant email isn't valid."}, status=400)
 
-    if ZA_TLD_RE.search(domain):
+    if ZA_TLD_RE.search(domain) and settings.HOSTAFRICA_MANUAL_ZA:
+        provider = DomainPurchase.PROVIDER_HOSTAFRICA
+        if hostafrica.looks_available(domain) is False:
+            return JsonResponse({"error": f"{domain} is already registered."}, status=400)
+        price_zar = settings.ZA_DOMAIN_PRICE_ZAR
+        check = {"cost_amount": price_zar, "cost_currency": "ZAR"}
+    elif ZA_TLD_RE.search(domain):
         provider = DomainPurchase.PROVIDER_HOSTAFRICA
         try:
             check = hostafrica.check_domain(domain)

@@ -398,6 +398,10 @@ function BuyDomainFields({ site }) {
       {checkResult && checkResult.available && !showRegistrantForm && (
         <div className="notice">
           <strong>{checkResult.domain}</strong> is available for <strong>R{checkResult.price_zar}</strong> (first year).
+          {checkResult.manual && (
+            <> Our team registers .co.za domains by hand — usually within one business day of payment. Your site
+            switches over automatically once it's live.</>
+          )}
           {' '}
           <button type="button" className="link-button" onClick={() => setShowRegistrantForm(true)}>
             Buy this domain
