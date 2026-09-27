@@ -146,6 +146,18 @@ def get_zone_status(zone_id):
     return {"status": result["status"], "name_servers": result.get("name_servers", [])}
 
 
+def get_ssl_mode(zone_id):
+    """The zone's SSL/TLS encryption mode ("off"|"flexible"|"full"|
+    "strict") — under anything but "full"/"strict", Cloudflare speaks
+    plain HTTP to the origin, which a Lambda Function URL (HTTPS-only)
+    rejects outright. A domain moved onto the platform from wherever it
+    used to live can easily still be on whatever mode that old setup
+    needed (often "flexible", the account default) rather than what
+    proxying to this backend actually requires."""
+    result = _request("GET", f"/zones/{zone_id}/settings/ssl")
+    return result.get("value")
+
+
 # The rule "phases" most likely to intercept a request before it ever
 # reaches the origin (and so before this backend's own logs would show
 # anything) — a domain that used to be a customer's own Worker/Pages

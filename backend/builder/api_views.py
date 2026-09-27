@@ -217,12 +217,20 @@ def api_admin_domain_lookup(request):
             return JsonResponse({"error": f"No Cloudflare zone found for {domain}."}, status=404)
         status = cloudflare.get_zone_status(zone_id)
         records = cloudflare.list_dns_records(zone_id)
-        active_rules = cloudflare.get_active_rules(zone_id)
+        try:
+            active_rules = cloudflare.get_active_rules(zone_id)
+        except CloudflareError:
+            active_rules = None  # token lacks the Rulesets permission — not fatal, just omitted
+        try:
+            ssl_mode = cloudflare.get_ssl_mode(zone_id)
+        except CloudflareError:
+            ssl_mode = None
     except CloudflareError as exc:
         return JsonResponse({"error": str(exc)}, status=400)
 
     return JsonResponse(
         {
+            "ssl_mode": ssl_mode,
             "active_rules": active_rules,
             "domain": domain,
             "zone_id": zone_id,
