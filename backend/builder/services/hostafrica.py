@@ -7,7 +7,10 @@ This is HostAfrica's legacy WHMCS/Blesta-style reseller module API
 their newer api.hostafrica.com, which covers VPS/hosting infrastructure,
 not domain registration. Auth is a per-request HMAC token rather than a
 static bearer key: base64(HMAC-SHA256(key=f"{email}:{current UTC hour}",
-message=api_key)), sent as the `username`/`token` headers. The token is
+message=api_key)), sent as the `username`/`token` headers. The HMAC is the
+hex digest, not raw bytes: the module's reference PHP is
+base64_encode(hash_hmac("sha256", $apiKey, $email . ":" . gmdate("y-m-d H"))),
+and hash_hmac returns lowercase hex by default. The token is
 only valid within the UTC hour it was generated for, so _token() is called
 fresh on every request rather than cached.
 
@@ -36,8 +39,8 @@ class HostAfricaError(Exception):
 
 def _token():
     hour_key = f"{settings.HOSTAFRICA_API_EMAIL}:{datetime.now(timezone.utc).strftime('%y-%m-%d %H')}"
-    digest = hmac.new(hour_key.encode(), settings.HOSTAFRICA_API_KEY.encode(), hashlib.sha256).digest()
-    return base64.b64encode(digest).decode()
+    digest = hmac.new(hour_key.encode(), settings.HOSTAFRICA_API_KEY.encode(), hashlib.sha256).hexdigest()
+    return base64.b64encode(digest.encode()).decode()
 
 
 def _request(method, path, params=None):
@@ -55,7 +58,8 @@ def _request(method, path, params=None):
     except ValueError:
         raise HostAfricaError(f"HostAfrica returned a non-JSON response (HTTP {response.status_code})")
     if response.status_code >= 300 or str(result.get("result", "")).lower() == "error":
-        raise HostAfricaError(result.get("message") or f"HostAfrica API error (HTTP {response.status_code})")
+        message = result.get("message") or result.get("error") or ""
+        raise HostAfricaError(f"HostAfrica API error (HTTP {response.status_code}){': ' + message if message else ''}")
     return result
 
 
