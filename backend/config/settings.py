@@ -150,8 +150,9 @@ PAYFAST_SANDBOX = os.environ.get("PAYFAST_SANDBOX", "true").lower() == "true"
 
 # Cloudflare (builder/services/cloudflare.py) — connecting a customer's own
 # domain and Email Routing on it for the "Deploy" tab. CLOUDFLARE_API_TOKEN
-# needs Zone:Edit, Zone:DNS:Edit, Zone Email Routing Rules:Edit and
-# Account:Zone:Edit; CLOUDFLARE_ACCOUNT_ID is the account every customer
+# needs Zone:Edit, Zone:DNS:Edit, Zone Email Routing Rules:Edit,
+# Zone:Origin Rules:Edit, Zone:Transform Rules:Edit and Account:Zone:Edit;
+# CLOUDFLARE_ACCOUNT_ID is the account every customer
 # domain becomes a zone under (see that module's docstring for why).
 # PLATFORM_ORIGIN_HOST is this backend's own Lambda Function URL host (no
 # scheme) — the DNS target a connected domain's zone gets pointed at; it

@@ -282,6 +282,7 @@ def api_admin_domain_attach(request):
             return JsonResponse({"error": f"No Cloudflare zone found for {domain}."}, status=404)
         status = cloudflare.get_zone_status(zone_id)
         cloudflare.upsert_apex_record(zone_id, domain, settings.PLATFORM_ORIGIN_HOST)
+        cloudflare.route_zone_to_origin(zone_id, settings.PLATFORM_ORIGIN_HOST)
     except CloudflareError as exc:
         return JsonResponse({"error": str(exc)}, status=400)
 
