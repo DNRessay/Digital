@@ -28,6 +28,9 @@ RECOMMENDED_TLD = ".co.za"
 CLOUDFLARE_TLDS = [".com", ".net", ".org", ".co", ".io", ".dev", ".app", ".xyz", ".me", ".info", ".biz"]
 # Used when HostAfrica's own /tlds can't be fetched.
 FALLBACK_HOSTAFRICA_TLDS = [".co.za", ".org.za", ".net.za", ".web.za", ".africa", ".joburg", ".durban", ".capetown", ".online"]
+# Display order for the options list (after the searched and recommended
+# domains): most-wanted extensions first, anything else after, by price.
+POPULAR_TLDS = [".com", ".net", ".org", ".africa", ".org.za", ".net.za", ".web.za", ".co", ".io", ".online", ".joburg", ".capetown", ".durban"]
 # Restricted registrations (education/government/test) — not sellable to customers.
 EXCLUDED_TLDS = {".gov.ng", ".edu.ng", ".sch.ng", ".ac.ke", ".i.ng", ".ha.test"}
 
@@ -102,11 +105,16 @@ def quote(domain):
     return {"registrable": True, **_option(domain, provider, check)}
 
 
+def _display_order(option):
+    rank = POPULAR_TLDS.index(option["tld"]) if option["tld"] in POPULAR_TLDS else len(POPULAR_TLDS)
+    return rank, option["price_zar"], option["domain"]
+
+
 def search(query):
     """Every available variation of the query's name across both registrars:
     {"name", "searched": option | None, "searched_domain", "searched_taken",
     "recommended": option | None, "recommended_taken", "options": [...]
-    (cheapest first), "errors": [str]}. "searched" is the exact extension the
+    (POPULAR_TLDS order, then cheapest), "errors": [str]}. "searched" is the exact extension the
     customer typed (e.g. name.com), pulled out so it can be shown first."""
     name, typed_tld = split(query.strip().lower())
     searched_domain = f"{name}{typed_tld}" if typed_tld and typed_tld != RECOMMENDED_TLD else None
@@ -166,6 +174,6 @@ def search(query):
         "searched_taken": bool(searched_domain) and searched_domain in unavailable,
         "recommended": recommended,
         "recommended_taken": recommended_domain in unavailable,
-        "options": sorted(options.values(), key=lambda o: (o["price_zar"], o["domain"])),
+        "options": sorted(options.values(), key=_display_order),
         "errors": errors,
     }
