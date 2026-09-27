@@ -118,6 +118,7 @@ def _serialize_site(site):
         "email": site.email,
         "address": site.address,
         "ai_assistant_enabled": site.ai_assistant_enabled,
+        "ai_assistant_available": site.ai_assistant_available,
         "ai_assistant_description": site.ai_assistant_description,
         "primary_color": site.primary_color,
         "default_primary_color": site.template.default_primary_color,

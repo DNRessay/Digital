@@ -928,16 +928,20 @@ function AiAssistantSection({ site, onSiteUpdated }) {
     <form className="card" onSubmit={handleSave}>
       <h2>WhatsApp &amp; AI assistant</h2>
       <p>
-        Adds a free AI chat bubble to your site that answers simple visitor questions using the description
+        Adds an AI chat bubble to your site that answers simple visitor questions using the description
         below, plus a "Chat on WhatsApp" link if you add a number.
       </p>
+      {!site.ai_assistant_available && (
+        <div className="notice">The AI assistant comes with every paid plan — upgrade above to switch it on.</div>
+      )}
       {saveError && <div className="error">{saveError}</div>}
 
       <label htmlFor="ai-enabled">
         <input
           id="ai-enabled"
           type="checkbox"
-          checked={form.ai_assistant_enabled}
+          disabled={!site.ai_assistant_available}
+          checked={site.ai_assistant_available && form.ai_assistant_enabled}
           onChange={(e) => setField('ai_assistant_enabled', e.target.checked)}
           style={{ marginRight: '8px' }}
         />

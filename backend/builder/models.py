@@ -200,6 +200,15 @@ class Site(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     @property
+    def ai_assistant_available(self):
+        """The AI chat assistant is a paid-plan feature (any plan)."""
+        return self.subscription_status == self.SUBSCRIPTION_ACTIVE
+
+    @property
+    def ai_assistant_active(self):
+        return self.ai_assistant_enabled and self.ai_assistant_available
+
+    @property
     def is_branded(self):
         """Whether the free-tier "Powered by Vicinic" credit should show on
         the rendered site — true unless there's an active paid subscription."""

@@ -353,7 +353,7 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None):
     else:
         if site.is_branded:
             html = _inject_branding_badge(html)
-        if site.ai_assistant_enabled and chat_url:
+        if site.ai_assistant_active and chat_url:
             html = _inject_ai_chat_widget(html, site, chat_url)
     response = HttpResponse(html)
     if edit_mode:
@@ -454,7 +454,7 @@ def site_contact(request, slug):
 
 
 def _handle_ai_chat(site, request):
-    if not site.ai_assistant_enabled:
+    if not site.ai_assistant_active:
         return JsonResponse({"error": "This site's AI assistant isn't turned on."}, status=404)
     try:
         body = json.loads(request.body or b"{}")
