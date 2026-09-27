@@ -159,6 +159,11 @@ class Site(models.Model):
         (SUBSCRIPTION_ACTIVE, "Active"),
         (SUBSCRIPTION_CANCELLED, "Cancelled"),
     ]
+    free_domain_available = models.BooleanField(
+        default=False,
+        help_text="One .co.za included with a paid plan (R50 of the plan price reserved for it) — set when the plan's "
+        "first payment clears, cleared once the included domain is claimed.",
+    )
     subscription_status = models.CharField(
         max_length=20, choices=SUBSCRIPTION_STATUS_CHOICES, default=SUBSCRIPTION_NONE,
     )
@@ -202,6 +207,23 @@ class Site(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class EmailDestination(models.Model):
+    """An inbox a Site's owner wants mail forwarded to. Cloudflare Email
+    Routing only forwards to addresses that clicked its verification link,
+    so forwarding rules may only target destinations marked verified here."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="email_destinations")
+    email = models.EmailField()
+    verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("site", "email")]
+
+    def __str__(self):
+        return f"{self.email} ({'verified' if self.verified else 'pending'})"
 
 
 class EmailRoute(models.Model):

@@ -7,6 +7,8 @@ import {
   connectWhatsApp,
   createEmailRoute,
   createSite,
+  addEmailDestination,
+  deleteEmailDestination,
   deleteEmailRoute,
   deleteSite,
   disconnectDomain,
@@ -14,6 +16,7 @@ import {
   getDomain,
   getSiteSlots,
   getVisitors,
+  listEmailDestinations,
   listEmailRoutes,
   listPackages,
   listPublicTemplates,
@@ -339,14 +342,18 @@ function DomainOption({ option, onBuy }) {
         {option.manual && <span className="field-hint domain-manual">Registered by our team within a business day</span>}
       </div>
       <div className="domain-option-buy">
-        <span className="domain-price">R{option.price_zar}<small>/yr</small></span>
-        <button type="button" onClick={() => onBuy(option)}>Buy</button>
+        {option.included ? (
+          <span className="domain-price domain-included">Included</span>
+        ) : (
+          <span className="domain-price">R{option.price_zar}<small>/yr</small></span>
+        )}
+        <button type="button" onClick={() => onBuy(option)}>{option.included ? 'Claim' : 'Buy'}</button>
       </div>
     </li>
   )
 }
 
-function DomainSearchSheet({ site, onClose }) {
+function DomainSearchSheet({ site, onClose, onSiteUpdated }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState(null)
   const [searching, setSearching] = useState(false)
@@ -356,6 +363,7 @@ function DomainSearchSheet({ site, onClose }) {
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [claimed, setClaimed] = useState(null)
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -410,6 +418,12 @@ function DomainSearchSheet({ site, onClose }) {
         `${base}?checkout=success`,
         `${base}?checkout=cancelled`
       )
+      if (data.included) {
+        setClaimed(selected.domain)
+        setBusy(false)
+        onSiteUpdated(data.site)
+        return
+      }
       redirectToPayFast(data.process_url, data.fields)
     } catch (err) {
       setError(err.message)
@@ -434,7 +448,18 @@ function DomainSearchSheet({ site, onClose }) {
         <div className="sheet-body">
           {error && <div className="error">{error}</div>}
 
-          {!selected && (
+          {claimed && (
+            <div className="notice">
+              <strong>{claimed}</strong> is yours — it's included with your plan. Our team registers it within one
+              business day and your site switches over automatically once it's live.
+            </div>
+          )}
+
+          {!selected && !claimed && site.free_domain_available && (
+            <p className="field-hint">Your plan includes one free .co.za — search for the name you want.</p>
+          )}
+
+          {!selected && !claimed && (
             <>
               <form onSubmit={handleSearch} className="domain-search-form">
                 <input
@@ -490,10 +515,11 @@ function DomainSearchSheet({ site, onClose }) {
             </>
           )}
 
-          {selected && (
+          {selected && !claimed && (
             <form onSubmit={handleBuy}>
               <p>
-                <strong>{selected.domain}</strong> — R{selected.price_zar} for the first year.
+                <strong>{selected.domain}</strong> —{' '}
+                {selected.included ? 'included with your plan.' : `R${selected.price_zar} for the first year.`}
               </p>
               {selected.manual && (
                 <p className="field-hint">
@@ -528,7 +554,9 @@ function DomainSearchSheet({ site, onClose }) {
                 required
               />
               <button type="submit" disabled={busy}>
-                {busy ? 'Redirecting to PayFast…' : `Pay R${selected.price_zar} with PayFast`}
+                {busy
+                  ? selected.included ? 'Claiming…' : 'Redirecting to PayFast…'
+                  : selected.included ? `Claim ${selected.domain}` : `Pay R${selected.price_zar} with PayFast`}
               </button>
             </form>
           )}
@@ -589,13 +617,16 @@ function DomainSection({ site, onSiteUpdated }) {
   return (
     <div className="card">
       <h2>Custom domain</h2>
-      {showSearch && <DomainSearchSheet site={site} onClose={() => setShowSearch(false)} />}
+      {showSearch && <DomainSearchSheet site={site} onSiteUpdated={onSiteUpdated} onClose={() => setShowSearch(false)} />}
       {error && <div className="error">{error}</div>}
 
       {!hasDomain ? (
         <>
+          {site.free_domain_available && (
+            <div className="notice">Your plan includes a free .co.za domain. Claim it below.</div>
+          )}
           <button type="button" className="buy-domain-button" onClick={() => setShowSearch(true)}>
-            Buy a new domain
+            {site.free_domain_available ? 'Claim your free .co.za' : 'Buy a new domain'}
           </button>
           <p className="field-hint domain-or">or connect one you already own:</p>
           <form onSubmit={handleConnect}>
@@ -641,15 +672,104 @@ function DomainSection({ site, onSiteUpdated }) {
   )
 }
 
+function EmailInboxes({ site, destinations, setDestinations }) {
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function refresh() {
+    try {
+      setDestinations((await listEmailDestinations(site.slug)).destinations)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function handleAdd(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      await addEmailDestination(site.slug, email.trim())
+      setEmail('')
+      await refresh()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleDelete(id) {
+    setBusy(true)
+    setError(null)
+    try {
+      await deleteEmailDestination(site.slug, id)
+      await refresh()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const hasPending = destinations.some((d) => !d.verified)
+
+  return (
+    <div className="email-inboxes">
+      <h3 className="domain-list-title">Your inboxes</h3>
+      <p className="field-hint">
+        Where forwarded mail can go. Each inbox gets a one-time confirmation email (sent by Cloudflare, our email partner) —
+        click its link, then tap Refresh.
+      </p>
+      {error && <div className="error">{error}</div>}
+      {destinations.length > 0 && (
+        <ul className="email-route-list">
+          {destinations.map((d) => (
+            <li key={d.id}>
+              <span>{d.email}</span>
+              <span className={d.verified ? 'save-status' : 'field-hint'}>{d.verified ? 'Verified' : 'Check your inbox'}</span>
+              <button type="button" className="link-button" onClick={() => handleDelete(d.id)} disabled={busy}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {hasPending && (
+        <button type="button" className="link-button" onClick={refresh} disabled={busy}>Refresh</button>
+      )}
+      <form onSubmit={handleAdd} className="domain-search-form">
+        <input
+          type="email"
+          placeholder="you@gmail.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={busy}
+          aria-label="Inbox to add"
+          required
+        />
+        <button type="submit" disabled={busy || !email.trim()}>{busy ? 'Adding…' : 'Add inbox'}</button>
+      </form>
+    </div>
+  )
+}
+
 function EmailRoutingSection({ site }) {
   const domainReady = site.domain_status === 'active'
-  const disabled = !domainReady
   const [routes, setRoutes] = useState(null)
   const [externalRoutes, setExternalRoutes] = useState([])
+  const [destinations, setDestinations] = useState([])
   const [error, setError] = useState(null)
   const [fromLocal, setFromLocal] = useState('')
   const [toAddress, setToAddress] = useState('')
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    listEmailDestinations(site.slug)
+      .then((data) => setDestinations(data.destinations))
+      .catch((err) => setError(err.message))
+  }, [site.slug])
 
   useEffect(() => {
     if (!domainReady) {
@@ -665,16 +785,18 @@ function EmailRoutingSection({ site }) {
       .catch((err) => setError(err.message))
   }, [site.slug, domainReady])
 
+  const verified = destinations.filter((d) => d.verified)
+  const disabled = !domainReady || verified.length === 0
+
   async function handleAdd(e) {
     e.preventDefault()
     setBusy(true)
     setError(null)
     try {
       const fromAddress = `${fromLocal.trim()}@${site.custom_domain}`
-      const data = await createEmailRoute(site.slug, fromAddress, toAddress.trim())
+      const data = await createEmailRoute(site.slug, fromAddress, toAddress)
       setRoutes((prev) => [...(prev || []), data.route])
       setFromLocal('')
-      setToAddress('')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -698,8 +820,13 @@ function EmailRoutingSection({ site }) {
   return (
     <div className="card">
       <h2>Email routing</h2>
-      {!domainReady && <p className="notice">Connect and activate your custom domain above first.</p>}
       {error && <div className="error">{error}</div>}
+
+      <EmailInboxes site={site} destinations={destinations} setDestinations={setDestinations} />
+
+      <h3 className="domain-list-title">Forwarding rules</h3>
+      {!domainReady && <p className="notice">Connect and activate your custom domain above first.</p>}
+      {domainReady && verified.length === 0 && <p className="notice">Verify at least one inbox above first.</p>}
 
       <form onSubmit={handleAdd} className="email-route-form">
         <label htmlFor="route-from">Forward mail sent to</label>
@@ -716,16 +843,11 @@ function EmailRoutingSection({ site }) {
           <span>@{site.custom_domain || 'yourdomain.com'}</span>
         </div>
         <label htmlFor="route-to">to</label>
-        <input
-          id="route-to"
-          type="email"
-          placeholder="you@gmail.com"
-          value={toAddress}
-          onChange={(e) => setToAddress(e.target.value)}
-          disabled={disabled || busy}
-          required
-        />
-        <button type="submit" disabled={disabled || busy || !fromLocal.trim() || !toAddress.trim()}>
+        <select id="route-to" value={toAddress} onChange={(e) => setToAddress(e.target.value)} disabled={disabled || busy} required>
+          <option value="">Choose a verified inbox</option>
+          {verified.map((d) => <option key={d.id} value={d.email}>{d.email}</option>)}
+        </select>
+        <button type="submit" disabled={disabled || busy || !fromLocal.trim() || !toAddress}>
           {busy ? 'Adding…' : 'Add forwarding rule'}
         </button>
       </form>

@@ -187,6 +187,18 @@ export function getVisitors(siteSlug, days = 30) {
   return apiFetch(`/api/customer/sites/${siteSlug}/visitors/?days=${days}`)
 }
 
+export function listEmailDestinations(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/email-destinations/`)
+}
+
+export function addEmailDestination(siteSlug, email) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/email-destinations/`, { method: 'POST', body: { email } })
+}
+
+export function deleteEmailDestination(siteSlug, destinationId) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/email-destinations/${destinationId}/`, { method: 'DELETE' })
+}
+
 export function listEmailRoutes(siteSlug) {
   return apiFetch(`/api/customer/sites/${siteSlug}/email-routes/`)
 }

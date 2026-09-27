@@ -53,6 +53,16 @@ urlpatterns = [
         name="api-customer-site-domain",
     ),
     path(
+        "api/customer/sites/<slug:site_slug>/email-destinations/",
+        customer_api.api_customer_site_email_destinations,
+        name="api-customer-site-email-destinations",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/email-destinations/<int:destination_id>/",
+        customer_api.api_customer_site_email_destination_delete,
+        name="api-customer-site-email-destination-delete",
+    ),
+    path(
         "api/customer/sites/<slug:site_slug>/email-routes/",
         customer_api.api_customer_site_email_routes,
         name="api-customer-site-email-routes",

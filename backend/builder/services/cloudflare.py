@@ -355,6 +355,15 @@ def add_destination_address(email):
             raise
 
 
+def verified_destinations():
+    """Every destination address on the account that has clicked Cloudflare's
+    verification link, lowercased — one call for a whole list of inboxes."""
+    addresses = _request(
+        "GET", f"/accounts/{settings.CLOUDFLARE_ACCOUNT_ID}/email/routing/addresses", params={"verified": "true", "per_page": 50}
+    )
+    return {addr.get("email", "").lower() for addr in addresses if addr.get("verified")}
+
+
 def is_destination_verified(email):
     addresses = _request(
         "GET", f"/accounts/{settings.CLOUDFLARE_ACCOUNT_ID}/email/routing/addresses", params={"verified": "true"}

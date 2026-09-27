@@ -207,6 +207,9 @@ DOMAIN_FLAT_PRICES_ZAR = {
     )
 }
 DOMAIN_MARKUP_PERCENT = Decimal(os.environ.get("DOMAIN_MARKUP_PERCENT", "35"))
+# A paid plan includes one .co.za: this much of the plan price is reserved to
+# cover its registrar cost (see customer_api._is_included_domain).
+INCLUDED_DOMAIN_RESERVE_ZAR = Decimal(os.environ.get("INCLUDED_DOMAIN_RESERVE_ZAR", "50"))
 
 # WhatsApp Cloud API (builder/services/whatsapp.py, builder/whatsapp_views.py,
 # customer_api.api_customer_site_whatsapp) — lets a customer connect their
