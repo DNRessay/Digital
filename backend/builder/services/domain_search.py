@@ -15,6 +15,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 
+import requests
 from django.conf import settings
 
 from . import cloudflare, hostafrica
@@ -86,6 +87,44 @@ def _option(domain, provider, check):
     }
 
 
+# What a .co.za costs us at HostAfrica — used to price the DNS fallback below.
+FALLBACK_CO_ZA_COST_ZAR = Decimal("49.00")
+
+
+def dns_available(domain):
+    """Best-effort availability when HostAfrica can't be reached (e.g. its
+    reseller API refusing our IP): a registered domain has NS records, an
+    unregistered one is NXDOMAIN. True/False, or None if the lookup failed."""
+    try:
+        data = requests.get(
+            "https://cloudflare-dns.com/dns-query",
+            params={"name": domain, "type": "NS"},
+            headers={"Accept": "application/dns-json"},
+            timeout=8,
+        ).json()
+    except (requests.RequestException, ValueError):
+        return None
+    if data.get("Status") == 3:
+        return True
+    if data.get("Status") == 0:
+        return not data.get("Answer")
+    return None
+
+
+def _co_za_fallback(domain):
+    """Manual-registration mode only (a person registers it anyway, and
+    confirms availability then): offer .co.za at its flat price on the
+    strength of a DNS check when HostAfrica's API is unavailable."""
+    if not settings.HOSTAFRICA_MANUAL_ZA or split(domain)[1] != RECOMMENDED_TLD:
+        return None
+    available = dns_available(domain)
+    if available is None:
+        return None
+    if not available:
+        return {"registrable": False, "reason": f"{domain} is already registered."}
+    return {"registrable": True, **_option(domain, "hostafrica", {"cost_amount": FALLBACK_CO_ZA_COST_ZAR, "cost_currency": "ZAR"})}
+
+
 def quote(domain):
     """Fresh quote for one domain (used again right before charging).
     Returns an _option dict with "registrable": True, or {"registrable":
@@ -98,7 +137,13 @@ def quote(domain):
             check = hostafrica.check_domain(domain)
         else:
             return {"registrable": False, "reason": f"We can't sell {split(domain)[1] or 'that'} domains yet."}
-    except (CloudflareError, HostAfricaError) as exc:
+    except HostAfricaError as exc:
+        fallback = _co_za_fallback(domain)
+        if fallback is not None:
+            logger.warning("Quote for %s: HostAfrica unavailable (%s), used DNS fallback", domain, exc)
+            return fallback
+        return {"registrable": False, "reason": f"Couldn't check {domain} right now: {exc}"}
+    except CloudflareError as exc:
         return {"registrable": False, "reason": f"Couldn't check {domain} right now: {exc}"}
     if not check["registrable"]:
         return check
@@ -142,6 +187,11 @@ def search(query):
             logger.warning("Domain search %r: HostAfrica lookup failed: %s", name, exc)
             ha_entries = []
             errors.append(f"HostAfrica: {exc}")
+            fallback = _co_za_fallback(f"{name}{RECOMMENDED_TLD}")
+            if fallback is not None and fallback["registrable"]:
+                options[fallback["domain"]] = {k: v for k, v in fallback.items() if k != "registrable"}
+            elif fallback is not None:
+                unavailable.add(f"{name}{RECOMMENDED_TLD}")
 
     ha_available = []
     for entry in ha_entries:
