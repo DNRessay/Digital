@@ -649,13 +649,17 @@ def api_customer_domain_search(request, site_slug):
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
-    name = domain_search.split(_normalize_domain(str(request.GET.get("q", ""))))[0]
+    query = _normalize_domain(str(request.GET.get("q", "")))
+    name = domain_search.split(query)[0]
     if not name or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", name):
         return JsonResponse({"error": "Enter a name, like mybusiness."}, status=400)
-    result = domain_search.search(name)
+    result = domain_search.search(query)
     return JsonResponse(
         {
             "name": result["name"],
+            "searched": _serialize_domain_option(result["searched"]) if result["searched"] else None,
+            "searched_domain": result["searched_domain"],
+            "searched_taken": result["searched_taken"],
             "recommended": _serialize_domain_option(result["recommended"]) if result["recommended"] else None,
             "recommended_taken": result["recommended_taken"],
             "options": [_serialize_domain_option(o) for o in result["options"]],

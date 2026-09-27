@@ -9,6 +9,7 @@ that (unless the registrar's own cost is higher — then cost + markup, so it
 never sells at a loss); every other TLD is cost (converted to ZAR) plus
 DOMAIN_MARKUP_PERCENT, rounded up to the rand.
 """
+import logging
 import math
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -19,6 +20,8 @@ from django.conf import settings
 from . import cloudflare, hostafrica
 from .cloudflare import CloudflareError
 from .hostafrica import HostAfricaError
+
+logger = logging.getLogger(__name__)
 
 RECOMMENDED_TLD = ".co.za"
 # Generic TLDs bought through Cloudflare Registrar (at cost, automatic).
@@ -101,43 +104,51 @@ def quote(domain):
 
 def search(query):
     """Every available variation of the query's name across both registrars:
-    {"name", "recommended": option | None, "recommended_taken": bool,
-    "options": [option, ...] (cheapest first), "errors": [str]}."""
-    name = split(query.strip().lower())[0]
-    errors, options, recommended_taken = [], {}, False
-
-    def cloudflare_results():
-        return cloudflare.check_domains([f"{name}{t}" for t in CLOUDFLARE_TLDS])
-
-    def hostafrica_results():
-        return hostafrica.lookup(name, hostafrica_tlds())
+    {"name", "searched": option | None, "searched_domain", "searched_taken",
+    "recommended": option | None, "recommended_taken", "options": [...]
+    (cheapest first), "errors": [str]}. "searched" is the exact extension the
+    customer typed (e.g. name.com), pulled out so it can be shown first."""
+    name, typed_tld = split(query.strip().lower())
+    searched_domain = f"{name}{typed_tld}" if typed_tld and typed_tld != RECOMMENDED_TLD else None
+    errors, options, unavailable = [], {}, set()
+    cf_tlds = list(CLOUDFLARE_TLDS)
+    if typed_tld and typed_tld not in cf_tlds and provider_for(f"{name}{typed_tld}") == "cloudflare":
+        cf_tlds.append(typed_tld)
+    ha_tlds = hostafrica_tlds()
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        cf_future, ha_future = pool.submit(cloudflare_results), pool.submit(hostafrica_results)
+        cf_future = pool.submit(cloudflare.check_domains, [f"{name}{t}" for t in cf_tlds])
+        ha_future = pool.submit(hostafrica.lookup, name, ha_tlds)
         try:
             for domain, check in cf_future.result().items():
-                if check["registrable"] and split(domain)[1] in CLOUDFLARE_TLDS:
+                if check["registrable"]:
                     options[domain] = _option(domain, "cloudflare", check)
+                else:
+                    unavailable.add(domain)
         except CloudflareError as exc:
+            logger.warning("Domain search %r: Cloudflare check failed: %s", name, exc)
             errors.append(f"Cloudflare: {exc}")
         try:
             ha_entries = ha_future.result()
         except HostAfricaError as exc:
+            logger.warning("Domain search %r: HostAfrica lookup failed: %s", name, exc)
             ha_entries = []
             errors.append(f"HostAfrica: {exc}")
 
     ha_available = []
     for entry in ha_entries:
         domain = entry["domainName"].lower()
-        if split(domain)[1] == RECOMMENDED_TLD and not entry.get("isAvailable"):
-            recommended_taken = True
-        if entry.get("isAvailable") and domain not in options:
-            ha_available.append(domain)
+        if entry.get("isAvailable"):
+            if domain not in options:
+                ha_available.append(domain)
+        else:
+            unavailable.add(domain)
 
     def ha_price(domain):
         try:
             return domain, hostafrica.register_price(domain)
-        except HostAfricaError:
+        except HostAfricaError as exc:
+            logger.warning("Domain search: no HostAfrica price for %s: %s", domain, exc)
             return domain, None
 
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -145,11 +156,16 @@ def search(query):
             if cost is not None:
                 options[domain] = _option(domain, "hostafrica", {"cost_amount": cost, "cost_currency": "ZAR"})
 
-    recommended = options.pop(f"{name}{RECOMMENDED_TLD}", None)
+    recommended_domain = f"{name}{RECOMMENDED_TLD}"
+    recommended = options.pop(recommended_domain, None)
+    searched = options.pop(searched_domain, None) if searched_domain else None
     return {
         "name": name,
+        "searched": searched,
+        "searched_domain": searched_domain,
+        "searched_taken": bool(searched_domain) and searched_domain in unavailable,
         "recommended": recommended,
-        "recommended_taken": recommended_taken,
+        "recommended_taken": recommended_domain in unavailable,
         "options": sorted(options.values(), key=lambda o: (o["price_zar"], o["domain"])),
         "errors": errors,
     }
