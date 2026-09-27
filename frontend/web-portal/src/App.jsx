@@ -770,6 +770,7 @@ function EmailRoutingSection({ site }) {
 
   const verified = destinations.filter((d) => d.verified)
   const disabled = !domainReady || verified.length === 0
+  const available = site.ai_assistant_available && domainReady
 
   async function handleAdd(e) {
     e.preventDefault()
@@ -803,13 +804,20 @@ function EmailRoutingSection({ site }) {
   return (
     <div className="card">
       <h2>Email routing</h2>
-      {error && <div className="error">{error}</div>}
+      {!available && (
+        <div className="notice">
+          {site.ai_assistant_available
+            ? 'Email forwarding switches on once your custom domain above is connected and active.'
+            : 'Email forwarding (e.g. hello@yourbusiness.co.za to your Gmail) comes with every paid plan and your own domain — upgrade above to set it up.'}
+        </div>
+      )}
+      {error && available && <div className="error">{error}</div>}
 
+      <fieldset className={available ? 'plain-fieldset' : 'plain-fieldset locked-section'} disabled={!available}>
       <EmailInboxes site={site} destinations={destinations} setDestinations={setDestinations} />
 
       <h3 className="domain-list-title">Forwarding rules</h3>
-      {!domainReady && <p className="notice">Connect and activate your custom domain above first.</p>}
-      {domainReady && verified.length === 0 && <p className="notice">Verify at least one inbox above first.</p>}
+      {available && verified.length === 0 && <p className="notice">Verify at least one inbox above first.</p>}
 
       <form onSubmit={handleAdd} className="email-route-form">
         <label htmlFor="route-from">Forward mail sent to</label>
@@ -866,6 +874,7 @@ function EmailRoutingSection({ site }) {
           </ul>
         </div>
       )}
+      </fieldset>
     </div>
   )
 }
