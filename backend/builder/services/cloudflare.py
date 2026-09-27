@@ -146,6 +146,41 @@ def get_zone_status(zone_id):
     return {"status": result["status"], "name_servers": result.get("name_servers", [])}
 
 
+# The rule "phases" most likely to intercept a request before it ever
+# reaches the origin (and so before this backend's own logs would show
+# anything) — a domain that used to be a customer's own Worker/Pages
+# project sometimes carries these over even after the Worker/Pages
+# binding itself is gone, since they're a separate zone-level feature.
+_DIAGNOSTIC_RULE_PHASES = [
+    "http_request_firewall_custom",  # WAF custom rules (can synthesize a Block response body)
+    "http_request_redirect",  # Redirect Rules
+    "http_request_transform",  # Rewrite Rules (URL/headers)
+    "http_response_headers_transform",
+]
+
+
+def get_active_rules(zone_id):
+    """Read-only — every rule currently active on the zone across the
+    phases in _DIAGNOSTIC_RULE_PHASES above, as {phase: [rules]}. A phase
+    with no active ruleset is omitted (Cloudflare 404s that case rather
+    than returning an empty list)."""
+    active = {}
+    for phase in _DIAGNOSTIC_RULE_PHASES:
+        try:
+            result = _request("GET", f"/zones/{zone_id}/rulesets/phases/{phase}/entrypoint")
+        except CloudflareError as exc:
+            if "could not find" in str(exc).lower() or "not found" in str(exc).lower():
+                continue
+            raise
+        rules = result.get("rules", [])
+        if rules:
+            active[phase] = [
+                {"id": r.get("id"), "description": r.get("description", ""), "expression": r.get("expression", ""), "action": r.get("action", "")}
+                for r in rules
+            ]
+    return active
+
+
 def point_zone_at_origin(zone_id, origin_host):
     """Creates the DNS record that makes the zone's root domain actually
     serve the customer's site — a proxied CNAME to this backend's own
