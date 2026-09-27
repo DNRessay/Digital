@@ -177,6 +177,8 @@ _DIAGNOSTIC_RULE_PHASES = [
     "http_request_redirect",  # Redirect Rules
     "http_request_transform",  # Rewrite Rules (URL/headers)
     "http_response_headers_transform",
+    "http_request_origin",  # Origin Rules (Host header override)
+    "http_request_late_transform",  # Request header modification
 ]
 
 
@@ -212,6 +214,55 @@ def point_zone_at_origin(zone_id, origin_host):
         "POST",
         f"/zones/{zone_id}/dns_records",
         json={"type": "CNAME", "name": "@", "content": origin_host, "proxied": True, "ttl": 1},
+    )
+
+
+# A Lambda Function URL routes on the Host header and 403s ({"Message":null},
+# before the function is even invoked) any request whose Host isn't its own
+# lambda-url host — which is exactly what a proxied CNAME alone sends it (the
+# customer's domain). So every zone pointed at the origin also needs an
+# Origin Rule overriding Host to the lambda-url host, plus a request header
+# carrying the original domain so CustomDomainMiddleware can still tell
+# which Site was asked for.
+SITE_HOST_HEADER = "X-Vicinic-Host"
+_RULE_REF = "vicinic_origin"
+
+
+def _upsert_phase_rule(zone_id, phase, rule):
+    try:
+        existing = _request("GET", f"/zones/{zone_id}/rulesets/phases/{phase}/entrypoint").get("rules", [])
+    except CloudflareError as exc:
+        if "could not find" not in str(exc).lower() and "not found" not in str(exc).lower():
+            raise
+        existing = []
+    keep = ("id", "ref", "expression", "action", "action_parameters", "description", "enabled")
+    rules = [{k: r[k] for k in keep if k in r} for r in existing if r.get("ref") != _RULE_REF]
+    rules.append({**rule, "ref": _RULE_REF, "enabled": True})
+    _request("PUT", f"/zones/{zone_id}/rulesets/phases/{phase}/entrypoint", json={"rules": rules})
+
+
+def route_zone_to_origin(zone_id, origin_host):
+    """Idempotent — safe to re-run on a zone that already has these rules;
+    any other rule already in these phases is kept."""
+    _upsert_phase_rule(
+        zone_id,
+        "http_request_origin",
+        {
+            "description": "Vicinic: Host header = Lambda Function URL host",
+            "expression": "true",
+            "action": "route",
+            "action_parameters": {"host_header": origin_host},
+        },
+    )
+    _upsert_phase_rule(
+        zone_id,
+        "http_request_late_transform",
+        {
+            "description": "Vicinic: pass the original domain to the backend",
+            "expression": "true",
+            "action": "rewrite",
+            "action_parameters": {"headers": {SITE_HOST_HEADER: {"operation": "set", "expression": "http.host"}}},
+        },
     )
 
 

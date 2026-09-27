@@ -514,6 +514,7 @@ def api_customer_site_domain(request, site_slug):
         if zone_status["status"] == "active":
             try:
                 cloudflare.point_zone_at_origin(site.cloudflare_zone_id, settings.PLATFORM_ORIGIN_HOST)
+                cloudflare.route_zone_to_origin(site.cloudflare_zone_id, settings.PLATFORM_ORIGIN_HOST)
                 cloudflare.enable_email_routing(site.cloudflare_zone_id)
             except CloudflareError as exc:
                 site.domain_status = Site.DOMAIN_ERROR

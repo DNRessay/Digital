@@ -20,7 +20,10 @@ class CustomDomainMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        host = request.get_host().split(":")[0].lower()
+        # Cloudflare rewrites Host to the Lambda Function URL's own host (see
+        # services.cloudflare.route_zone_to_origin) and sends the customer's
+        # domain in this header instead.
+        host = (request.headers.get("X-Vicinic-Host") or request.get_host()).split(":")[0].lower()
         site = self._find_site(host)
         if site is not None:
             request.custom_domain_site = site
