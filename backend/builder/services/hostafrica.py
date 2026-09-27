@@ -128,18 +128,13 @@ def register_domain(domain, registrant, period_years=1):
         "country": address["country_code"],
         "phonenumber": registrant["phone"],
     }
-    return _request(
-        "POST",
-        "order/domains/register",
-        {
-            "domain": domain,
-            "regperiod": period_years,
-            "contacts[registrant]": contact,
-            "contacts[tech]": contact,
-            "contacts[billing]": contact,
-            "contacts[admin]": contact,
-        },
-    )
+    # Form-encoded PHP-style nested keys (contacts[registrant][firstname]=…)
+    # — requests can't encode a nested dict value itself.
+    params = {"domain": domain, "regperiod": period_years}
+    for role in ("registrant", "tech", "billing", "admin"):
+        for key, value in contact.items():
+            params[f"contacts[{role}][{key}]"] = value
+    return _request("POST", "order/domains/register", params)
 
 
 def update_nameservers(domain, nameservers):
