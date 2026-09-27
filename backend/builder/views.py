@@ -23,6 +23,7 @@ from .forms import TemplateUploadForm
 from .branding_assets import LOGO_WHITE_DATA_URI
 from .models import Site, SiteSlotValue, SiteVisit, Template, TemplatePage
 from .services.ai_assistant import AiAssistantError, ask_assistant
+from .services.site_images import apply_overrides
 from .services.slot_extractor import slot_tag
 from .services.template_ingest import IngestError, ingest_converted_zip
 from .services.templify_client import TemplifyError, convert_template_zip
@@ -182,6 +183,8 @@ EDITOR_BRIDGE_HTML = """
   .vicinic-editable { cursor: text; }
   .vicinic-editable:hover { outline: 2px dashed #0b5fff; outline-offset: 2px; }
   .vicinic-editable.vicinic-editing { outline: 2px solid #0b5fff; outline-offset: 2px; background: rgba(11,95,255,.06); }
+  img { cursor: pointer; }
+  img:hover { outline: 2px dashed #2e8b57; outline-offset: 2px; }
   #vicinic-pencil {
     position: fixed; z-index: 2147483647; width: 22px; height: 22px; border-radius: 50%;
     background: #0b0f19; color: #fff; font-size: 12px; line-height: 22px; text-align: center;
@@ -215,6 +218,17 @@ EDITOR_BRIDGE_HTML = """
   document.addEventListener('click', function (e) {
     if (e.target.closest && e.target.closest('a')) e.preventDefault();
   }, true);
+
+  // Tapping an image tells the portal which one, so its Images panel can
+  // offer to replace it.
+  document.addEventListener('click', function (e) {
+    var img = e.target.closest && e.target.closest('img');
+    if (!img || (e.target.closest && e.target.closest('.vicinic-editable'))) return;
+    window.parent.postMessage(
+      { source: 'vicinic-editor', type: 'image-clicked', src: img.getAttribute('src') || '' },
+      '*'
+    );
+  });
 
   document.addEventListener('click', function (e) {
     var el = e.target.closest && e.target.closest('.vicinic-editable');
@@ -345,6 +359,9 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None):
     context = _resolve_slots(site, page, edit_mode=edit_mode)
     template = django_engine.from_string(page.document)
     html = template.render(context)
+    overrides = {image.original_url: image.file.url for image in site.images.all()}
+    if overrides:
+        html = apply_overrides(html, overrides)
     if site.primary_color and HEX_COLOR_RE.match(site.primary_color):
         html = _inject_head_style(html, f":root{{--vicinic-primary:{site.primary_color};}}")
     html = _inject_map_address(html, site.address)

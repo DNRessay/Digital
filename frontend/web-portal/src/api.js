@@ -25,7 +25,7 @@ function setToken(token) {
 }
 
 async function apiFetch(path, options = {}) {
-  const isJsonBody = options.body !== undefined && typeof options.body !== 'string'
+  const isJsonBody = options.body !== undefined && typeof options.body !== 'string' && !(options.body instanceof FormData)
   const token = getToken()
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -238,4 +238,19 @@ export function redirectToPayFast(processUrl, fields) {
   }
   document.body.appendChild(form)
   form.submit()
+}
+
+export function getSiteImages(siteSlug, page) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/images/?page=${encodeURIComponent(page)}`)
+}
+
+export function uploadSiteImage(siteSlug, original, file) {
+  const form = new FormData()
+  form.append('original', original)
+  form.append('file', file)
+  return apiFetch(`/api/customer/sites/${siteSlug}/images/`, { method: 'POST', body: form })
+}
+
+export function resetSiteImage(siteSlug, original) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/images/?original=${encodeURIComponent(original)}`, { method: 'DELETE' })
 }

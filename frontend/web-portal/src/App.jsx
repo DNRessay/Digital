@@ -15,6 +15,7 @@ import {
   disconnectWhatsApp,
   getDomain,
   getProfile,
+  getSiteImages,
   getSiteSlots,
   getVisitors,
   listEmailDestinations,
@@ -27,12 +28,14 @@ import {
   logout,
   purchaseDomain,
   redirectToPayFast,
+  resetSiteImage,
   register,
   saveSiteSlots,
   searchDomains,
   storeDraft,
   updateProfile,
   updateSite,
+  uploadSiteImage,
   whoami,
 } from './api.js'
 
@@ -1577,6 +1580,123 @@ function SlotField({ slot, value, onChange }) {
   )
 }
 
+// Phones take photos far bigger than a website needs (and than the upload
+// limit allows) — scale anything large down to 2400px before sending.
+async function shrinkImage(file) {
+  if (file.size <= 3.5 * 1024 * 1024 || !/^image\/(jpeg|png|webp)$/.test(file.type)) return file
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  const type = file.type === 'image/jpeg' ? 'image/jpeg' : 'image/webp'
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, type, 0.85))
+  return new File([blob], file.name.replace(/\.\w+$/, type === 'image/jpeg' ? '.jpg' : '.webp'), { type })
+}
+
+function ImagesPanel({ site, page, selectedSrc, onChanged }) {
+  const [images, setImages] = useState(null)
+  const [available, setAvailable] = useState(true)
+  const [busy, setBusy] = useState(null) // original url being changed
+  const [error, setError] = useState(null)
+  const tileRefs = useRef({})
+
+  useEffect(() => {
+    setImages(null)
+    getSiteImages(site.slug, page)
+      .then((data) => {
+        setImages(data.images)
+        setAvailable(data.available)
+      })
+      .catch((err) => setError(err.message))
+  }, [site.slug, page])
+
+  const selected = images && selectedSrc
+    ? images.find((img) => img.current === selectedSrc || img.original === selectedSrc || selectedSrc.endsWith(img.current))
+    : null
+
+  useEffect(() => {
+    if (selected) tileRefs.current[selected.original]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [selected])
+
+  async function handleFile(image, file) {
+    if (!file) return
+    setBusy(image.original)
+    setError(null)
+    try {
+      const data = await uploadSiteImage(site.slug, image.original, await shrinkImage(file))
+      setImages((prev) => prev.map((img) => (img.original === image.original ? data.image : img)))
+      onChanged()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function handleReset(image) {
+    setBusy(image.original)
+    setError(null)
+    try {
+      const data = await resetSiteImage(site.slug, image.original)
+      setImages((prev) => prev.map((img) => (img.original === image.original ? data.image : img)))
+      onChanged()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  if (images && images.length === 0) return null
+
+  return (
+    <div className="card">
+      <h2>Images</h2>
+      {available ? (
+        <p className="field-hint images-hint">Tap an image on the preview, or pick one below. Replacements go live straight away.</p>
+      ) : (
+        <div className="notice">Replacing your logo and images comes with every paid plan — upgrade on the Deploy tab.</div>
+      )}
+      {error && <div className="error">{error}</div>}
+      {!images && !error && <p className="field-hint">Loading images…</p>}
+      {images && (
+        <fieldset className={available ? 'plain-fieldset' : 'plain-fieldset locked-section'} disabled={!available}>
+          <div className="image-grid">
+            {images.map((img) => (
+              <div
+                key={img.original}
+                ref={(el) => { tileRefs.current[img.original] = el }}
+                className={`image-tile${selected && selected.original === img.original ? ' selected' : ''}`}
+              >
+                <div className="image-thumb"><img src={img.current} alt="" loading="lazy" /></div>
+                <label className="image-replace">
+                  {busy === img.original ? 'Uploading…' : 'Replace'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    onChange={(e) => {
+                      handleFile(img, e.target.files[0])
+                      e.target.value = ''
+                    }}
+                    disabled={busy !== null}
+                  />
+                </label>
+                {img.replaced && (
+                  <button type="button" className="link-button" onClick={() => handleReset(img)} disabled={busy !== null}>
+                    Reset
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </fieldset>
+      )}
+    </div>
+  )
+}
+
 function VisualEditor({ site }) {
   const [groups, setGroups] = useState(null)
   const [loadError, setLoadError] = useState(null)
@@ -1584,6 +1704,7 @@ function VisualEditor({ site }) {
   const [drafts, setDrafts] = useState({})
   const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
   const [saveError, setSaveError] = useState(null)
+  const [selectedImage, setSelectedImage] = useState(null)
   const iframeRef = useRef(null)
 
   useEffect(() => {
@@ -1611,6 +1732,10 @@ function VisualEditor({ site }) {
     function handleMessage(e) {
       if (iframeRef.current && e.source !== iframeRef.current.contentWindow) return
       const msg = e.data
+      if (msg && msg.source === 'vicinic-editor' && msg.type === 'image-clicked') {
+        setSelectedImage(msg.src)
+        return
+      }
       if (!msg || msg.source !== 'vicinic-editor' || msg.type !== 'slot-changed') return
       setDrafts((prev) => {
         const next = { ...prev, [msg.key]: msg.value }
@@ -1688,11 +1813,18 @@ function VisualEditor({ site }) {
         </div>
       )}
 
-      <div className="card notice">Click any text on the preview below to edit it in place.</div>
+      <div className="card notice">Tap any text on the preview to edit it, or tap an image to replace it.</div>
 
       <div className="visual-editor-frame">
         <iframe ref={iframeRef} src={previewUrl} title="Site preview" onLoad={sendDraftToPreview} />
       </div>
+
+      <ImagesPanel
+        site={site}
+        page={activePage}
+        selectedSrc={selectedImage}
+        onChanged={() => iframeRef.current?.contentWindow?.location.reload()}
+      />
 
       {fallbackSlots.length > 0 && (
         <div className="card">

@@ -200,9 +200,13 @@ class Site(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     @property
+    def has_paid_plan(self):
+        return self.subscription_status == self.SUBSCRIPTION_ACTIVE
+
+    @property
     def ai_assistant_available(self):
         """The AI chat assistant is a paid-plan feature (any plan)."""
-        return self.subscription_status == self.SUBSCRIPTION_ACTIVE
+        return self.has_paid_plan
 
     @property
     def ai_assistant_active(self):
@@ -440,3 +444,21 @@ class CustomerProfile(models.Model):
 
     def __str__(self):
         return f"Profile for {self.user.username}"
+
+
+class SiteImage(models.Model):
+    """A Site's own replacement for one of its Template's images (logo,
+    portfolio shots, hero, ...). `original_url` is the template asset URL
+    exactly as it appears in the rendered HTML; rendering swaps every
+    occurrence of it for this file's URL (see services.site_images)."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="images")
+    original_url = models.CharField(max_length=1000)
+    file = models.FileField(upload_to="site_images/")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("site", "original_url")]
+
+    def __str__(self):
+        return f"{self.site.slug}: {self.original_url}"
