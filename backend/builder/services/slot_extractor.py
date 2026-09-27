@@ -6,7 +6,7 @@ original text as its default; nothing about tags, attributes, or classes
 is touched.
 """
 from bs4 import BeautifulSoup
-from bs4.element import Comment
+from bs4.element import PreformattedString
 
 SKIP_PARENT_TAGS = {"script", "style"}
 
@@ -34,7 +34,10 @@ def extract_slots(html_fragment, key_prefix, start_index=1):
     counter = start_index
 
     for node in soup.find_all(string=True):
-        if isinstance(node, Comment):
+        # Comment, Doctype, CData, ... — not visible text. A Doctype turned
+        # into a slot renders its bare "html" as text and drops the page
+        # into quirks mode.
+        if isinstance(node, PreformattedString):
             continue
         parent = node.parent
         if parent is not None and parent.name in SKIP_PARENT_TAGS:
