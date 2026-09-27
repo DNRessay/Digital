@@ -1134,7 +1134,10 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
           {site.subscription_status === 'pending' && ' (payment pending)'}
         </p>
         <p>
-          Live at <a href={liveUrl(site)} target="_blank" rel="noreferrer">{liveUrl(site)}</a>
+          Live at{' '}
+          <a className="live-link" href={liveUrl(site)} target="_blank" rel="noreferrer">
+            {site.custom_domain && site.domain_status === 'active' ? site.custom_domain : 'Open your site ↗'}
+          </a>
         </p>
       </div>
 
