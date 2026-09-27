@@ -21,6 +21,7 @@ urlpatterns = [
     path("api/admin/domain-attach/", api_views.api_admin_domain_attach, name="api-admin-domain-attach"),
     # JSON API for "web-portal" — a customer editing their own Site's text.
     path("api/customer/whoami/", customer_api.api_customer_whoami, name="api-customer-whoami"),
+    path("api/customer/profile/", customer_api.api_customer_profile, name="api-customer-profile"),
     path("api/customer/login/", customer_api.api_customer_login, name="api-customer-login"),
     path("api/customer/logout/", customer_api.api_customer_logout, name="api-customer-logout"),
     path("api/customer/register/", customer_api.api_customer_register, name="api-customer-register"),

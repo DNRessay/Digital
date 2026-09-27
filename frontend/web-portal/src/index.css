@@ -590,3 +590,19 @@ button:disabled {
   margin: 0;
   white-space: nowrap;
 }
+
+.bottom-nav-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.nav-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d93025;
+  border: 2px solid #fff;
+}

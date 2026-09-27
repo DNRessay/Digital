@@ -34,7 +34,7 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import CustomerAuthToken, DomainPurchase, EmailDestination, EmailRoute, Site, SiteSlotValue, SiteVisit, Template
+from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteSlotValue, SiteVisit, Template
 from .payfast_views import _start_manual_za_registration
 from .services import cloudflare, domain_search, whatsapp
 from .services.cloudflare import CloudflareError
@@ -99,8 +99,32 @@ def _full_name(user):
     return f"{user.first_name} {user.last_name}".strip()
 
 
+def _profile_for(user):
+    profile, _ = CustomerProfile.objects.get_or_create(user=user, defaults={"legal_name": _full_name(user)})
+    return profile
+
+
+def _serialize_profile(profile):
+    return {
+        "legal_name": profile.legal_name,
+        "email": profile.user.email,
+        "phone": profile.phone,
+        "street": profile.street,
+        "city": profile.city,
+        "state": profile.state,
+        "postal_code": profile.postal_code,
+        "country_code": profile.country_code,
+        "complete": profile.is_complete,
+    }
+
+
 def _serialize_user(user):
-    return {"username": user.username, "name": _full_name(user), "email": user.email}
+    return {
+        "username": user.username,
+        "name": _full_name(user),
+        "email": user.email,
+        "profile_complete": _profile_for(user).is_complete,
+    }
 
 
 def _serialize_site(site):
@@ -718,8 +742,6 @@ def api_customer_domain_purchase(request, site_slug):
 
     body = _json_body(request)
     domain = _normalize_domain(str(body.get("domain", "")))
-    registrant = body.get("registrant") or {}
-    address = registrant.get("address") or {}
     return_url = str(body.get("return_url", "")).strip()
     cancel_url = str(body.get("cancel_url", "")).strip()
 
@@ -728,14 +750,12 @@ def api_customer_domain_purchase(request, site_slug):
     if not _origin_allowed(return_url) or not _origin_allowed(cancel_url):
         return JsonResponse({"error": "return_url/cancel_url must be one of this site's known frontend origins."}, status=400)
 
-    missing = [f for f in ("name", "email", "phone") if not str(registrant.get(f, "")).strip()]
-    missing += [f"address.{f}" for f in ("street", "city", "postal_code", "country_code") if not str(address.get(f, "")).strip()]
-    if missing:
-        return JsonResponse({"error": f"Missing registrant details: {', '.join(missing)}."}, status=400)
-    try:
-        validate_email(str(registrant["email"]).strip())
-    except ValidationError:
-        return JsonResponse({"error": "Registrant email isn't valid."}, status=400)
+    # The registrant (legal owner) is always the customer's own saved profile.
+    profile = _profile_for(request.customer_user)
+    if not profile.is_complete:
+        return JsonResponse({"error": "Complete your details on the Profile tab first.", "profile_incomplete": True}, status=400)
+    registrant = profile.as_registrant()
+    address = registrant["address"]
 
     check = domain_search.quote(domain)
     if not check["registrable"]:
@@ -911,3 +931,27 @@ def api_customer_site_email_destination_delete(request, site_slug, destination_i
         return JsonResponse({"error": "Remove the forwarding rules that use this inbox first."}, status=400)
     destination.delete()
     return JsonResponse({"deleted": True})
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "PATCH"])
+def api_customer_profile(request):
+    """The Profile tab's "Your details" — the contact details used as the
+    registrant for any domain this customer buys."""
+    profile = _profile_for(request.customer_user)
+    if request.method == "PATCH":
+        body = _json_body(request)
+        limits = {"legal_name": 200, "phone": 30, "street": 200, "city": 100, "state": 100, "postal_code": 20}
+        for field, limit in limits.items():
+            if field in body:
+                setattr(profile, field, str(body[field]).strip()[:limit])
+        if "country_code" in body:
+            code = str(body["country_code"]).strip().upper()
+            if not re.fullmatch(r"[A-Z]{2}", code):
+                return JsonResponse({"error": "Country code must be 2 letters, e.g. ZA."}, status=400)
+            profile.country_code = code
+        if profile.phone and not re.fullmatch(r"\+?[0-9 ()-]{7,20}", profile.phone):
+            return JsonResponse({"error": "Enter your phone number with country code, e.g. +27821234567."}, status=400)
+        profile.save()
+    return JsonResponse({"profile": _serialize_profile(profile)})

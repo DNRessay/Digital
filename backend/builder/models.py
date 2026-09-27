@@ -402,3 +402,41 @@ class SiteVisit(models.Model):
 
     class Meta:
         unique_together = [("site", "day", "visitor_id")]
+
+
+class CustomerProfile(models.Model):
+    """A customer's contact details, filled in once on web-portal's Profile
+    tab — reused as the registrant for every domain they buy, since domain
+    registries require the legal owner's real contact details."""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="customer_profile")
+    legal_name = models.CharField(max_length=200, blank=True, help_text="Full name or business name of the owner.")
+    phone = models.CharField(max_length=30, blank=True)
+    street = models.CharField(max_length=200, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
+    country_code = models.CharField(max_length=2, default="ZA")
+
+    REQUIRED_FIELDS = ("legal_name", "phone", "street", "city", "postal_code", "country_code")
+
+    @property
+    def is_complete(self):
+        return bool(self.user.email) and all(str(getattr(self, f)).strip() for f in self.REQUIRED_FIELDS)
+
+    def as_registrant(self):
+        return {
+            "name": self.legal_name,
+            "email": self.user.email,
+            "phone": self.phone,
+            "address": {
+                "street": self.street,
+                "city": self.city,
+                "state": self.state,
+                "postal_code": self.postal_code,
+                "country_code": self.country_code,
+            },
+        }
+
+    def __str__(self):
+        return f"Profile for {self.user.username}"

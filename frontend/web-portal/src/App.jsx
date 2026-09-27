@@ -14,6 +14,7 @@ import {
   disconnectDomain,
   disconnectWhatsApp,
   getDomain,
+  getProfile,
   getSiteSlots,
   getVisitors,
   listEmailDestinations,
@@ -30,6 +31,7 @@ import {
   saveSiteSlots,
   searchDomains,
   storeDraft,
+  updateProfile,
   updateSite,
   whoami,
 } from './api.js'
@@ -353,14 +355,12 @@ function DomainOption({ option, onBuy }) {
   )
 }
 
-function DomainSearchSheet({ site, onClose, onSiteUpdated }) {
+function DomainSearchSheet({ site, onClose, onSiteUpdated, onGoToProfile }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState(null)
   const [searching, setSearching] = useState(false)
   const [selected, setSelected] = useState(null)
-  const [registrant, setRegistrant] = useState({
-    name: '', email: '', phone: '', street: '', city: '', state: '', postal_code: '', country_code: 'ZA',
-  })
+  const [profile, setProfile] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [claimed, setClaimed] = useState(null)
@@ -375,9 +375,9 @@ function DomainSearchSheet({ site, onClose, onSiteUpdated }) {
     }
   }, [onClose])
 
-  function setRegistrantField(key, value) {
-    setRegistrant((prev) => ({ ...prev, [key]: value }))
-  }
+  useEffect(() => {
+    getProfile().then((data) => setProfile(data.profile)).catch(() => {})
+  }, [])
 
   async function handleSearch(e) {
     e.preventDefault()
@@ -403,18 +403,6 @@ function DomainSearchSheet({ site, onClose, onSiteUpdated }) {
       const data = await purchaseDomain(
         site.slug,
         selected.domain,
-        {
-          name: registrant.name,
-          email: registrant.email,
-          phone: registrant.phone,
-          address: {
-            street: registrant.street,
-            city: registrant.city,
-            state: registrant.state,
-            postal_code: registrant.postal_code,
-            country_code: registrant.country_code,
-          },
-        },
         `${base}?checkout=success`,
         `${base}?checkout=cancelled`
       )
@@ -527,33 +515,21 @@ function DomainSearchSheet({ site, onClose, onSiteUpdated }) {
                   automatically once it's live.
                 </p>
               )}
-              <p className="field-hint">
-                Domain registries require real contact details for the registrant — this is who legally owns {selected.domain}.
-              </p>
-              <label htmlFor="registrant-name">Full name or business name</label>
-              <input id="registrant-name" type="text" value={registrant.name} onChange={(e) => setRegistrantField('name', e.target.value)} required />
-              <label htmlFor="registrant-email">Email</label>
-              <input id="registrant-email" type="email" value={registrant.email} onChange={(e) => setRegistrantField('email', e.target.value)} required />
-              <label htmlFor="registrant-phone">Phone (with country code, e.g. +27821234567)</label>
-              <input id="registrant-phone" type="text" value={registrant.phone} onChange={(e) => setRegistrantField('phone', e.target.value)} required />
-              <label htmlFor="registrant-street">Street address</label>
-              <input id="registrant-street" type="text" value={registrant.street} onChange={(e) => setRegistrantField('street', e.target.value)} required />
-              <label htmlFor="registrant-city">City</label>
-              <input id="registrant-city" type="text" value={registrant.city} onChange={(e) => setRegistrantField('city', e.target.value)} required />
-              <label htmlFor="registrant-state">Province/State (optional)</label>
-              <input id="registrant-state" type="text" value={registrant.state} onChange={(e) => setRegistrantField('state', e.target.value)} />
-              <label htmlFor="registrant-postal">Postal code</label>
-              <input id="registrant-postal" type="text" value={registrant.postal_code} onChange={(e) => setRegistrantField('postal_code', e.target.value)} required />
-              <label htmlFor="registrant-country">Country code (2 letters, e.g. ZA)</label>
-              <input
-                id="registrant-country"
-                type="text"
-                maxLength={2}
-                value={registrant.country_code}
-                onChange={(e) => setRegistrantField('country_code', e.target.value.toUpperCase())}
-                required
-              />
-              <button type="submit" disabled={busy}>
+              {profile && !profile.complete ? (
+                <div className="notice">
+                  Domain registries need the legal owner's contact details. Complete your details on the Profile tab
+                  first — you only do this once.{' '}
+                  <button type="button" className="link-button" onClick={onGoToProfile}>Complete my profile</button>
+                </div>
+              ) : (
+                profile && (
+                  <p className="field-hint">
+                    Registered to <strong>{profile.legal_name}</strong> ({profile.email}) — from your Profile.{' '}
+                    <button type="button" className="link-button" onClick={onGoToProfile}>Edit</button>
+                  </p>
+                )
+              )}
+              <button type="submit" disabled={busy || !profile || !profile.complete}>
                 {busy
                   ? selected.included ? 'Claiming…' : 'Redirecting to PayFast…'
                   : selected.included ? `Claim ${selected.domain}` : `Pay R${selected.price_zar} with PayFast`}
@@ -566,7 +542,7 @@ function DomainSearchSheet({ site, onClose, onSiteUpdated }) {
   )
 }
 
-function DomainSection({ site, onSiteUpdated }) {
+function DomainSection({ site, onSiteUpdated, onGoToProfile }) {
   const [domainInput, setDomainInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -617,7 +593,14 @@ function DomainSection({ site, onSiteUpdated }) {
   return (
     <div className="card">
       <h2>Custom domain</h2>
-      {showSearch && <DomainSearchSheet site={site} onSiteUpdated={onSiteUpdated} onClose={() => setShowSearch(false)} />}
+      {showSearch && (
+        <DomainSearchSheet
+          site={site}
+          onSiteUpdated={onSiteUpdated}
+          onGoToProfile={onGoToProfile}
+          onClose={() => setShowSearch(false)}
+        />
+      )}
       {error && <div className="error">{error}</div>}
 
       {!hasDomain ? (
@@ -1084,7 +1067,7 @@ function WhatsAppConnectSection({ site, onSiteUpdated }) {
   )
 }
 
-function DeployTab({ site, onSiteUpdated }) {
+function DeployTab({ site, onSiteUpdated, onGoToProfile }) {
   // Domain connect/buy and email routing below are still open to every
   // site regardless of plan (that gating was deliberately dropped
   // earlier and hasn't been asked back) — this card is just the "remove
@@ -1094,7 +1077,7 @@ function DeployTab({ site, onSiteUpdated }) {
       <UpgradeCard site={site} />
       <AiAssistantSection site={site} onSiteUpdated={onSiteUpdated} />
       <WhatsAppConnectSection site={site} onSiteUpdated={onSiteUpdated} />
-      <DomainSection site={site} onSiteUpdated={onSiteUpdated} />
+      <DomainSection site={site} onSiteUpdated={onSiteUpdated} onGoToProfile={onGoToProfile} />
       <EmailRoutingSection site={site} />
     </>
   )
@@ -1332,7 +1315,84 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
   )
 }
 
-function ProfileTab({ displayName, username, email, onLogout, site, onSiteDeleted }) {
+const PROFILE_FIELDS = [
+  { key: 'legal_name', label: 'Full name or business name', hint: "The legal owner of any domain you buy." },
+  { key: 'phone', label: 'Phone (with country code, e.g. +27821234567)', inputMode: 'tel' },
+  { key: 'street', label: 'Street address' },
+  { key: 'city', label: 'City' },
+  { key: 'state', label: 'Province/State (optional)', optional: true },
+  { key: 'postal_code', label: 'Postal code' },
+  { key: 'country_code', label: 'Country code (2 letters, e.g. ZA)', maxLength: 2 },
+]
+
+function ProfileDetails({ onCompleteChange }) {
+  const [form, setForm] = useState(null)
+  const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    getProfile().then((data) => setForm(data.profile)).catch((err) => setError(err.message))
+  }, [])
+
+  function setField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }))
+    setSaveState('idle')
+  }
+
+  async function handleSave(e) {
+    e.preventDefault()
+    setSaveState('saving')
+    setError(null)
+    try {
+      const { email: _email, complete: _complete, ...fields } = form
+      const data = await updateProfile(fields)
+      setForm(data.profile)
+      onCompleteChange(data.profile.complete)
+      setSaveState('saved')
+    } catch (err) {
+      setError(err.message)
+      setSaveState('error')
+    }
+  }
+
+  if (!form) return error ? <div className="card error">{error}</div> : null
+
+  return (
+    <form className="card" onSubmit={handleSave}>
+      <h2>Your details</h2>
+      {!form.complete && (
+        <div className="notice">
+          Complete your profile — we use these details as the legal owner when you buy a domain, so you never have to
+          type them again.
+        </div>
+      )}
+      {error && <div className="error">{error}</div>}
+      {PROFILE_FIELDS.map((f) => (
+        <div key={f.key}>
+          <label htmlFor={`profile-${f.key}`}>{f.label}</label>
+          <input
+            id={`profile-${f.key}`}
+            type="text"
+            inputMode={f.inputMode}
+            maxLength={f.maxLength}
+            value={form[f.key] || ''}
+            onChange={(e) => setField(f.key, f.key === 'country_code' ? e.target.value.toUpperCase() : e.target.value)}
+            required={!f.optional}
+          />
+          {f.hint && <p className="field-hint">{f.hint}</p>}
+        </div>
+      ))}
+      <div className="save-bar">
+        <button type="submit" disabled={saveState === 'saving'}>
+          {saveState === 'saving' ? 'Saving…' : 'Save details'}
+        </button>
+        {saveState === 'saved' && <span className="save-status">Saved</span>}
+      </div>
+    </form>
+  )
+}
+
+function ProfileTab({ displayName, username, email, onLogout, site, onSiteDeleted, onProfileCompleteChange }) {
   return (
     <>
       <div className="card">
@@ -1342,6 +1402,7 @@ function ProfileTab({ displayName, username, email, onLogout, site, onSiteDelete
         <p><strong>Email:</strong> {email}</p>
         <button type="button" className="link-button" onClick={onLogout}>Sign out</button>
       </div>
+      <ProfileDetails onCompleteChange={onProfileCompleteChange} />
       {site && <DeleteSiteSection site={site} onSiteDeleted={onSiteDeleted} />}
     </>
   )
@@ -1392,7 +1453,7 @@ const TABS = [
   },
 ]
 
-function BottomNav({ active, onSelect }) {
+function BottomNav({ active, onSelect, badges = {} }) {
   return (
     <nav className="bottom-nav">
       {TABS.map((tab) => (
@@ -1402,7 +1463,10 @@ function BottomNav({ active, onSelect }) {
           className={`bottom-nav-item${active === tab.key ? ' active' : ''}`}
           onClick={() => onSelect(tab.key)}
         >
-          {tab.icon}
+          <span className="bottom-nav-icon">
+            {tab.icon}
+            {badges[tab.key] && <span className="nav-badge" aria-label="Needs attention" />}
+          </span>
           <span>{tab.label}</span>
         </button>
       ))}
@@ -1589,6 +1653,7 @@ export default function App() {
   const [displayName, setDisplayName] = useState(null)
   const [username, setUsername] = useState(null)
   const [email, setEmail] = useState(null)
+  const [profileComplete, setProfileComplete] = useState(true)
   const [sites, setSites] = useState([])
   const [selectedSlug, setSelectedSlug] = useState(null)
   const [loadError, setLoadError] = useState(null)
@@ -1623,6 +1688,7 @@ export default function App() {
         setDisplayName(data.name || data.username)
         setUsername(data.username)
         setEmail(data.email)
+        setProfileComplete(data.profile_complete !== false)
         loadSites()
       })
       .catch((err) => setStatus(err.status === 401 ? 'anon' : 'error'))
@@ -1643,6 +1709,7 @@ export default function App() {
       setDisplayName(d.name || d.username)
       setUsername(d.username)
       setEmail(d.email)
+      setProfileComplete(d.profile_complete !== false)
       loadSites()
     })
   }
@@ -1681,6 +1748,7 @@ export default function App() {
             <DeployTab
               site={selectedSite}
               onSiteUpdated={(updated) => setSites((prev) => prev.map((s) => (s.slug === updated.slug ? updated : s)))}
+              onGoToProfile={() => setActiveTab('profile')}
             />
           )}
           {activeTab === 'profile' && (
@@ -1689,6 +1757,7 @@ export default function App() {
               username={username}
               email={email}
               onLogout={handleLogout}
+              onProfileCompleteChange={setProfileComplete}
               site={selectedSite}
               onSiteDeleted={(deletedSlug) => {
                 setSites((prev) => {
@@ -1700,7 +1769,7 @@ export default function App() {
               }}
             />
           )}
-          <BottomNav active={activeTab} onSelect={setActiveTab} />
+          <BottomNav active={activeTab} onSelect={setActiveTab} badges={profileComplete ? {} : { profile: true }} />
         </>
       )}
     </div>
