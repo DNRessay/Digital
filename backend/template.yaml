@@ -90,6 +90,10 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: Must match the Verify Token entered in the App Dashboard's Webhooks setup
+  AdminNotifyEmail:
+    Type: String
+    Default: "mmehgoss@gmail.com"
+    Description: Where operational alerts go (e.g. paid .co.za orders to register by hand) — must be a verified SES identity
   Stage:
     Type: String
     Default: prod
@@ -166,9 +170,12 @@ Resources:
           WHATSAPP_APP_ID: !Ref WhatsAppAppId
           WHATSAPP_CONFIG_ID: !Ref WhatsAppConfigId
           WHATSAPP_VERIFY_TOKEN: !Ref WhatsAppVerifyToken
+          ADMIN_NOTIFY_EMAIL: !Ref AdminNotifyEmail
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref TemplateAssetsBucket
+        - SESCrudPolicy:
+            IdentityName: !Ref AdminNotifyEmail
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: BUFFERED

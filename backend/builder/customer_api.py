@@ -647,8 +647,27 @@ def _price_zar_for_cost(cost_amount, cost_currency):
 def _price_zar_for_hostafrica_cost(cost_amount, cost_currency):
     if cost_currency != "ZAR":
         raise HostAfricaError(f"Expected a ZAR price from HostAfrica, got {cost_currency}.")
-    zar = cost_amount + settings.DOMAIN_MARKUP_ZAR
+    # Flat customer price for .za; a premium name costing more than that
+    # falls back to cost + markup so it's never sold at a loss.
+    flat = settings.ZA_DOMAIN_PRICE_ZAR
+    zar = flat if cost_amount < flat else cost_amount + settings.DOMAIN_MARKUP_ZAR
     return zar.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _manual_za_quote(domain):
+    """.za quote while registration is done by hand: HostAfrica's own
+    availability when its API answers,
+    otherwise a DNS-based availability guess — both at the flat ZA_DOMAIN_PRICE_ZAR."""
+    try:
+        result = hostafrica.check_domain(domain)
+    except HostAfricaError:
+        if hostafrica.looks_available(domain) is False:
+            return {"registrable": False, "reason": f"{domain} is already registered."}
+        price = settings.ZA_DOMAIN_PRICE_ZAR
+        return {"registrable": True, "cost_amount": price, "cost_currency": "ZAR", "price_zar": price}
+    if not result["registrable"]:
+        return result
+    return {**result, "price_zar": _price_zar_for_hostafrica_cost(result["cost_amount"], result["cost_currency"])}
 
 
 @customer_token_required
@@ -663,6 +682,12 @@ def api_customer_domain_check(request, site_slug):
     domain = _normalize_domain(str(request.GET.get("domain", "")))
     if not domain or not DOMAIN_RE.match(domain):
         return JsonResponse({"error": "Enter a real domain, like mybusiness.com."}, status=400)
+
+    if ZA_TLD_RE.search(domain) and settings.HOSTAFRICA_MANUAL_ZA:
+        quote = _manual_za_quote(domain)
+        if not quote["registrable"]:
+            return JsonResponse({"available": False, "reason": quote["reason"]})
+        return JsonResponse({"available": True, "domain": domain, "price_zar": str(quote["price_zar"]), "manual": True})
 
     if ZA_TLD_RE.search(domain):
         try:
@@ -726,7 +751,13 @@ def api_customer_domain_purchase(request, site_slug):
     except ValidationError:
         return JsonResponse({"error": "Registrant email isn't valid."}, status=400)
 
-    if ZA_TLD_RE.search(domain):
+    if ZA_TLD_RE.search(domain) and settings.HOSTAFRICA_MANUAL_ZA:
+        provider = DomainPurchase.PROVIDER_HOSTAFRICA
+        check = _manual_za_quote(domain)
+        if not check["registrable"]:
+            return JsonResponse({"error": check["reason"]}, status=400)
+        price_zar = check["price_zar"]
+    elif ZA_TLD_RE.search(domain):
         provider = DomainPurchase.PROVIDER_HOSTAFRICA
         try:
             check = hostafrica.check_domain(domain)

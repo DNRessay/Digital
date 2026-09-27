@@ -7,16 +7,18 @@ This is HostAfrica's legacy WHMCS/Blesta-style reseller module API
 their newer api.hostafrica.com, which covers VPS/hosting infrastructure,
 not domain registration. Auth is a per-request HMAC token rather than a
 static bearer key: base64(HMAC-SHA256(key=f"{email}:{current UTC hour}",
-message=api_key)), sent as the `username`/`token` headers. The token is
+message=api_key)), sent as the `username`/`token` headers. The HMAC is the
+hex digest, not raw bytes: the module's reference PHP is
+base64_encode(hash_hmac("sha256", $apiKey, $email . ":" . gmdate("y-m-d H"))),
+and hash_hmac returns lowercase hex by default. The token is
 only valid within the UTC hour it was generated for, so _token() is called
 fresh on every request rather than cached.
 
-Response shapes below (what _request/check_domain parse out of
-/domains/lookup and /tlds/pricing) were not independently confirmed against
-a live call — only the request parameters and the auth scheme were. Test
-check_domain() against a real .co.za lookup (e.g. from a Django shell)
-before this is trusted with an actual customer charge; a domain purchase is
-non-refundable once registered, same as the Cloudflare path.
+Response shapes were confirmed against live calls (API v2.4.2):
+/domains/lookup returns a bare list of entries with isAvailable/status, and
+/order/pricing/domains/register?domain=<name> returns {"msetupfee": "<ZAR>"}
+(WHMCS stores a domain's 1-year price in msetupfee). register_domain's
+parameters are still unverified against a live registration.
 """
 import base64
 import hashlib
@@ -36,8 +38,8 @@ class HostAfricaError(Exception):
 
 def _token():
     hour_key = f"{settings.HOSTAFRICA_API_EMAIL}:{datetime.now(timezone.utc).strftime('%y-%m-%d %H')}"
-    digest = hmac.new(hour_key.encode(), settings.HOSTAFRICA_API_KEY.encode(), hashlib.sha256).digest()
-    return base64.b64encode(digest).decode()
+    digest = hmac.new(hour_key.encode(), settings.HOSTAFRICA_API_KEY.encode(), hashlib.sha256).hexdigest()
+    return base64.b64encode(digest.encode()).decode()
 
 
 def _request(method, path, params=None):
@@ -54,43 +56,58 @@ def _request(method, path, params=None):
         result = response.json()
     except ValueError:
         raise HostAfricaError(f"HostAfrica returned a non-JSON response (HTTP {response.status_code})")
-    if response.status_code >= 300 or str(result.get("result", "")).lower() == "error":
-        raise HostAfricaError(result.get("message") or f"HostAfrica API error (HTTP {response.status_code})")
+    if response.status_code >= 300 or (isinstance(result, dict) and str(result.get("result", "")).lower() == "error"):
+        message = result.get("message") or result.get("error") or "" if isinstance(result, dict) else ""
+        raise HostAfricaError(f"HostAfrica API error (HTTP {response.status_code}){': ' + message if message else ''}")
     return result
 
 
 def check_domain(domain):
-    """Availability + pricing check via /domains/lookup. Returns the same
-    shape as services.cloudflare.check_domain: {"registrable": bool,
-    "cost_amount": Decimal, "cost_currency": "ZAR"} or {"registrable":
-    False, "reason": str}.
-
-    Fails loudly (raises HostAfricaError) on a response shape it doesn't
-    recognize, rather than guessing at fields — see this module's
-    docstring on why the parsing here is unverified."""
+    """Availability + first-year register price. Returns the same shape as
+    services.cloudflare.check_domain: {"registrable": True, "cost_amount":
+    Decimal, "cost_currency": "ZAR"} or {"registrable": False, "reason": str}.
+    Raises HostAfricaError on a response it doesn't recognize."""
     tld = domain.split(".", 1)[1] if "." in domain else ""
     result = _request("POST", "domains/lookup", {"searchTerm": domain, "tldsToInclude[]": f".{tld}"})
+    entries = result if isinstance(result, list) else []
+    entry = next((e for e in entries if isinstance(e, dict) and e.get("domainName", "").lower() == domain), None)
+    if entry is None:
+        raise HostAfricaError(f"Unrecognized /domains/lookup response for {domain}: {result!r}"[:300])
+    if not entry.get("isAvailable"):
+        reason = entry.get("domainErrorMessage") or f"{domain} is {entry.get('status') or 'not available'}."
+        return {"registrable": False, "reason": reason}
 
-    entries = result.get("domains") or result.get("results")
-    if entries is None and ("status" in result or "available" in result):
-        entries = [result]
-    if not entries:
-        raise HostAfricaError(f"Unrecognized /domains/lookup response shape for {domain}: {result!r}")
-    entry = entries[0]
+    pricing = _request("GET", "order/pricing/domains/register", {"domain": domain})
+    price = pricing.get("msetupfee") if isinstance(pricing, dict) else None
+    try:
+        amount = Decimal(str(price))
+    except (ArithmeticError, ValueError):
+        amount = None
+    if amount is None or amount <= 0:
+        raise HostAfricaError(f"Couldn't read a register price for {domain} from HostAfrica: {pricing!r}"[:300])
+    return {"registrable": True, "cost_amount": amount, "cost_currency": "ZAR"}
 
-    status = str(entry.get("status", "")).lower()
-    available = status == "available" or entry.get("available") in (True, "true", 1, "1")
-    if not available:
-        return {"registrable": False, "reason": entry.get("status") or "This domain isn't available."}
 
-    price = entry.get("price") or entry.get("register") or entry.get("registerPrice")
-    if price is None:
-        pricing = _request("GET", "tlds/pricing", {"tld": f".{tld}"})
-        price = pricing.get("domainregister") or pricing.get("register")
-    if price is None:
-        raise HostAfricaError(f"Couldn't find a register price for {domain} in HostAfrica's response: {result!r}")
-
-    return {"registrable": True, "cost_amount": Decimal(str(price)), "cost_currency": "ZAR"}
+def looks_available(domain):
+    """Best-effort .za availability for the manual flow (no reseller API
+    access yet): a registered domain has NS records, an unregistered one
+    returns NXDOMAIN. Uses Cloudflare's public DNS-over-HTTPS resolver.
+    Returns True/False, or None when the lookup itself failed."""
+    try:
+        response = requests.get(
+            "https://cloudflare-dns.com/dns-query",
+            params={"name": domain, "type": "NS"},
+            headers={"Accept": "application/dns-json"},
+            timeout=10,
+        )
+        data = response.json()
+    except (requests.RequestException, ValueError):
+        return None
+    if data.get("Status") == 3:
+        return True
+    if data.get("Status") == 0:
+        return not data.get("Answer")
+    return None
 
 
 def register_domain(domain, registrant, period_years=1):
