@@ -1,5 +1,7 @@
 import json
+import logging
 import re
+import uuid
 from urllib.parse import quote
 
 from django.conf import settings
@@ -10,6 +12,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template import engines
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
 from django.utils.text import slugify
@@ -17,7 +20,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .forms import TemplateUploadForm
-from .models import Site, SiteSlotValue, Template, TemplatePage
+from .branding_assets import LOGO_WHITE_DATA_URI
+from .models import Site, SiteSlotValue, SiteVisit, Template, TemplatePage
 from .services.ai_assistant import AiAssistantError, ask_assistant
 from .services.slot_extractor import slot_tag
 from .services.template_ingest import IngestError, ingest_converted_zip
@@ -29,11 +33,12 @@ django_engine = engines["django"]
 # </body> rather than relying on any of the template's own markup/classes,
 # since a Template's document structure is arbitrary customer-uploaded HTML.
 BRANDING_BADGE_HTML = (
-    '<a href="https://vicinic.com" target="_blank" rel="noopener" '
-    'style="position:fixed;bottom:12px;right:12px;z-index:2147483647;'
+    '<a href="https://vicinic.com" target="_blank" rel="noopener" aria-label="Powered by Vicinic" '
+    'style="position:fixed;bottom:12px;right:12px;z-index:2147483647;display:flex;align-items:center;gap:6px;'
     "background:#111;color:#d4af37;font:600 12px/1 system-ui,-apple-system,sans-serif;"
-    "padding:8px 12px;border-radius:6px;text-decoration:none;"
-    'box-shadow:0 2px 8px rgba(0,0,0,.3);">Powered by Vicinic</a>'
+    "padding:7px 12px;border-radius:6px;text-decoration:none;"
+    'box-shadow:0 2px 8px rgba(0,0,0,.3);">Powered by'
+    f'<img src="{LOGO_WHITE_DATA_URI}" alt="Vicinic" style="height:18px;width:auto;display:block;border:0;"></a>'
 )
 
 
@@ -359,18 +364,48 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None):
     return response
 
 
+VISITOR_COOKIE = "vicinic_vid"
+BOT_UA_RE = re.compile(r"bot|crawl|spider|slurp|preview|monitor|curl|wget|python-requests", re.I)
+logger = logging.getLogger(__name__)
+
+
+def _track_visit(request, site, response):
+    """Counts one unique visitor per site per day, keyed by a first-party
+    cookie — never for the portal's edit-mode preview or obvious bots, and
+    never allowed to break the page itself."""
+    if request.method != "GET" or request.GET.get("vicinic_edit") == "1":
+        return response
+    if BOT_UA_RE.search(request.headers.get("User-Agent", "")):
+        return response
+    visitor_id = request.COOKIES.get(VISITOR_COOKIE, "")
+    if not re.fullmatch(r"[0-9a-f]{32}", visitor_id):
+        visitor_id = uuid.uuid4().hex
+        response.set_cookie(VISITOR_COOKIE, visitor_id, max_age=365 * 24 * 3600, samesite="Lax", secure=request.is_secure())
+    try:
+        SiteVisit.objects.bulk_create(
+            [SiteVisit(site=site, day=timezone.localdate(), visitor_id=visitor_id)], ignore_conflicts=True
+        )
+    except Exception:
+        logger.exception("Could not record a visit for site %s", site.slug)
+    return response
+
+
 def site_home(request, slug):
     site = get_object_or_404(Site, slug=slug, is_published=True)
     page = get_object_or_404(TemplatePage, template=site.template, slug="")
     chat_url = reverse("builder:site-ai-chat", args=[slug])
-    return _render_site_page(site, page, edit_mode=request.GET.get("vicinic_edit") == "1", chat_url=chat_url)
+    return _track_visit(
+        request, site, _render_site_page(site, page, edit_mode=request.GET.get("vicinic_edit") == "1", chat_url=chat_url)
+    )
 
 
 def site_page(request, slug, page_slug):
     site = get_object_or_404(Site, slug=slug, is_published=True)
     page = get_object_or_404(TemplatePage, template=site.template, slug=page_slug)
     chat_url = reverse("builder:site-ai-chat", args=[slug])
-    return _render_site_page(site, page, edit_mode=request.GET.get("vicinic_edit") == "1", chat_url=chat_url)
+    return _track_visit(
+        request, site, _render_site_page(site, page, edit_mode=request.GET.get("vicinic_edit") == "1", chat_url=chat_url)
+    )
 
 
 # A connected custom domain (Site.domain_status == active) is routed here
@@ -381,13 +416,13 @@ def site_page(request, slug, page_slug):
 def custom_domain_home(request):
     site = request.custom_domain_site
     page = get_object_or_404(TemplatePage, template=site.template, slug="")
-    return _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat"))
+    return _track_visit(request, site, _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat")))
 
 
 def custom_domain_page(request, page_slug):
     site = request.custom_domain_site
     page = get_object_or_404(TemplatePage, template=site.template, slug=page_slug)
-    return _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat"))
+    return _track_visit(request, site, _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat")))
 
 
 @csrf_exempt

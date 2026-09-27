@@ -17,6 +17,11 @@ class Template(models.Model):
     slug = models.SlugField(unique=True)
     app_label = models.CharField(max_length=60, help_text="The app_name given to Templify during conversion.")
     is_active = models.BooleanField(default=True, help_text="Whether customers can pick this template for new sites.")
+    managed_deploy = models.BooleanField(
+        default=False,
+        help_text="Domain, email routing and the rest of the Deploy tab are managed by Vicinic for sites on this "
+        "template — web-portal shows them read-only and the API refuses changes.",
+    )
     default_primary_color = models.CharField(
         max_length=7, blank=True, validators=[HEX_COLOR_VALIDATOR],
         help_text="This template's own dominant accent color, auto-detected at ingest "
@@ -355,3 +360,14 @@ class CustomerAuthToken(models.Model):
 
     def __str__(self):
         return f"Token for {self.user.username}"
+
+
+class SiteVisit(models.Model):
+    """One unique visitor (by first-party cookie) seeing a Site on one day."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="visits")
+    day = models.DateField()
+    visitor_id = models.CharField(max_length=32)
+
+    class Meta:
+        unique_together = [("site", "day", "visitor_id")]

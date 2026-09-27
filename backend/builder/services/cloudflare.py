@@ -348,5 +348,20 @@ def create_routing_rule(zone_id, from_address, to_address):
     return result["id"]
 
 
+def list_routing_rules(zone_id):
+    """Read-only — the zone's forwarding rules as [{"id", "from_address",
+    "to_address", "enabled"}], including ones set up outside this platform
+    (directly in the Cloudflare dashboard). The catch-all rule and any
+    non-forward rule are left out."""
+    rules = _request("GET", f"/zones/{zone_id}/email/routing/rules", params={"per_page": 50})
+    out = []
+    for rule in rules:
+        to = [m.get("value") for m in rule.get("matchers", []) if m.get("type") == "literal" and m.get("field") == "to"]
+        dest = [v for a in rule.get("actions", []) if a.get("type") == "forward" for v in a.get("value", [])]
+        if to and dest:
+            out.append({"id": rule.get("id"), "from_address": to[0], "to_address": ", ".join(dest), "enabled": rule.get("enabled", True)})
+    return out
+
+
 def delete_routing_rule(zone_id, rule_id):
     _request("DELETE", f"/zones/{zone_id}/email/routing/rules/{rule_id}")

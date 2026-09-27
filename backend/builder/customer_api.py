@@ -15,6 +15,7 @@ import functools
 import json
 import re
 import uuid
+from datetime import timedelta
 from urllib.parse import urlparse
 
 from django.conf import settings
@@ -24,15 +25,17 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
+from django.db.models import Count
 from django.http import JsonResponse
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from decimal import ROUND_HALF_UP, Decimal
 
-from .models import CustomerAuthToken, DomainPurchase, EmailRoute, Site, SiteSlotValue, Template
+from .models import CustomerAuthToken, DomainPurchase, EmailRoute, Site, SiteSlotValue, SiteVisit, Template
 from .services import cloudflare, hostafrica, whatsapp
 from .services.cloudflare import CloudflareError
 from .services.hostafrica import HostAfricaError
@@ -124,6 +127,7 @@ def _serialize_site(site):
         "domain_status": site.domain_status,
         "cloudflare_nameservers": [ns for ns in site.cloudflare_nameservers.split(",") if ns],
         "whatsapp_connected": bool(site.whatsapp_waba_id and site.whatsapp_phone_number_id),
+        "managed_deploy": site.template.managed_deploy,
     }
 
 
@@ -139,6 +143,12 @@ def _serialize_email_route(route):
 
 def _get_owned_site_or_none(user, site_slug):
     return Site.objects.filter(slug=site_slug, owner=user).select_related("template").first()
+
+
+def _managed_deploy_error(site):
+    if site.template.managed_deploy:
+        return JsonResponse({"error": "This site's domain and email are managed by Vicinic — contact us to change them."}, status=403)
+    return None
 
 
 def _serialize_slots(site):
@@ -471,6 +481,8 @@ def api_customer_site_domain(request, site_slug):
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
+    if request.method != "GET" and (locked := _managed_deploy_error(site)) is not None:
+        return locked
 
     if request.method == "DELETE":
         if site.cloudflare_zone_id:
@@ -537,6 +549,8 @@ def api_customer_site_email_routes(request, site_slug):
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
+    if request.method == "POST" and (locked := _managed_deploy_error(site)) is not None:
+        return locked
 
     if request.method == "POST":
         if site.domain_status != Site.DOMAIN_ACTIVE:
@@ -586,7 +600,18 @@ def api_customer_site_email_routes(request, site_slug):
         except CloudflareError:
             pass  # leave it pending — the next poll tries again
 
-    return JsonResponse({"email_routes": [_serialize_email_route(r) for r in routes]})
+    # Rules on the zone that weren't created here (e.g. set up directly in
+    # the Cloudflare dashboard before the domain moved onto the platform) —
+    # shown read-only so the customer sees every address that forwards.
+    external = []
+    if site.cloudflare_zone_id and site.domain_status == Site.DOMAIN_ACTIVE:
+        known = {r.cloudflare_rule_id for r in routes if r.cloudflare_rule_id}
+        try:
+            external = [r for r in cloudflare.list_routing_rules(site.cloudflare_zone_id) if r["id"] not in known]
+        except CloudflareError:
+            pass
+
+    return JsonResponse({"email_routes": [_serialize_email_route(r) for r in routes], "external_routes": external})
 
 
 @csrf_exempt
@@ -596,6 +621,8 @@ def api_customer_site_email_route_delete(request, site_slug, route_id):
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
+    if (locked := _managed_deploy_error(site)) is not None:
+        return locked
     route = site.email_routes.filter(id=route_id).first()
     if route is None:
         return JsonResponse({"error": "Route not found."}, status=404)
@@ -675,6 +702,8 @@ def api_customer_domain_purchase(request, site_slug):
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
+    if (locked := _managed_deploy_error(site)) is not None:
+        return locked
 
     body = _json_body(request)
     domain = _normalize_domain(str(body.get("domain", "")))
@@ -758,6 +787,8 @@ def api_customer_site_whatsapp(request, site_slug):
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
+    if (locked := _managed_deploy_error(site)) is not None:
+        return locked
 
     if request.method == "DELETE":
         site.whatsapp_waba_id = ""
@@ -780,3 +811,27 @@ def api_customer_site_whatsapp(request, site_slug):
     site.whatsapp_phone_number_id = phone_number_id
     site.save(update_fields=["whatsapp_waba_id", "whatsapp_phone_number_id"])
     return JsonResponse({"site": _serialize_site(site)}, status=201)
+
+
+@customer_token_required
+@require_http_methods(["GET"])
+def api_customer_site_visitors(request, site_slug):
+    """Unique visitors per day for the Overview tab's chart, oldest first,
+    zero-filled over the last `days` days (default 30, max 90)."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    try:
+        days = max(1, min(90, int(request.GET.get("days", 30))))
+    except ValueError:
+        days = 30
+    today = timezone.localdate()
+    start = today - timedelta(days=days - 1)
+    visits = SiteVisit.objects.filter(site=site, day__gte=start)
+    per_day = dict(visits.values_list("day").annotate(n=Count("visitor_id")))
+    series = [
+        {"date": (start + timedelta(days=i)).isoformat(), "visitors": per_day.get(start + timedelta(days=i), 0)}
+        for i in range(days)
+    ]
+    total = visits.values("visitor_id").distinct().count()
+    return JsonResponse({"days": series, "total_unique": total})

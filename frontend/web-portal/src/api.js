@@ -183,6 +183,10 @@ export function purchaseDomain(siteSlug, domain, registrant, returnUrl, cancelUr
   })
 }
 
+export function getVisitors(siteSlug, days = 30) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/visitors/?days=${days}`)
+}
+
 export function listEmailRoutes(siteSlug) {
   return apiFetch(`/api/customer/sites/${siteSlug}/email-routes/`)
 }

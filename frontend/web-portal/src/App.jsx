@@ -14,6 +14,7 @@ import {
   disconnectWhatsApp,
   getDomain,
   getSiteSlots,
+  getVisitors,
   listEmailRoutes,
   listPackages,
   listPublicTemplates,
@@ -92,7 +93,8 @@ function Login({ onLoggedIn, onSwitchToRegister }) {
   return (
     <div className="page login-prompt">
       <form className="card" onSubmit={handleSubmit}>
-        <h1>Vicinic — Edit your site</h1>
+        <img src="/logo.png" alt="Vicinic" className="brand-logo" />
+        <h1>Edit your site</h1>
         <p>Sign in to edit your site's text.</p>
         {error && <div className="error">{error}</div>}
         <label htmlFor="username">Username</label>
@@ -133,7 +135,8 @@ function Register({ onRegistered, onSwitchToLogin }) {
   return (
     <div className="page login-prompt">
       <form className="card" onSubmit={handleSubmit}>
-        <h1>Vicinic — Create an account</h1>
+        <img src="/logo.png" alt="Vicinic" className="brand-logo" />
+        <h1>Create an account</h1>
         <p>Once you're signed in you can set up your site.</p>
         {error && <div className="error">{error}</div>}
         <label htmlFor="register-name">Full name</label>
@@ -552,6 +555,7 @@ function EmailRoutingSection({ site }) {
   const domainReady = site.domain_status === 'active'
   const disabled = !domainReady
   const [routes, setRoutes] = useState(null)
+  const [externalRoutes, setExternalRoutes] = useState([])
   const [error, setError] = useState(null)
   const [fromLocal, setFromLocal] = useState('')
   const [toAddress, setToAddress] = useState('')
@@ -560,10 +564,14 @@ function EmailRoutingSection({ site }) {
   useEffect(() => {
     if (!domainReady) {
       setRoutes([])
+      setExternalRoutes([])
       return
     }
     listEmailRoutes(site.slug)
-      .then((data) => setRoutes(data.email_routes))
+      .then((data) => {
+        setRoutes(data.email_routes)
+        setExternalRoutes(data.external_routes || [])
+      })
       .catch((err) => setError(err.message))
   }, [site.slug, domainReady])
 
@@ -648,6 +656,20 @@ function EmailRoutingSection({ site }) {
             </li>
           ))}
         </ul>
+      )}
+
+      {externalRoutes.length > 0 && (
+        <div className="external-routes">
+          <p className="field-hint">Already forwarding on this domain:</p>
+          <ul className="email-route-list">
+            {externalRoutes.map((r) => (
+              <li key={r.id}>
+                <span>{r.from_address} → {r.to_address}</span>
+                <span className={r.enabled ? 'save-status' : ''}>{r.enabled ? 'Active' : 'Paused'}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   )
@@ -851,13 +873,24 @@ function DeployTab({ site, onSiteUpdated }) {
   // site regardless of plan (that gating was deliberately dropped
   // earlier and hasn't been asked back) — this card is just the "remove
   // branding" upsell, now with a finalized once-off first tier.
-  return (
+  const sections = (
     <>
       <UpgradeCard site={site} />
       <AiAssistantSection site={site} onSiteUpdated={onSiteUpdated} />
       <WhatsAppConnectSection site={site} onSiteUpdated={onSiteUpdated} />
       <DomainSection site={site} onSiteUpdated={onSiteUpdated} />
       <EmailRoutingSection site={site} />
+    </>
+  )
+  if (!site.managed_deploy) return sections
+  return (
+    <>
+      <div className="card notice">
+        Your domain, email forwarding and deployment are managed by Vicinic. Contact us if anything here needs to change.
+      </div>
+      <fieldset className="locked-section" disabled>
+        {sections}
+      </fieldset>
     </>
   )
 }
@@ -904,7 +937,81 @@ function DeleteSiteSection({ site, onSiteDeleted }) {
   )
 }
 
-function OverviewTab({ site, checkoutNotice, onSiteUpdated, onSiteDeleted }) {
+function VisitorsChart({ site }) {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState(null)
+  const [hover, setHover] = useState(null)
+
+  useEffect(() => {
+    setData(null)
+    setError(null)
+    getVisitors(site.slug, 30).then(setData).catch((err) => setError(err.message))
+  }, [site.slug])
+
+  const days = data?.days || []
+  const max = Math.max(1, ...days.map((d) => d.visitors))
+  const W = 600
+  const H = 140
+  const gap = 2
+  const barW = days.length ? W / days.length - gap : 0
+  const fmt = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+  const active = hover != null ? days[hover] : null
+
+  return (
+    <div className="card visitors-card">
+      <h2>Unique visitors</h2>
+      {error && <div className="error">{error}</div>}
+      {!data && !error && <p className="field-hint">Loading…</p>}
+      {data && (
+        <>
+          <p className="visitors-headline">
+            <strong>{active ? active.visitors : data.total_unique}</strong>
+            <span>{active ? fmt(active.date) : 'last 30 days'}</span>
+          </p>
+          <svg
+            className="visitors-chart"
+            viewBox={`0 0 ${W} ${H}`}
+            preserveAspectRatio="none"
+            role="img"
+            aria-label={`Unique visitors per day, last 30 days: ${data.total_unique} in total`}
+            onMouseLeave={() => setHover(null)}
+          >
+            <line x1="0" y1={H - 0.5} x2={W} y2={H - 0.5} className="visitors-baseline" />
+            {days.map((d, i) => {
+              const h = d.visitors ? Math.max(3, (d.visitors / max) * (H - 8)) : 0
+              const x = i * (barW + gap)
+              return (
+                <g key={d.date} onMouseEnter={() => setHover(i)} onTouchStart={() => setHover(i)}>
+                  <rect x={x} y="0" width={barW + gap} height={H} fill="transparent" />
+                  {h > 0 && (
+                    <rect
+                      x={x}
+                      y={H - h}
+                      width={barW}
+                      height={h}
+                      rx="2"
+                      className={`visitors-bar${hover === i ? ' active' : ''}`}
+                    />
+                  )}
+                </g>
+              )
+            })}
+          </svg>
+          <div className="visitors-axis">
+            <span>{days.length ? fmt(days[0].date) : ''}</span>
+            <span>Today</span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function liveUrl(site) {
+  return site.custom_domain && site.domain_status === 'active' ? `https://${site.custom_domain}/` : `${API_BASE}/${site.slug}/`
+}
+
+function OverviewTab({ site, checkoutNotice, onSiteUpdated }) {
   const [form, setForm] = useState(() => ({
     primary_color: site.primary_color || site.default_primary_color || '#2e8b57',
     email: site.email,
@@ -952,6 +1059,8 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated, onSiteDeleted }) {
       )}
       {checkoutNotice === 'cancelled' && <div className="card notice">Checkout cancelled — your site is still on the free plan.</div>}
 
+      <VisitorsChart site={site} />
+
       <div className="card">
         <h2>{site.name}</h2>
         <p>
@@ -959,7 +1068,7 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated, onSiteDeleted }) {
           {site.subscription_status === 'pending' && ' (payment pending)'}
         </p>
         <p>
-          Live at <a href={`${API_BASE}/${site.slug}/`} target="_blank" rel="noreferrer">{`${API_BASE}/${site.slug}/`}</a>
+          Live at <a href={liveUrl(site)} target="_blank" rel="noreferrer">{liveUrl(site)}</a>
         </p>
       </div>
 
@@ -1000,21 +1109,22 @@ function OverviewTab({ site, checkoutNotice, onSiteUpdated, onSiteDeleted }) {
           {saveState === 'saved' && <span className="save-status">Saved</span>}
         </div>
       </form>
-
-      <DeleteSiteSection site={site} onSiteDeleted={onSiteDeleted} />
     </>
   )
 }
 
-function ProfileTab({ displayName, username, email, onLogout }) {
+function ProfileTab({ displayName, username, email, onLogout, site, onSiteDeleted }) {
   return (
-    <div className="card">
-      <h2>Profile</h2>
-      <p><strong>Name:</strong> {displayName}</p>
-      <p><strong>Username:</strong> {username}</p>
-      <p><strong>Email:</strong> {email}</p>
-      <button type="button" className="link-button" onClick={onLogout}>Sign out</button>
-    </div>
+    <>
+      <div className="card">
+        <h2>Profile</h2>
+        <p><strong>Name:</strong> {displayName}</p>
+        <p><strong>Username:</strong> {username}</p>
+        <p><strong>Email:</strong> {email}</p>
+        <button type="button" className="link-button" onClick={onLogout}>Sign out</button>
+      </div>
+      {site && <DeleteSiteSection site={site} onSiteDeleted={onSiteDeleted} />}
+    </>
   )
 }
 
@@ -1332,7 +1442,7 @@ export default function App() {
   return (
     <div className={`page${hasSite ? ' has-bottom-nav' : ''}`}>
       <div className="topbar">
-        <h1>Vicinic</h1>
+        <img src="/logo.png" alt="Vicinic" className="brand-logo" />
       </div>
 
       {!hasSite ? (
@@ -1345,13 +1455,6 @@ export default function App() {
               site={selectedSite}
               checkoutNotice={checkoutNotice}
               onSiteUpdated={(updated) => setSites((prev) => prev.map((s) => (s.slug === updated.slug ? updated : s)))}
-              onSiteDeleted={(deletedSlug) => {
-                setSites((prev) => {
-                  const next = prev.filter((s) => s.slug !== deletedSlug)
-                  setSelectedSlug(next.length > 0 ? next[0].slug : null)
-                  return next
-                })
-              }}
             />
           )}
           {selectedSite && activeTab === 'edit' && <VisualEditor site={selectedSite} />}
@@ -1362,7 +1465,21 @@ export default function App() {
             />
           )}
           {activeTab === 'profile' && (
-            <ProfileTab displayName={displayName} username={username} email={email} onLogout={handleLogout} />
+            <ProfileTab
+              displayName={displayName}
+              username={username}
+              email={email}
+              onLogout={handleLogout}
+              site={selectedSite}
+              onSiteDeleted={(deletedSlug) => {
+                setSites((prev) => {
+                  const next = prev.filter((s) => s.slug !== deletedSlug)
+                  setSelectedSlug(next.length > 0 ? next[0].slug : null)
+                  return next
+                })
+                setActiveTab('overview')
+              }}
+            />
           )}
           <BottomNav active={activeTab} onSelect={setActiveTab} />
         </>
