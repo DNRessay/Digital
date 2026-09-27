@@ -26,7 +26,10 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from .customer_api import DOMAIN_RE, _normalize_domain, _serialize_site
 from .models import CustomerAuthToken, DomainPurchase, EmailRoute, Site, Template
+from .services import cloudflare
+from .services.cloudflare import CloudflareError
 from .services.template_ingest import IngestError, ingest_converted_zip
 from .services.templify_client import TemplifyError, convert_template_zip
 
@@ -191,3 +194,86 @@ def api_admin_analytics(request):
             ).count(),
         }
     )
+
+
+@admin_token_required
+@require_http_methods(["GET"])
+def api_admin_domain_lookup(request):
+    """Read-only — for a domain that already has a Cloudflare zone (set up
+    before it ever went through this platform's own connect-domain flow,
+    e.g. moved over from wherever the customer originally hosted it), this
+    is how to see what's actually on it before touching anything: the
+    zone's status and every DNS record, particularly whatever an existing
+    Email Routing setup depends on (MX/TXT/CNAME verification records)
+    that a blind repoint must not disturb. Companion to
+    api_admin_domain_attach below, which does the actual repoint."""
+    domain = _normalize_domain(str(request.GET.get("domain", "")))
+    if not domain or not DOMAIN_RE.match(domain):
+        return JsonResponse({"error": "Enter a real domain, like mybusiness.com."}, status=400)
+
+    try:
+        zone_id = cloudflare.find_zone_id_by_name(domain)
+        if zone_id is None:
+            return JsonResponse({"error": f"No Cloudflare zone found for {domain}."}, status=404)
+        status = cloudflare.get_zone_status(zone_id)
+        records = cloudflare.list_dns_records(zone_id)
+    except CloudflareError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
+    return JsonResponse(
+        {
+            "domain": domain,
+            "zone_id": zone_id,
+            "status": status["status"],
+            "name_servers": status["name_servers"],
+            "dns_records": [
+                {"id": r["id"], "type": r["type"], "name": r["name"], "content": r["content"], "proxied": r.get("proxied", False)}
+                for r in records
+            ],
+        }
+    )
+
+
+@csrf_exempt
+@admin_token_required
+@require_http_methods(["POST"])
+def api_admin_domain_attach(request):
+    """Attaches a domain that already has a Cloudflare zone (see
+    api_admin_domain_lookup above) to a Site — reusing that zone instead of
+    calling cloudflare.create_zone, which fails outright on a domain
+    Cloudflare already knows about, and only replacing whatever A/AAAA/
+    CNAME record sits at the apex (cloudflare.upsert_apex_record), leaving
+    any other record — most importantly an existing Email Routing setup's
+    MX/TXT/CNAME verification records — untouched. Same effect as the
+    customer-facing connect-domain flow's end state, for the one case that
+    flow doesn't handle: a domain moved onto the platform after it was
+    already live somewhere else."""
+    body = _json_body(request)
+    domain = _normalize_domain(str(body.get("domain", "")))
+    site_slug = str(body.get("site_slug", "")).strip()
+    if not domain or not DOMAIN_RE.match(domain):
+        return JsonResponse({"error": "Enter a real domain, like mybusiness.com."}, status=400)
+
+    site = Site.objects.filter(slug=site_slug).first()
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+
+    try:
+        zone_id = cloudflare.find_zone_id_by_name(domain)
+        if zone_id is None:
+            return JsonResponse({"error": f"No Cloudflare zone found for {domain}."}, status=404)
+        status = cloudflare.get_zone_status(zone_id)
+        cloudflare.upsert_apex_record(zone_id, domain, settings.PLATFORM_ORIGIN_HOST)
+    except CloudflareError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
+    site.custom_domain = domain
+    site.domain_status = Site.DOMAIN_ACTIVE if status["status"] == "active" else Site.DOMAIN_PENDING
+    site.cloudflare_zone_id = zone_id
+    site.cloudflare_nameservers = ",".join(status["name_servers"])
+    try:
+        site.save(update_fields=["custom_domain", "domain_status", "cloudflare_zone_id", "cloudflare_nameservers"])
+    except IntegrityError:
+        return JsonResponse({"error": f"{domain} is already connected to another site."}, status=409)
+
+    return JsonResponse({"site": _serialize_site(site)})

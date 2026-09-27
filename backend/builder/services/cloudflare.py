@@ -159,6 +159,39 @@ def point_zone_at_origin(zone_id, origin_host):
     )
 
 
+def list_dns_records(zone_id):
+    """Read-only — every DNS record currently on the zone. Used before
+    repointing a zone that wasn't set up through create_zone/
+    point_zone_at_origin above (e.g. a domain a customer already had
+    pointed at some other host), so whatever's already there — most
+    importantly any MX/TXT records an existing Email Routing setup
+    depends on — can be inspected instead of assumed."""
+    return _request("GET", f"/zones/{zone_id}/dns_records", params={"per_page": 100})
+
+
+def upsert_apex_record(zone_id, domain, origin_host):
+    """Makes the zone's root domain serve `origin_host`, replacing
+    whatever A/AAAA/CNAME record is currently there instead of blindly
+    adding a second one the way point_zone_at_origin's plain POST does —
+    for a zone already in use (not one this platform just created), a
+    second record at the same name would either collide outright or
+    silently leave the old one live depending on record type. Non-apex
+    records (anything email routing depends on: MX, the routing TXT/CNAME
+    verification records, etc.) are untouched — only records whose name
+    is the bare domain itself are considered."""
+    existing = [r for r in list_dns_records(zone_id) if r["name"] == domain and r["type"] in ("A", "AAAA", "CNAME")]
+    already_correct = [r for r in existing if r["type"] == "CNAME" and r["content"] == origin_host]
+    if already_correct:
+        return already_correct[0]
+    for record in existing:
+        _request("DELETE", f"/zones/{zone_id}/dns_records/{record['id']}")
+    return _request(
+        "POST",
+        f"/zones/{zone_id}/dns_records",
+        json={"type": "CNAME", "name": domain, "content": origin_host, "proxied": True, "ttl": 1},
+    )
+
+
 def enable_email_routing(zone_id):
     """Turns on Cloudflare Email Routing for the zone — this is what
     actually creates the MX/SPF/DKIM DNS records the domain needs to
