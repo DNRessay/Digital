@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   API_BASE,
-  checkDomainAvailability,
   checkout,
   clearDraft,
   connectDomain,
@@ -26,6 +25,7 @@ import {
   redirectToPayFast,
   register,
   saveSiteSlots,
+  searchDomains,
   storeDraft,
   updateSite,
   whoami,
@@ -306,34 +306,59 @@ function UpgradeCard({ site }) {
   )
 }
 
-function BuyDomainFields({ site }) {
-  const [domainInput, setDomainInput] = useState('')
-  const [checkResult, setCheckResult] = useState(null) // null | {available, price_zar} | {available: false, reason}
-  const [checking, setChecking] = useState(false)
-  const [showRegistrantForm, setShowRegistrantForm] = useState(false)
+function DomainOption({ option, onBuy }) {
+  return (
+    <li className={`domain-option${option.recommended ? ' recommended' : ''}`}>
+      <div>
+        <strong>{option.domain}</strong>
+        {option.recommended && <span className="domain-badge">Recommended</span>}
+        {option.manual && <span className="field-hint domain-manual">Registered by our team within a business day</span>}
+      </div>
+      <div className="domain-option-buy">
+        <span className="domain-price">R{option.price_zar}<small>/yr</small></span>
+        <button type="button" onClick={() => onBuy(option)}>Buy</button>
+      </div>
+    </li>
+  )
+}
+
+function DomainSearchSheet({ site, onClose }) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState(null)
+  const [searching, setSearching] = useState(false)
+  const [selected, setSelected] = useState(null)
   const [registrant, setRegistrant] = useState({
     name: '', email: '', phone: '', street: '', city: '', state: '', postal_code: '', country_code: 'ZA',
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [onClose])
+
   function setRegistrantField(key, value) {
     setRegistrant((prev) => ({ ...prev, [key]: value }))
   }
 
-  async function handleCheck(e) {
+  async function handleSearch(e) {
     e.preventDefault()
-    setChecking(true)
+    setSearching(true)
     setError(null)
-    setCheckResult(null)
-    setShowRegistrantForm(false)
+    setResults(null)
+    setSelected(null)
     try {
-      const data = await checkDomainAvailability(site.slug, domainInput.trim())
-      setCheckResult(data)
+      setResults(await searchDomains(site.slug, query.trim()))
     } catch (err) {
       setError(err.message)
     } finally {
-      setChecking(false)
+      setSearching(false)
     }
   }
 
@@ -345,7 +370,7 @@ function BuyDomainFields({ site }) {
       const base = `${window.location.origin}${window.location.pathname}`
       const data = await purchaseDomain(
         site.slug,
-        checkResult.domain,
+        selected.domain,
         {
           name: registrant.name,
           email: registrant.email,
@@ -368,81 +393,113 @@ function BuyDomainFields({ site }) {
     }
   }
 
+  const nothingFound = results && !results.recommended && results.options.length === 0
+
   return (
-    <>
-      {error && <div className="error">{error}</div>}
-
-      <form onSubmit={handleCheck}>
-        <label htmlFor="buy-domain">Domain you want</label>
-        <input
-          id="buy-domain"
-          type="text"
-          placeholder="mybusiness.com"
-          value={domainInput}
-          onChange={(e) => {
-            setDomainInput(e.target.value)
-            setCheckResult(null)
-          }}
-          disabled={checking}
-          required
-        />
-        <button type="submit" disabled={checking || !domainInput.trim()}>
-          {checking ? 'Checking…' : 'Check availability'}
-        </button>
-      </form>
-
-      {checkResult && !checkResult.available && (
-        <div className="notice">{checkResult.reason}</div>
-      )}
-
-      {checkResult && checkResult.available && !showRegistrantForm && (
-        <div className="notice">
-          <strong>{checkResult.domain}</strong> is available for <strong>R{checkResult.price_zar}</strong> (first year).
-          {checkResult.manual && (
-            <> Our team registers .co.za domains by hand — usually within one business day of payment. Your site
-            switches over automatically once it's live.</>
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label="Find a domain" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-header">
+          {selected ? (
+            <button type="button" className="link-button" onClick={() => setSelected(null)}>← Back to results</button>
+          ) : (
+            <h2>Find a domain</h2>
           )}
-          {' '}
-          <button type="button" className="link-button" onClick={() => setShowRegistrantForm(true)}>
-            Buy this domain
-          </button>
+          <button type="button" className="sheet-close" onClick={onClose} aria-label="Close">×</button>
         </div>
-      )}
 
-      {checkResult && checkResult.available && showRegistrantForm && (
-        <form onSubmit={handleBuy}>
-          <p className="field-hint">
-            Domain registries require real contact details for the registrant — this is who legally owns {checkResult.domain}.
-          </p>
-          <label htmlFor="registrant-name">Full name or business name</label>
-          <input id="registrant-name" type="text" value={registrant.name} onChange={(e) => setRegistrantField('name', e.target.value)} required />
-          <label htmlFor="registrant-email">Email</label>
-          <input id="registrant-email" type="email" value={registrant.email} onChange={(e) => setRegistrantField('email', e.target.value)} required />
-          <label htmlFor="registrant-phone">Phone (with country code, e.g. +27821234567)</label>
-          <input id="registrant-phone" type="text" value={registrant.phone} onChange={(e) => setRegistrantField('phone', e.target.value)} required />
-          <label htmlFor="registrant-street">Street address</label>
-          <input id="registrant-street" type="text" value={registrant.street} onChange={(e) => setRegistrantField('street', e.target.value)} required />
-          <label htmlFor="registrant-city">City</label>
-          <input id="registrant-city" type="text" value={registrant.city} onChange={(e) => setRegistrantField('city', e.target.value)} required />
-          <label htmlFor="registrant-state">Province/State (optional)</label>
-          <input id="registrant-state" type="text" value={registrant.state} onChange={(e) => setRegistrantField('state', e.target.value)} />
-          <label htmlFor="registrant-postal">Postal code</label>
-          <input id="registrant-postal" type="text" value={registrant.postal_code} onChange={(e) => setRegistrantField('postal_code', e.target.value)} required />
-          <label htmlFor="registrant-country">Country code (2 letters, e.g. ZA)</label>
-          <input
-            id="registrant-country"
-            type="text"
-            maxLength={2}
-            value={registrant.country_code}
-            onChange={(e) => setRegistrantField('country_code', e.target.value.toUpperCase())}
-            required
-          />
-          <button type="submit" disabled={busy}>
-            {busy ? 'Redirecting to PayFast…' : `Pay R${checkResult.price_zar} with PayFast`}
-          </button>
-        </form>
-      )}
-    </>
+        <div className="sheet-body">
+          {error && <div className="error">{error}</div>}
+
+          {!selected && (
+            <>
+              <form onSubmit={handleSearch} className="domain-search-form">
+                <input
+                  type="text"
+                  placeholder="mybusiness"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  disabled={searching}
+                  autoFocus
+                  aria-label="Name to search"
+                  required
+                />
+                <button type="submit" disabled={searching || !query.trim()}>
+                  {searching ? 'Searching…' : 'Search'}
+                </button>
+              </form>
+
+              {searching && <p className="field-hint">Checking every extension…</p>}
+
+              {results && (
+                <>
+                  {results.recommended && (
+                    <ul className="domain-list">
+                      <DomainOption option={results.recommended} onBuy={setSelected} />
+                    </ul>
+                  )}
+                  {results.recommended_taken && (
+                    <div className="notice"><strong>{results.name}.co.za</strong> is already taken.</div>
+                  )}
+                  {results.options.length > 0 && (
+                    <>
+                      <h3 className="domain-list-title">Other available options</h3>
+                      <ul className="domain-list">
+                        {results.options.map((o) => <DomainOption key={o.domain} option={o} onBuy={setSelected} />)}
+                      </ul>
+                    </>
+                  )}
+                  {nothingFound && <div className="notice">Nothing available for "{results.name}". Try another name.</div>}
+                  {results.partial && <p className="field-hint">Some extensions couldn't be checked right now.</p>}
+                </>
+              )}
+            </>
+          )}
+
+          {selected && (
+            <form onSubmit={handleBuy}>
+              <p>
+                <strong>{selected.domain}</strong> — R{selected.price_zar} for the first year.
+              </p>
+              {selected.manual && (
+                <p className="field-hint">
+                  Our team registers this one by hand, usually within one business day of payment. Your site switches over
+                  automatically once it's live.
+                </p>
+              )}
+              <p className="field-hint">
+                Domain registries require real contact details for the registrant — this is who legally owns {selected.domain}.
+              </p>
+              <label htmlFor="registrant-name">Full name or business name</label>
+              <input id="registrant-name" type="text" value={registrant.name} onChange={(e) => setRegistrantField('name', e.target.value)} required />
+              <label htmlFor="registrant-email">Email</label>
+              <input id="registrant-email" type="email" value={registrant.email} onChange={(e) => setRegistrantField('email', e.target.value)} required />
+              <label htmlFor="registrant-phone">Phone (with country code, e.g. +27821234567)</label>
+              <input id="registrant-phone" type="text" value={registrant.phone} onChange={(e) => setRegistrantField('phone', e.target.value)} required />
+              <label htmlFor="registrant-street">Street address</label>
+              <input id="registrant-street" type="text" value={registrant.street} onChange={(e) => setRegistrantField('street', e.target.value)} required />
+              <label htmlFor="registrant-city">City</label>
+              <input id="registrant-city" type="text" value={registrant.city} onChange={(e) => setRegistrantField('city', e.target.value)} required />
+              <label htmlFor="registrant-state">Province/State (optional)</label>
+              <input id="registrant-state" type="text" value={registrant.state} onChange={(e) => setRegistrantField('state', e.target.value)} />
+              <label htmlFor="registrant-postal">Postal code</label>
+              <input id="registrant-postal" type="text" value={registrant.postal_code} onChange={(e) => setRegistrantField('postal_code', e.target.value)} required />
+              <label htmlFor="registrant-country">Country code (2 letters, e.g. ZA)</label>
+              <input
+                id="registrant-country"
+                type="text"
+                maxLength={2}
+                value={registrant.country_code}
+                onChange={(e) => setRegistrantField('country_code', e.target.value.toUpperCase())}
+                required
+              />
+              <button type="submit" disabled={busy}>
+                {busy ? 'Redirecting to PayFast…' : `Pay R${selected.price_zar} with PayFast`}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -450,7 +507,7 @@ function DomainSection({ site, onSiteUpdated }) {
   const [domainInput, setDomainInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
-  const [mode, setMode] = useState('connect') // 'connect' | 'buy'
+  const [showSearch, setShowSearch] = useState(false)
 
   // While a domain is waiting on the customer's nameserver change to
   // land, poll Cloudflare (via our own backend) every so often so this
@@ -497,36 +554,30 @@ function DomainSection({ site, onSiteUpdated }) {
   return (
     <div className="card">
       <h2>Custom domain</h2>
+      {showSearch && <DomainSearchSheet site={site} onClose={() => setShowSearch(false)} />}
       {error && <div className="error">{error}</div>}
 
       {!hasDomain ? (
         <>
-          <div className="domain-mode-toggle">
-            <button type="button" className={mode === 'connect' ? '' : 'link-button'} onClick={() => setMode('connect')}>
-              I already own a domain
+          <button type="button" className="buy-domain-button" onClick={() => setShowSearch(true)}>
+            Buy a new domain
+          </button>
+          <p className="field-hint domain-or">or connect one you already own:</p>
+          <form onSubmit={handleConnect}>
+            <label htmlFor="domain">Your domain</label>
+            <input
+              id="domain"
+              type="text"
+              placeholder="mybusiness.com"
+              value={domainInput}
+              onChange={(e) => setDomainInput(e.target.value)}
+              disabled={busy}
+              required
+            />
+            <button type="submit" disabled={busy || !domainInput.trim()}>
+              {busy ? 'Connecting…' : 'Connect domain'}
             </button>
-            <button type="button" className={mode === 'buy' ? '' : 'link-button'} onClick={() => setMode('buy')}>
-              Buy a new domain
-            </button>
-          </div>
-          {mode === 'connect' && (
-            <form onSubmit={handleConnect}>
-              <label htmlFor="domain">Your domain</label>
-              <input
-                id="domain"
-                type="text"
-                placeholder="mybusiness.com"
-                value={domainInput}
-                onChange={(e) => setDomainInput(e.target.value)}
-                disabled={busy}
-                required
-              />
-              <button type="submit" disabled={busy || !domainInput.trim()}>
-                {busy ? 'Connecting…' : 'Connect domain'}
-              </button>
-            </form>
-          )}
-          {mode === 'buy' && <BuyDomainFields site={site} />}
+          </form>
         </>
       ) : (
         <>

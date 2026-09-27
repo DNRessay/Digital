@@ -62,21 +62,18 @@ def _request(method, path, params=None):
     return result
 
 
-def check_domain(domain):
-    """Availability + first-year register price. Returns the same shape as
-    services.cloudflare.check_domain: {"registrable": True, "cost_amount":
-    Decimal, "cost_currency": "ZAR"} or {"registrable": False, "reason": str}.
-    Raises HostAfricaError on a response it doesn't recognize."""
-    tld = domain.split(".", 1)[1] if "." in domain else ""
-    result = _request("POST", "domains/lookup", {"searchTerm": domain, "tldsToInclude[]": f".{tld}"})
-    entries = result if isinstance(result, list) else []
-    entry = next((e for e in entries if isinstance(e, dict) and e.get("domainName", "").lower() == domain), None)
-    if entry is None:
-        raise HostAfricaError(f"Unrecognized /domains/lookup response for {domain}: {result!r}"[:300])
-    if not entry.get("isAvailable"):
-        reason = entry.get("domainErrorMessage") or f"{domain} is {entry.get('status') or 'not available'}."
-        return {"registrable": False, "reason": reason}
+def lookup(sld, tlds):
+    """Availability for `sld` across `tlds` (".co.za" style) in one call —
+    a list of HostAfrica's lookup entries (domainName, isAvailable, status,
+    domainErrorMessage)."""
+    result = _request("POST", "domains/lookup", {"searchTerm": sld, "tldsToInclude[]": list(tlds)})
+    if not isinstance(result, list):
+        raise HostAfricaError(f"Unrecognized /domains/lookup response for {sld}: {result!r}"[:300])
+    return [e for e in result if isinstance(e, dict) and e.get("domainName")]
 
+
+def register_price(domain):
+    """First-year register cost in ZAR (WHMCS keeps it in msetupfee)."""
     pricing = _request("GET", "order/pricing/domains/register", {"domain": domain})
     price = pricing.get("msetupfee") if isinstance(pricing, dict) else None
     try:
@@ -85,29 +82,27 @@ def check_domain(domain):
         amount = None
     if amount is None or amount <= 0:
         raise HostAfricaError(f"Couldn't read a register price for {domain} from HostAfrica: {pricing!r}"[:300])
-    return {"registrable": True, "cost_amount": amount, "cost_currency": "ZAR"}
+    return amount
 
 
-def looks_available(domain):
-    """Best-effort .za availability for the manual flow (no reseller API
-    access yet): a registered domain has NS records, an unregistered one
-    returns NXDOMAIN. Uses Cloudflare's public DNS-over-HTTPS resolver.
-    Returns True/False, or None when the lookup itself failed."""
-    try:
-        response = requests.get(
-            "https://cloudflare-dns.com/dns-query",
-            params={"name": domain, "type": "NS"},
-            headers={"Accept": "application/dns-json"},
-            timeout=10,
-        )
-        data = response.json()
-    except (requests.RequestException, ValueError):
-        return None
-    if data.get("Status") == 3:
-        return True
-    if data.get("Status") == 0:
-        return not data.get("Answer")
-    return None
+def list_tlds():
+    result = _request("GET", "tlds")
+    return [t for t in result if isinstance(t, str)] if isinstance(result, list) else []
+
+
+def check_domain(domain):
+    """Availability + first-year register price. Returns the same shape as
+    services.cloudflare.check_domain: {"registrable": True, "cost_amount":
+    Decimal, "cost_currency": "ZAR"} or {"registrable": False, "reason": str}.
+    Raises HostAfricaError on a response it doesn't recognize."""
+    sld, _, tld = domain.partition(".")
+    entry = next((e for e in lookup(sld, [f".{tld}"]) if e["domainName"].lower() == domain), None)
+    if entry is None:
+        raise HostAfricaError(f"HostAfrica returned no lookup result for {domain}")
+    if not entry.get("isAvailable"):
+        reason = entry.get("domainErrorMessage") or f"{domain} is {entry.get('status') or 'not available'}."
+        return {"registrable": False, "reason": reason}
+    return {"registrable": True, "cost_amount": register_price(domain), "cost_currency": "ZAR"}
 
 
 def register_domain(domain, registrant, period_years=1):
