@@ -146,6 +146,15 @@ def get_zone_status(zone_id):
     return {"status": result["status"], "name_servers": result.get("name_servers", [])}
 
 
+def list_page_rules(zone_id):
+    """Read-only — Page Rules (the older, pre-Rulesets-Engine feature) on
+    the zone, e.g. a Forwarding URL rule left over from however the
+    domain used to redirect/serve before it became a Vicinic site.
+    Distinct endpoint from the newer Rulesets API, so usable even when
+    the API token lacks Rulesets permission."""
+    return _request("GET", f"/zones/{zone_id}/pagerules")
+
+
 def get_ssl_mode(zone_id):
     """The zone's SSL/TLS encryption mode ("off"|"flexible"|"full"|
     "strict") — under anything but "full"/"strict", Cloudflare speaks

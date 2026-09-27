@@ -225,11 +225,16 @@ def api_admin_domain_lookup(request):
             ssl_mode = cloudflare.get_ssl_mode(zone_id)
         except CloudflareError:
             ssl_mode = None
+        try:
+            page_rules = cloudflare.list_page_rules(zone_id)
+        except CloudflareError:
+            page_rules = None
     except CloudflareError as exc:
         return JsonResponse({"error": str(exc)}, status=400)
 
     return JsonResponse(
         {
+            "page_rules": page_rules,
             "ssl_mode": ssl_mode,
             "active_rules": active_rules,
             "domain": domain,
