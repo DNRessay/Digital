@@ -505,3 +505,33 @@ class SiteLink(models.Model):
 
     def __str__(self):
         return f"{self.site.slug}: {self.key} -> {self.href}"
+
+
+class SitePage(models.Model):
+    """An extra page a paid Site adds itself (e.g. "Pricing"), built from
+    its template's Starter Page chrome (header/footer) plus a list of
+    Bootstrap sections the customer picks and fills in — see
+    services.site_sections. `sections` is live; `draft_sections` holds
+    unpublished editor changes (None = no draft)."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="custom_pages")
+    slug = models.SlugField(max_length=60)
+    title = models.CharField(max_length=80)
+    show_in_nav = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+    published = models.BooleanField(default=False, help_text="False until the first Publish; hidden from visitors and the menu.")
+    sections = models.JSONField(default=list, blank=True)
+    draft_sections = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("site", "slug")]
+        ordering = ["order", "id"]
+
+    def current_sections(self, draft=False):
+        if draft and self.draft_sections is not None:
+            return self.draft_sections
+        return self.sections
+
+    def __str__(self):
+        return f"{self.site.slug}/{self.slug}"

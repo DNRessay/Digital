@@ -274,3 +274,34 @@ export function getSiteLinks(siteSlug, page) {
 export function setSiteLink(siteSlug, key, href) {
   return apiFetch(`/api/customer/sites/${siteSlug}/links/`, { method: 'POST', body: { key, href } })
 }
+
+export function getSitePages(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/`)
+}
+
+export function createSitePage(siteSlug, title) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/`, { method: 'POST', body: { title } })
+}
+
+export function updateSitePage(siteSlug, pageId, fields) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/${pageId}/`, { method: 'PATCH', body: fields })
+}
+
+export function deleteSitePage(siteSlug, pageId) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/${pageId}/`, { method: 'DELETE' })
+}
+
+export function getPageSections(siteSlug, pageId) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/${pageId}/sections/`)
+}
+
+export function pageSectionAction(siteSlug, pageId, body) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/${pageId}/sections/`, { method: 'POST', body })
+}
+
+export function uploadSectionImage(siteSlug, pageId, sectionId, field, file) {
+  const form = new FormData()
+  form.append('field', field)
+  form.append('file', file)
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/${pageId}/sections/${sectionId}/image/`, { method: 'POST', body: form })
+}

@@ -42,6 +42,13 @@ import {
   updateSite,
   uploadSiteImage,
   whoami,
+  createSitePage,
+  deleteSitePage,
+  getPageSections,
+  getSitePages,
+  pageSectionAction,
+  updateSitePage,
+  uploadSectionImage,
 } from './api.js'
 
 const WHATSAPP_APP_ID = import.meta.env.VITE_WHATSAPP_APP_ID || ''
@@ -1873,6 +1880,214 @@ function LinksPanel({ site, page, selectedKey, refreshKey, onChanged, onPendingC
   )
 }
 
+function SectionsPanel({ site, customPage, refreshKey, onChanged, onPendingChange, onPagesChanged }) {
+  const [data, setData] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const [title, setTitle] = useState(customPage.title)
+
+  useEffect(() => setTitle(customPage.title), [customPage.title])
+
+  function apply(result) {
+    setData(result)
+    onPendingChange(result.has_pending)
+  }
+
+  useEffect(() => {
+    setData(null)
+    getPageSections(site.slug, customPage.id).then(apply).catch((err) => setError(err.message))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site.slug, customPage.id, refreshKey])
+
+  async function run(fn) {
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await fn()
+      if (result && result.sections) apply(result)
+      onChanged()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const act = (body) => run(() => pageSectionAction(site.slug, customPage.id, body))
+
+  async function saveSettings(fields) {
+    setError(null)
+    try {
+      await updateSitePage(site.slug, customPage.id, fields)
+      onPagesChanged()
+      onChanged()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm(`Delete the "${customPage.title}" page and everything on it? This can't be undone.`)) return
+    try {
+      await deleteSitePage(site.slug, customPage.id)
+      onPagesChanged(null)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  if (!data) return error ? <div className="card error">{error}</div> : null
+
+  return (
+    <>
+      <div className="card">
+        <h2>Sections on this page</h2>
+        <p className="field-hint images-hint">Tap any text on the preview to edit it. Change pictures and button links here.</p>
+        {error && <div className="error">{error}</div>}
+        <fieldset className="plain-fieldset" disabled={busy}>
+          {data.sections.length === 0 && <p className="field-hint">No sections yet — add one below.</p>}
+          {data.sections.map((sec, i) => {
+            const fields = Object.keys(sec.fields)
+            return (
+              <div key={sec.id} className="section-card">
+                <div className="link-row-head">
+                  <strong>{sec.label}</strong>
+                  <span className="section-tools">
+                    <button type="button" className="chip" disabled={i === 0} onClick={() => act({ action: 'move', id: sec.id, direction: -1 })} aria-label="Move up">↑</button>
+                    <button type="button" className="chip" disabled={i === data.sections.length - 1} onClick={() => act({ action: 'move', id: sec.id, direction: 1 })} aria-label="Move down">↓</button>
+                    <button type="button" className="link-button" onClick={() => act({ action: 'remove', id: sec.id })}>Remove</button>
+                  </span>
+                </div>
+                {fields.filter((f) => f.endsWith('image')).length > 0 && (
+                  <div className="image-grid">
+                    {fields.filter((f) => f.endsWith('image')).map((f) => (
+                      <div key={f} className="image-tile">
+                        <div className="image-thumb"><img src={sec.fields[f]} alt="" /></div>
+                        <label className="image-replace">
+                          Replace
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            onChange={async (e) => {
+                              const file = e.target.files[0]
+                              e.target.value = ''
+                              if (file) run(async () => uploadSectionImage(site.slug, customPage.id, sec.id, f, await shrinkImage(file)))
+                            }}
+                          />
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {fields.filter((f) => f.endsWith('_url')).map((f) => {
+                  const labelField = f.replace(/_url$/, '')
+                  return (
+                    <div key={f} className="section-link">
+                      <label htmlFor={`${sec.id}-${f}`}>"{sec.fields[labelField] || 'Button'}" goes to</label>
+                      <input
+                        id={`${sec.id}-${f}`}
+                        type="text"
+                        inputMode="url"
+                        defaultValue={sec.fields[f]}
+                        key={sec.fields[f]}
+                        onBlur={(e) => e.target.value.trim() !== sec.fields[f] && act({ action: 'set', id: sec.id, field: f, value: e.target.value.trim() })}
+                        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+          <h3 className="domain-list-title">Add a section</h3>
+          <div className="section-catalog">
+            {data.catalog.map((c) => (
+              <button key={c.type} type="button" className="section-type" onClick={() => act({ action: 'add', type: c.type })}>
+                <strong>{c.label}</strong>
+                <span>{c.description}</span>
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      </div>
+
+      <div className="card">
+        <h2>Page settings</h2>
+        <label htmlFor="page-title">Page name</label>
+        <input
+          id="page-title"
+          type="text"
+          maxLength={80}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={() => title.trim() && title.trim() !== customPage.title && saveSettings({ title: title.trim() })}
+        />
+        <p className="field-hint">Address: /{customPage.slug}/</p>
+        <label htmlFor="page-nav" className="checkbox-label">
+          <input
+            id="page-nav"
+            type="checkbox"
+            checked={customPage.show_in_nav}
+            onChange={(e) => saveSettings({ show_in_nav: e.target.checked })}
+            style={{ marginRight: '8px' }}
+          />
+          Show this page in the site's menu
+        </label>
+        <button type="button" className="danger-button" onClick={handleDelete}>Delete this page</button>
+      </div>
+    </>
+  )
+}
+
+function AddPageButton({ site, pagesState, onCreated }) {
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  if (!pagesState) return null
+  if (!pagesState.available) {
+    return <p className="field-hint add-page-hint">Adding your own pages comes with every paid plan.</p>
+  }
+  const used = pagesState.pages.length
+  const limitText = pagesState.limit === null ? '' : ` (${used} of ${pagesState.limit})`
+
+  async function handleCreate(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      const data = await createSitePage(site.slug, title.trim())
+      setTitle('')
+      setOpen(false)
+      onCreated(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className="link-button add-page-button" disabled={!pagesState.can_add} onClick={() => setOpen(true)}>
+        + Add a page{limitText}
+      </button>
+    )
+  }
+  return (
+    <form onSubmit={handleCreate} className="add-page-form">
+      {error && <div className="error">{error}</div>}
+      <label htmlFor="new-page-title">New page name</label>
+      <div className="domain-search-form">
+        <input id="new-page-title" type="text" maxLength={80} placeholder="e.g. Pricing" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus required />
+        <button type="submit" disabled={busy || !title.trim()}>{busy ? 'Adding…' : 'Add'}</button>
+      </div>
+      <button type="button" className="link-button" onClick={() => setOpen(false)}>Cancel</button>
+    </form>
+  )
+}
+
 function VisualEditor({ site }) {
   const [groups, setGroups] = useState(null)
   const [loadError, setLoadError] = useState(null)
@@ -1882,6 +2097,7 @@ function VisualEditor({ site }) {
   const [saveError, setSaveError] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)
   const [selectedLink, setSelectedLink] = useState(null)
+  const [pagesState, setPagesState] = useState(null)
   const [imagesPending, setImagesPending] = useState(false)
   const [previewNonce, setPreviewNonce] = useState(0)
   const [imagesRefresh, setImagesRefresh] = useState(0)
@@ -1909,6 +2125,15 @@ function VisualEditor({ site }) {
         }
       })
       .catch((err) => setLoadError(err.message))
+  }, [site.slug, site.subscription_status])
+
+  function loadCustomPages() {
+    return getSitePages(site.slug).then(setPagesState).catch(() => setPagesState(null))
+  }
+
+  useEffect(() => {
+    loadCustomPages()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [site.slug, site.subscription_status])
 
   useEffect(() => {
@@ -1953,16 +2178,32 @@ function VisualEditor({ site }) {
     setSaveState('saving')
     setSaveError(null)
     try {
-      if (Object.keys(drafts).length > 0) {
-        const data = await saveSiteSlots(site.slug, drafts)
+      const slotDrafts = {}
+      const sectionDrafts = {}
+      Object.entries(drafts).forEach(([key, value]) => {
+        if (key.startsWith('sp:')) {
+          const pageId = key.split(':')[1]
+          sectionDrafts[pageId] = { ...(sectionDrafts[pageId] || {}), [key]: value }
+        } else {
+          slotDrafts[key] = value
+        }
+      })
+      for (const [pageId, values] of Object.entries(sectionDrafts)) {
+        await pageSectionAction(site.slug, pageId, { action: 'set_many', values })
+      }
+      if (Object.keys(slotDrafts).length > 0) {
+        const data = await saveSiteSlots(site.slug, slotDrafts)
         setGroups(data.groups)
+      }
+      if (Object.keys(drafts).length > 0) {
         clearDraft(site.slug)
         setDrafts({})
       }
-      if (imagesPending) {
+      if (imagesPending || Object.keys(sectionDrafts).length > 0) {
         await publishSiteImages(site.slug)
         setImagesPending(false)
         setImagesRefresh((n) => n + 1)
+        loadCustomPages()
       }
       setSaveState('saved')
     } catch (err) {
@@ -1983,6 +2224,11 @@ function VisualEditor({ site }) {
       }
       setImagesPending(false)
       setImagesRefresh((n) => n + 1)
+      const refreshed = await getSitePages(site.slug).catch(() => null)
+      setPagesState(refreshed)
+      if (refreshed && !refreshed.pages.some((p) => p.slug === activePage) && !groups.some((g) => g.page === activePage)) {
+        setActivePage('')
+      }
     }
     reloadPreview()
   }
@@ -1994,20 +2240,40 @@ function VisualEditor({ site }) {
   const isFreeTier = site.subscription_status !== 'active'
   const isDirty = Object.keys(drafts).length > 0 || imagesPending
   const previewUrl = `${API_BASE}/${site.slug}/${activePage ? `${activePage}/` : ''}?vicinic_edit=1&v=${previewNonce}`
-  const fallbackSlots = groups
-    .filter((g) => g.page === null || g.page === activePage)
-    .flatMap((g) => g.slots.filter((s) => NON_INLINE_TAGS.has(slotTag(s.label))))
+  const customPages = pagesState ? pagesState.pages : []
+  const activeCustom = customPages.find((p) => p.slug === activePage) || null
+  const fallbackSlots = activeCustom
+    ? []
+    : groups
+        .filter((g) => g.page === null || g.page === activePage)
+        .flatMap((g) => g.slots.filter((s) => NON_INLINE_TAGS.has(slotTag(s.label))))
 
   return (
     <>
-      {!isFreeTier && pages.length > 1 && (
+      {!isFreeTier && (
         <div className="card site-picker">
           <label htmlFor="preview-page">Page</label>
           <select id="preview-page" value={activePage} onChange={(e) => setActivePage(e.target.value)}>
             {pages.map((g) => (
               <option key={g.page} value={g.page}>{g.label}</option>
             ))}
+            {customPages.length > 0 && (
+              <optgroup label="Your pages">
+                {customPages.map((p) => (
+                  <option key={p.slug} value={p.slug}>{p.title}{p.published ? '' : ' (not published yet)'}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
+          <AddPageButton
+            site={site}
+            pagesState={pagesState}
+            onCreated={(data) => {
+              setPagesState(data)
+              setImagesPending(true)
+              setActivePage(data.page.slug)
+            }}
+          />
         </div>
       )}
       {isFreeTier && pages.length > 1 && (
@@ -2022,6 +2288,21 @@ function VisualEditor({ site }) {
         <iframe ref={iframeRef} src={previewUrl} title="Site preview" onLoad={sendDraftToPreview} />
       </div>
 
+      {activeCustom && (
+        <SectionsPanel
+          site={site}
+          customPage={activeCustom}
+          refreshKey={imagesRefresh}
+          onChanged={reloadPreview}
+          onPendingChange={setImagesPending}
+          onPagesChanged={(deleted) => {
+            loadCustomPages()
+            if (deleted === null) setActivePage('')
+          }}
+        />
+      )}
+
+      {!activeCustom && (
       <ImagesPanel
         site={site}
         page={activePage}
@@ -2031,6 +2312,9 @@ function VisualEditor({ site }) {
         onPendingChange={setImagesPending}
       />
 
+      )}
+
+      {!activeCustom && (
       <LinksPanel
         site={site}
         page={activePage}
@@ -2039,6 +2323,7 @@ function VisualEditor({ site }) {
         onChanged={reloadPreview}
         onPendingChange={setImagesPending}
       />
+      )}
 
       {fallbackSlots.length > 0 && (
         <div className="card">

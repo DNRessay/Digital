@@ -44,6 +44,26 @@ urlpatterns = [
         name="api-customer-site-images-commit",
     ),
     path(
+        "api/customer/sites/<slug:site_slug>/pages/",
+        customer_api.api_customer_site_pages,
+        name="api-customer-site-pages",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/pages/<int:page_id>/",
+        customer_api.api_customer_site_page,
+        name="api-customer-site-page",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/pages/<int:page_id>/sections/",
+        customer_api.api_customer_site_page_sections,
+        name="api-customer-site-page-sections",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/pages/<int:page_id>/sections/<str:section_id>/image/",
+        customer_api.api_customer_site_page_section_image,
+        name="api-customer-site-page-section-image",
+    ),
+    path(
         "api/customer/sites/<slug:site_slug>/links/",
         customer_api.api_customer_site_links,
         name="api-customer-site-links",

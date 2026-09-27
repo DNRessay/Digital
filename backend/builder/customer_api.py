@@ -35,9 +35,9 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteImage, SiteLink, SiteSlotValue, SiteVisit, Template
+from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteImage, SiteLink, SitePage, SiteSlotValue, SiteVisit, Template
 from .payfast_views import _start_manual_za_registration
-from .services import cloudflare, domain_search, site_images, site_links, whatsapp
+from .services import cloudflare, domain_search, site_images, site_links, site_pages, site_sections, whatsapp
 from .services.site_images import ImageUploadError
 from .services.site_links import InvalidLinkError
 from .services.cloudflare import CloudflareError
@@ -990,6 +990,7 @@ def _image_state(site):
     pending = (
         site.images.filter(models.Q(pending_reset=True) | ~models.Q(draft_file="")).exists()
         or site.links.filter(draft_href__isnull=False).exists()
+        or site.custom_pages.filter(models.Q(published=False) | models.Q(draft_sections__isnull=False)).exists()
         or site.draft_logo_scale is not None
     )
     return {
@@ -1110,6 +1111,19 @@ def api_customer_site_images_commit(request, site_slug, action):
         else:
             image.save()
 
+    for custom_page in site.custom_pages.all():
+        if action == "publish":
+            if custom_page.draft_sections is not None:
+                custom_page.sections = custom_page.draft_sections
+            custom_page.draft_sections = None
+            custom_page.published = True
+            custom_page.save()
+        elif not custom_page.published:
+            custom_page.delete()
+        elif custom_page.draft_sections is not None:
+            custom_page.draft_sections = None
+            custom_page.save(update_fields=["draft_sections"])
+
     for link in site.links.filter(draft_href__isnull=False):
         if action == "publish":
             link.href = link.draft_href
@@ -1203,3 +1217,209 @@ def api_customer_site_links(request, site_slug):
     elif link.pk:
         link.delete()
     return JsonResponse({**_image_state(site), "href": href})
+
+
+def _serialize_custom_page(custom_page):
+    return {
+        "id": custom_page.id,
+        "slug": custom_page.slug,
+        "title": custom_page.title,
+        "show_in_nav": custom_page.show_in_nav,
+        "published": custom_page.published,
+        "pending": not custom_page.published or custom_page.draft_sections is not None,
+    }
+
+
+def _custom_pages_state(site):
+    limit = site_pages.page_limit(site)
+    count = site.custom_pages.count()
+    return {
+        "pages": [_serialize_custom_page(p) for p in site.custom_pages.all()],
+        "limit": limit,
+        "can_add": site.has_paid_plan and (limit is None or count < limit) and site_pages.starter_page(site.template) is not None,
+        "available": site.has_paid_plan,
+    }
+
+
+def _owned_custom_page(request, site_slug, page_id):
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return None, None, JsonResponse({"error": "Site not found."}, status=404)
+    custom_page = site.custom_pages.filter(id=page_id).first()
+    if custom_page is None:
+        return site, None, JsonResponse({"error": "Page not found."}, status=404)
+    if not site.has_paid_plan:
+        return site, custom_page, JsonResponse({"error": "Adding pages comes with every paid plan — upgrade to use it."}, status=403)
+    return site, custom_page, None
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "POST"])
+def api_customer_site_pages(request, site_slug):
+    """Customer-added pages. GET lists them with the plan's page limit;
+    POST {title} adds one (unpublished until the editor's Publish)."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    if request.method == "POST":
+        state = _custom_pages_state(site)
+        if not site.has_paid_plan:
+            return JsonResponse({"error": "Adding pages comes with every paid plan — upgrade to use it."}, status=403)
+        if not state["can_add"]:
+            return JsonResponse({"error": f"Your plan allows {state['limit']} extra pages — upgrade for more."}, status=400)
+        title = " ".join(str(_json_body(request).get("title", "")).split())[:80]
+        if not title:
+            return JsonResponse({"error": "Give the page a name."}, status=400)
+        custom_page = SitePage.objects.create(
+            site=site,
+            title=title,
+            slug=site_pages.unique_slug(site, title),
+            order=site.custom_pages.count(),
+            draft_sections=[site_sections.new_section("hero")],
+        )
+        return JsonResponse({**_custom_pages_state(site), "page": _serialize_custom_page(custom_page)}, status=201)
+    return JsonResponse(_custom_pages_state(site))
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["PATCH", "DELETE"])
+def api_customer_site_page(request, site_slug, page_id):
+    """PATCH {title?, show_in_nav?} renames/hides a page (immediately);
+    DELETE removes it and its content for good."""
+    site, custom_page, error = _owned_custom_page(request, site_slug, page_id)
+    if error:
+        return error
+    if request.method == "DELETE":
+        custom_page.delete()
+        return JsonResponse(_custom_pages_state(site))
+    body = _json_body(request)
+    if "title" in body:
+        title = " ".join(str(body["title"]).split())[:80]
+        if not title:
+            return JsonResponse({"error": "Give the page a name."}, status=400)
+        custom_page.title = title
+    if "show_in_nav" in body:
+        custom_page.show_in_nav = bool(body["show_in_nav"])
+    custom_page.save()
+    return JsonResponse({**_custom_pages_state(site), "page": _serialize_custom_page(custom_page)})
+
+
+def _sections_payload(site, custom_page):
+    return {
+        **_image_state(site),
+        "page": _serialize_custom_page(custom_page),
+        "sections": [
+            {
+                "id": sec["id"],
+                "type": sec["type"],
+                "label": site_sections.SECTION_TYPES.get(sec["type"], {}).get("label", sec["type"]),
+                "fields": sec.get("fields", {}),
+            }
+            for sec in custom_page.current_sections(draft=True)
+        ],
+        "catalog": site_sections.catalog(),
+    }
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "POST"])
+def api_customer_site_page_sections(request, site_slug, page_id):
+    """GET: the page's sections (draft) + the section catalog. POST {action}:
+    "add" {type, index?}, "move" {id, direction: -1|1}, "remove" {id},
+    "set" {id, field, value}, "set_many" {values: {"sp:<page>:<id>:<field>": text}}.
+    Every change is staged in draft_sections until Publish."""
+    site, custom_page, error = _owned_custom_page(request, site_slug, page_id)
+    if error and not (error.status_code == 403 and request.method == "GET"):
+        return error
+    if request.method == "GET":
+        return JsonResponse(_sections_payload(site, custom_page))
+
+    body = _json_body(request)
+    action = body.get("action")
+    sections = [dict(sec, fields=dict(sec.get("fields", {}))) for sec in custom_page.current_sections(draft=True)]
+    by_id = {sec["id"]: sec for sec in sections}
+
+    def set_field(section_id, field, value):
+        sec = by_id.get(section_id)
+        spec = site_sections.SECTION_TYPES.get(sec["type"]) if sec else None
+        if spec is None or field not in spec["fields"]:
+            raise ValueError("Unknown section field.")
+        value = str(value)
+        if field.endswith(site_sections.URL_SUFFIX):
+            value = site_links.clean_href(value) or "#"
+        elif field.endswith(site_sections.IMAGE_SUFFIX):
+            raise ValueError("Upload images with the image button.")
+        else:
+            value = value[:1000]
+        sec["fields"][field] = value
+
+    try:
+        if action == "add":
+            kind = body.get("type")
+            if kind not in site_sections.SECTION_TYPES:
+                raise ValueError("Unknown section type.")
+            if len(sections) >= 20:
+                raise ValueError("A page can have up to 20 sections.")
+            index = body.get("index")
+            index = len(sections) if not isinstance(index, int) else max(0, min(len(sections), index))
+            sections.insert(index, site_sections.new_section(kind))
+        elif action == "move":
+            idx = next(i for i, sec in enumerate(sections) if sec["id"] == body.get("id"))
+            new = idx + (1 if body.get("direction") == 1 else -1)
+            if 0 <= new < len(sections):
+                sections[idx], sections[new] = sections[new], sections[idx]
+        elif action == "remove":
+            sections = [sec for sec in sections if sec["id"] != body.get("id")]
+        elif action == "set":
+            set_field(body.get("id"), str(body.get("field", "")), body.get("value", ""))
+        elif action == "set_many":
+            prefix = f"sp:{custom_page.id}:"
+            for key, value in (body.get("values") or {}).items():
+                if key.startswith(prefix) and key.count(":") == 3:
+                    _sp, _pid, section_id, field = key.split(":")
+                    if site_sections.is_text_field(field):
+                        set_field(section_id, field, value)
+        else:
+            raise ValueError("Unknown action.")
+    except StopIteration:
+        return JsonResponse({"error": "Section not found."}, status=404)
+    except (ValueError, InvalidLinkError) as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
+    custom_page.draft_sections = sections
+    custom_page.save(update_fields=["draft_sections"])
+    return JsonResponse(_sections_payload(site, custom_page))
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["POST"])
+def api_customer_site_page_section_image(request, site_slug, page_id, section_id):
+    """Multipart {field, file}: uploads an image into one section's image
+    field (staged until Publish)."""
+    site, custom_page, error = _owned_custom_page(request, site_slug, page_id)
+    if error:
+        return error
+    field = request.POST.get("field", "")
+    sections = [dict(sec, fields=dict(sec.get("fields", {}))) for sec in custom_page.current_sections(draft=True)]
+    sec = next((s for s in sections if s["id"] == section_id), None)
+    spec = site_sections.SECTION_TYPES.get(sec["type"]) if sec else None
+    if spec is None or field not in spec["fields"] or not field.endswith(site_sections.IMAGE_SUFFIX):
+        return JsonResponse({"error": "Unknown image."}, status=400)
+    uploaded = request.FILES.get("file")
+    if uploaded is None:
+        return JsonResponse({"error": "Choose an image to upload."}, status=400)
+    try:
+        name, content = site_images.process_upload(uploaded, site.slug)
+    except ImageUploadError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    from django.core.files.storage import default_storage
+
+    stored = default_storage.save(f"site_images/{name}", content)
+    sec["fields"][field] = default_storage.url(stored)
+    custom_page.draft_sections = sections
+    custom_page.save(update_fields=["draft_sections"])
+    return JsonResponse(_sections_payload(site, custom_page))
