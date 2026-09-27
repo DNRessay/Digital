@@ -4,9 +4,8 @@ import sys
 sys.path.append(os.curdir)
 from pelicanconf import *  # noqa: E402,F401,F403
 
-# Served at vicinic.co.za/blog through the "vicinic" Worker, which strips
-# the /blog prefix before fetching from this Pages project.
-SITEURL = os.environ.get("SITEURL", "https://vicinic.co.za/blog")
+# Served at blog.vicinic.co.za through the "vicinic" router Worker.
+SITEURL = os.environ.get("SITEURL", "https://blog.vicinic.co.za")
 RELATIVE_URLS = False
 FEED_ALL_ATOM = "feeds/all.atom.xml"
 FEED_ALL_RSS = "feeds/all.rss.xml"

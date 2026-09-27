@@ -104,7 +104,7 @@ the cross-origin cookie caveat above, this only actually works end-to-end
 over HTTPS, so local testing of its login/upload flow requires the real
 deployed backend.
 
-## `blog` — vicinic.co.za/blog (Pelican)
+## `blog` — blog.vicinic.co.za (Pelican)
 
 A static Python blog, separate from the React apps. Posts are Markdown files
 in `blog/content/posts/` with a small header:
@@ -138,7 +138,7 @@ Cloudflare Pages project settings:
 | Environment variable | `PYTHON_VERSION` = `3.11` |
 
 Name the project `vicinic-blog` and don't give it a custom domain: the
-`vicinic` Worker (the router in front of vicinic.co.za) sends
-`vicinic.co.za/blog/*` to `vicinic-blog.pages.dev`, stripping the `/blog`
-prefix. `publishconf.py` builds with `SITEURL=https://vicinic.co.za/blog`
+`vicinic` Worker (the router in front of vicinic.co.za) maps
+`blog.vicinic.co.za` to `vicinic-blog.pages.dev`, like `portal.` and
+`console.`. `publishconf.py` builds with `SITEURL=https://blog.vicinic.co.za`
 (override with a `SITEURL` env var) and adds the RSS/Atom feeds.
