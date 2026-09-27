@@ -2,13 +2,12 @@ AUTHOR = "Vicinic"
 SITENAME = "Vicinic Blog"
 SITESUBTITLE = "Websites, domains and growing a small business online — from the Vicinic team."
 SITEURL = ""
-MAIN_SITE_URL = "https://vicinic.com"
-PORTAL_URL = "https://vicinic-web-portal.pages.dev"
+MAIN_SITE_URL = "https://vicinic.co.za"
+PORTAL_URL = "https://console.vicinic.co.za"
 
 PATH = "content"
 ARTICLE_PATHS = ["posts"]
-STATIC_PATHS = ["images", "extra/_redirects"]
-EXTRA_PATH_METADATA = {"extra/_redirects": {"path": "_redirects"}}
+STATIC_PATHS = ["images"]
 
 TIMEZONE = "Africa/Johannesburg"
 DEFAULT_LANG = "en"

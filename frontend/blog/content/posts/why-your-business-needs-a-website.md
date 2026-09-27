@@ -25,4 +25,4 @@ When someone Googles your business name, your own site should be the first thing
 
 With Vicinic you pick a professionally designed template, type your business name, and edit the words and pictures right on the page. No code, no designer invoices.
 
-[Create your site →](https://vicinic-web-portal.pages.dev)
+[Create your site →](https://console.vicinic.co.za)
