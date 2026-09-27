@@ -159,6 +159,8 @@ class Site(models.Model):
         (SUBSCRIPTION_ACTIVE, "Active"),
         (SUBSCRIPTION_CANCELLED, "Cancelled"),
     ]
+    logo_scale = models.PositiveSmallIntegerField(default=100, help_text="Logo size in percent of the template's own.")
+    draft_logo_scale = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Unpublished editor change to logo_scale.")
     free_domain_available = models.BooleanField(
         default=False,
         help_text="One .co.za included with a paid plan (R50 of the plan price reserved for it) — set when the plan's "
@@ -454,11 +456,82 @@ class SiteImage(models.Model):
 
     site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="images")
     original_url = models.CharField(max_length=1000)
-    file = models.FileField(upload_to="site_images/")
+    file = models.FileField(upload_to="site_images/", blank=True, help_text="The live replacement (empty until published).")
+    draft_file = models.FileField(upload_to="site_images/", blank=True, help_text="Uploaded in the editor, not published yet.")
+    pending_reset = models.BooleanField(default=False, help_text="Publishing will revert to the template's own image.")
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def has_draft(self):
+        return bool(self.draft_file) or self.pending_reset
+
+    def url(self, draft=False):
+        """The image to show: the live one, or (draft=True, the editor
+        preview) whatever publishing would make live. None = template's own."""
+        if draft and self.pending_reset:
+            return None
+        if draft and self.draft_file:
+            return self.draft_file.url
+        return self.file.url if self.file else None
 
     class Meta:
         unique_together = [("site", "original_url")]
 
     def __str__(self):
         return f"{self.site.slug}: {self.original_url}"
+
+
+class SiteLink(models.Model):
+    """Where one of a Site's template buttons/links points, overridden by the
+    customer. `key` identifies the link by its template href + the
+    template source of its label (see services.site_links), so a header
+    button is the same link on every page."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="links")
+    key = models.CharField(max_length=16)
+    href = models.CharField(max_length=500, blank=True, help_text="Live override; blank = the template's own link.")
+    draft_href = models.CharField(
+        max_length=500, null=True, blank=True,
+        help_text="Unpublished editor change; empty string = revert to the template's own link.",
+    )
+
+    class Meta:
+        unique_together = [("site", "key")]
+
+    def current(self, draft=False):
+        if draft and self.draft_href is not None:
+            return self.draft_href
+        return self.href
+
+    def __str__(self):
+        return f"{self.site.slug}: {self.key} -> {self.href}"
+
+
+class SitePage(models.Model):
+    """An extra page a paid Site adds itself (e.g. "Pricing"), built from
+    its template's Starter Page chrome (header/footer) plus a list of
+    Bootstrap sections the customer picks and fills in — see
+    services.site_sections. `sections` is live; `draft_sections` holds
+    unpublished editor changes (None = no draft)."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="custom_pages")
+    slug = models.SlugField(max_length=60)
+    title = models.CharField(max_length=80)
+    show_in_nav = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+    published = models.BooleanField(default=False, help_text="False until the first Publish; hidden from visitors and the menu.")
+    sections = models.JSONField(default=list, blank=True)
+    draft_sections = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("site", "slug")]
+        ordering = ["order", "id"]
+
+    def current_sections(self, draft=False):
+        if draft and self.draft_sections is not None:
+            return self.draft_sections
+        return self.sections
+
+    def __str__(self):
+        return f"{self.site.slug}/{self.slug}"

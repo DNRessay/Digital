@@ -8,7 +8,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.mail import BadHeaderError, send_mail
 from django.db import IntegrityError
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template import engines
 from django.urls import reverse
@@ -21,9 +21,10 @@ from django.views.decorators.http import require_POST
 
 from .forms import TemplateUploadForm
 from .branding_assets import LOGO_WHITE_DATA_URI
-from .models import Site, SiteSlotValue, SiteVisit, Template, TemplatePage
+from .models import Site, SitePage, SiteSlotValue, SiteVisit, Template, TemplatePage
 from .services.ai_assistant import AiAssistantError, ask_assistant
-from .services.site_images import apply_overrides
+from .services import site_links, site_pages
+from .services.site_images import apply_overrides, logo_scale_css, logo_urls
 from .services.slot_extractor import slot_tag
 from .services.template_ingest import IngestError, ingest_converted_zip
 from .services.templify_client import TemplifyError, convert_template_zip
@@ -230,6 +231,17 @@ EDITOR_BRIDGE_HTML = """
     );
   });
 
+  // Tapping a button/link also tells the portal which one, so its
+  // "Buttons & links" panel can offer to change where it points.
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[data-vicinic-link]');
+    if (!a) return;
+    window.parent.postMessage(
+      { source: 'vicinic-editor', type: 'link-clicked', key: a.getAttribute('data-vicinic-link') },
+      '*'
+    );
+  });
+
   document.addEventListener('click', function (e) {
     var el = e.target.closest && e.target.closest('.vicinic-editable');
     if (!el || el === current) return;
@@ -355,13 +367,36 @@ def _inject_map_address(html, address):
     return GOOGLE_MAPS_IFRAME_SRC_RE.sub(lambda m: m.group(1) + new_src + m.group(3), html)
 
 
-def _render_site_page(site, page, edit_mode=False, chat_url=None):
+def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None, custom_page=None):
+    """`page` is the TemplatePage to render; for a customer-added page
+    (`custom_page`, a SitePage) it's the template's starter page, whose
+    main content gets swapped for the custom page's sections."""
+    base_path = base_path if base_path is not None else f"/{site.slug}/"
     context = _resolve_slots(site, page, edit_mode=edit_mode)
-    template = django_engine.from_string(page.document)
+    link_overrides = {}
+    for link in site.links.all():
+        href = link.current(draft=edit_mode)
+        if href:
+            link_overrides[link.key] = href
+    source = site_pages.document_with_marker(page.document) if custom_page else page.document
+    document = site_links.apply(source, link_overrides, annotate=edit_mode)
+    template = django_engine.from_string(document)
     html = template.render(context)
-    overrides = {image.original_url: image.file.url for image in site.images.all()}
+    if custom_page:
+        html = site_pages.fill(html, custom_page, site.name, edit_mode)
+    nav_pages = site.custom_pages.filter(show_in_nav=True) if edit_mode else site.custom_pages.filter(show_in_nav=True, published=True)
+    html = site_pages.inject_nav(html, [(f"{base_path}{p.slug}/", p.title) for p in nav_pages])
+    overrides = {}
+    for image in site.images.all():
+        url = image.url(draft=edit_mode)
+        if url:
+            overrides[image.original_url] = url
     if overrides:
         html = apply_overrides(html, overrides)
+    scale = site.draft_logo_scale if edit_mode and site.draft_logo_scale is not None else site.logo_scale
+    logo_css = logo_scale_css([overrides.get(u, u) for u in logo_urls(page.document)], scale)
+    if logo_css:
+        html = _inject_head_style(html, logo_css)
     if site.primary_color and HEX_COLOR_RE.match(site.primary_color):
         html = _inject_head_style(html, f":root{{--vicinic-primary:{site.primary_color};}}")
     html = _inject_map_address(html, site.address)
@@ -431,12 +466,27 @@ def site_home(request, slug):
     )
 
 
+def _page_or_custom(site, page_slug, edit_mode):
+    """(TemplatePage, SitePage or None) for a page slug, or Http404. A
+    customer-added page is only visible once published — except in the
+    editor preview."""
+    page = TemplatePage.objects.filter(template=site.template, slug=page_slug).first()
+    if page is not None:
+        return page, None
+    custom = SitePage.objects.filter(site=site, slug=page_slug).first()
+    starter = site_pages.starter_page(site.template) if custom else None
+    if custom is None or starter is None or not (custom.published or edit_mode):
+        raise Http404("No such page.")
+    return starter, custom
+
+
 def site_page(request, slug, page_slug):
     site = get_object_or_404(Site, slug=slug, is_published=True)
-    page = get_object_or_404(TemplatePage, template=site.template, slug=page_slug)
+    edit_mode = request.GET.get("vicinic_edit") == "1"
+    page, custom = _page_or_custom(site, page_slug, edit_mode)
     chat_url = reverse("builder:site-ai-chat", args=[slug])
     return _track_visit(
-        request, site, _render_site_page(site, page, edit_mode=request.GET.get("vicinic_edit") == "1", chat_url=chat_url)
+        request, site, _render_site_page(site, page, edit_mode=edit_mode, chat_url=chat_url, custom_page=custom)
     )
 
 
@@ -448,13 +498,19 @@ def site_page(request, slug, page_slug):
 def custom_domain_home(request):
     site = request.custom_domain_site
     page = get_object_or_404(TemplatePage, template=site.template, slug="")
-    return _track_visit(request, site, _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat")))
+    return _track_visit(
+        request, site, _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat"), base_path="/")
+    )
 
 
 def custom_domain_page(request, page_slug):
     site = request.custom_domain_site
-    page = get_object_or_404(TemplatePage, template=site.template, slug=page_slug)
-    return _track_visit(request, site, _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat")))
+    page, custom = _page_or_custom(site, page_slug, edit_mode=False)
+    return _track_visit(
+        request,
+        site,
+        _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat"), base_path="/", custom_page=custom),
+    )
 
 
 @csrf_exempt

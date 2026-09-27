@@ -254,3 +254,54 @@ export function uploadSiteImage(siteSlug, original, file) {
 export function resetSiteImage(siteSlug, original) {
   return apiFetch(`/api/customer/sites/${siteSlug}/images/?original=${encodeURIComponent(original)}`, { method: 'DELETE' })
 }
+
+export function setLogoScale(siteSlug, logoScale) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/logo-scale/`, { method: 'POST', body: { logo_scale: logoScale } })
+}
+
+export function publishSiteImages(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/images/publish/`, { method: 'POST' })
+}
+
+export function discardSiteImages(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/images/discard/`, { method: 'POST' })
+}
+
+export function getSiteLinks(siteSlug, page) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/links/?page=${encodeURIComponent(page)}`)
+}
+
+export function setSiteLink(siteSlug, key, href) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/links/`, { method: 'POST', body: { key, href } })
+}
+
+export function getSitePages(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/`)
+}
+
+export function createSitePage(siteSlug, title) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/`, { method: 'POST', body: { title } })
+}
+
+export function updateSitePage(siteSlug, pageId, fields) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/${pageId}/`, { method: 'PATCH', body: fields })
+}
+
+export function deleteSitePage(siteSlug, pageId) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/${pageId}/`, { method: 'DELETE' })
+}
+
+export function getPageSections(siteSlug, pageId) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/${pageId}/sections/`)
+}
+
+export function pageSectionAction(siteSlug, pageId, body) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/${pageId}/sections/`, { method: 'POST', body })
+}
+
+export function uploadSectionImage(siteSlug, pageId, sectionId, field, file) {
+  const form = new FormData()
+  form.append('field', field)
+  form.append('file', file)
+  return apiFetch(`/api/customer/sites/${siteSlug}/pages/${pageId}/sections/${sectionId}/image/`, { method: 'POST', body: form })
+}

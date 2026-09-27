@@ -9,6 +9,7 @@ import {
   createSite,
   addEmailDestination,
   deleteEmailDestination,
+  discardSiteImages,
   deleteEmailRoute,
   deleteSite,
   disconnectDomain,
@@ -16,6 +17,7 @@ import {
   getDomain,
   getProfile,
   getSiteImages,
+  getSiteLinks,
   getSiteSlots,
   getVisitors,
   listEmailDestinations,
@@ -26,17 +28,27 @@ import {
   loadDraft,
   login,
   logout,
+  publishSiteImages,
   purchaseDomain,
   redirectToPayFast,
   resetSiteImage,
   register,
   saveSiteSlots,
   searchDomains,
+  setLogoScale,
+  setSiteLink,
   storeDraft,
   updateProfile,
   updateSite,
   uploadSiteImage,
   whoami,
+  createSitePage,
+  deleteSitePage,
+  getPageSections,
+  getSitePages,
+  pageSectionAction,
+  updateSitePage,
+  uploadSectionImage,
 } from './api.js'
 
 const WHATSAPP_APP_ID = import.meta.env.VITE_WHATSAPP_APP_ID || ''
@@ -1595,22 +1607,59 @@ async function shrinkImage(file) {
   return new File([blob], file.name.replace(/\.\w+$/, type === 'image/jpeg' ? '.jpg' : '.webp'), { type })
 }
 
-function ImagesPanel({ site, page, selectedSrc, onChanged }) {
+function ImageTile({ img, selected, busy, tileRef, onFile, onReset }) {
+  return (
+    <div ref={tileRef} className={`image-tile${selected ? ' selected' : ''}`}>
+      <div className="image-thumb"><img src={img.current} alt="" loading="lazy" /></div>
+      <div className="image-badges">
+        {img.logo && <span className="domain-badge">Logo</span>}
+        {img.pending && <span className="pending-badge">Unpublished</span>}
+      </div>
+      <div className="image-actions">
+        <label className="image-replace">
+          {busy ? 'Uploading…' : 'Replace'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={(e) => {
+              onFile(e.target.files[0])
+              e.target.value = ''
+            }}
+          />
+        </label>
+        {img.replaced && (
+          <button type="button" className="link-button" onClick={onReset}>Reset</button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ImagesPanel({ site, page, selectedSrc, refreshKey, onChanged, onPendingChange }) {
   const [images, setImages] = useState(null)
-  const [available, setAvailable] = useState(true)
+  const [state, setState] = useState({ available: true, logo_scale: 100, has_pending: false })
   const [busy, setBusy] = useState(null) // original url being changed
   const [error, setError] = useState(null)
   const tileRefs = useRef({})
+  const scaleTimer = useRef(null)
+
+  function applyState(data) {
+    const next = { available: data.available, logo_scale: data.logo_scale, has_pending: data.has_pending }
+    setState(next)
+    onPendingChange(next.has_pending)
+  }
 
   useEffect(() => {
     setImages(null)
+    setError(null)
     getSiteImages(site.slug, page)
       .then((data) => {
         setImages(data.images)
-        setAvailable(data.available)
+        applyState(data)
       })
       .catch((err) => setError(err.message))
-  }, [site.slug, page])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site.slug, page, refreshKey])
 
   const selected = images && selectedSrc
     ? images.find((img) => img.current === selectedSrc || img.original === selectedSrc || selectedSrc.endsWith(img.current))
@@ -1620,13 +1669,13 @@ function ImagesPanel({ site, page, selectedSrc, onChanged }) {
     if (selected) tileRefs.current[selected.original]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [selected])
 
-  async function handleFile(image, file) {
-    if (!file) return
+  async function run(image, action) {
     setBusy(image.original)
     setError(null)
     try {
-      const data = await uploadSiteImage(site.slug, image.original, await shrinkImage(file))
-      setImages((prev) => prev.map((img) => (img.original === image.original ? data.image : img)))
+      const data = await action()
+      setImages((prev) => prev.map((img) => (img.original === image.original ? { ...data.image, logo: img.logo } : img)))
+      applyState(data)
       onChanged()
     } catch (err) {
       setError(err.message)
@@ -1635,65 +1684,407 @@ function ImagesPanel({ site, page, selectedSrc, onChanged }) {
     }
   }
 
-  async function handleReset(image) {
-    setBusy(image.original)
-    setError(null)
-    try {
-      const data = await resetSiteImage(site.slug, image.original)
-      setImages((prev) => prev.map((img) => (img.original === image.original ? data.image : img)))
-      onChanged()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(null)
-    }
+  function handleScale(value) {
+    setState((prev) => ({ ...prev, logo_scale: value }))
+    clearTimeout(scaleTimer.current)
+    scaleTimer.current = setTimeout(async () => {
+      try {
+        applyState(await setLogoScale(site.slug, value))
+        onChanged()
+      } catch (err) {
+        setError(err.message)
+      }
+    }, 400)
   }
 
   if (images && images.length === 0) return null
 
+  const logos = images ? images.filter((img) => img.logo) : []
+  const others = images ? images.filter((img) => !img.logo) : []
+  const tile = (img) => (
+    <ImageTile
+      key={img.original}
+      img={img}
+      selected={selected && selected.original === img.original}
+      busy={busy === img.original}
+      tileRef={(el) => { tileRefs.current[img.original] = el }}
+      onFile={(file) => file && run(img, async () => uploadSiteImage(site.slug, img.original, await shrinkImage(file)))}
+      onReset={() => run(img, () => resetSiteImage(site.slug, img.original))}
+    />
+  )
+
   return (
     <div className="card">
       <h2>Images</h2>
-      {available ? (
-        <p className="field-hint images-hint">Tap an image on the preview, or pick one below. Replacements go live straight away.</p>
+      {state.available ? (
+        <p className="field-hint images-hint">
+          Tap an image on the preview, or pick one below. Changes show in the preview and go live when you tap Publish changes.
+        </p>
       ) : (
         <div className="notice">Replacing your logo and images comes with every paid plan — upgrade on the Deploy tab.</div>
       )}
       {error && <div className="error">{error}</div>}
       {!images && !error && <p className="field-hint">Loading images…</p>}
       {images && (
-        <fieldset className={available ? 'plain-fieldset' : 'plain-fieldset locked-section'} disabled={!available}>
-          <div className="image-grid">
-            {images.map((img) => (
-              <div
-                key={img.original}
-                ref={(el) => { tileRefs.current[img.original] = el }}
-                className={`image-tile${selected && selected.original === img.original ? ' selected' : ''}`}
-              >
-                <div className="image-thumb"><img src={img.current} alt="" loading="lazy" /></div>
-                <label className="image-replace">
-                  {busy === img.original ? 'Uploading…' : 'Replace'}
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    onChange={(e) => {
-                      handleFile(img, e.target.files[0])
-                      e.target.value = ''
-                    }}
-                    disabled={busy !== null}
-                  />
-                </label>
-                {img.replaced && (
-                  <button type="button" className="link-button" onClick={() => handleReset(img)} disabled={busy !== null}>
-                    Reset
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+        <fieldset className={state.available ? 'plain-fieldset' : 'plain-fieldset locked-section'} disabled={!state.available || busy !== null}>
+          {logos.length > 0 && (
+            <>
+              <h3 className="domain-list-title">Logo</h3>
+              <div className="image-grid">{logos.map(tile)}</div>
+              <label htmlFor="logo-scale" className="logo-scale-label">
+                Logo size <strong>{state.logo_scale}%</strong>
+              </label>
+              <input
+                id="logo-scale"
+                type="range"
+                min="50"
+                max="200"
+                step="5"
+                value={state.logo_scale}
+                onChange={(e) => handleScale(Number(e.target.value))}
+              />
+            </>
+          )}
+          {others.length > 0 && (
+            <>
+              <h3 className="domain-list-title">Other images</h3>
+              <div className="image-grid">{others.map(tile)}</div>
+            </>
+          )}
         </fieldset>
       )}
     </div>
+  )
+}
+
+function LinkRow({ link, site, selected, rowRef, disabled, onSave }) {
+  const [value, setValue] = useState(link.href)
+  useEffect(() => setValue(link.href), [link.href])
+
+  const quick = [
+    site.whatsapp_number && { label: 'WhatsApp', href: `https://wa.me/${site.whatsapp_number.replace(/\D/g, '')}` },
+    site.phone && { label: 'Call', href: `tel:${site.phone.replace(/[^\d+]/g, '')}` },
+    site.email && { label: 'Email', href: `mailto:${site.email}` },
+  ].filter(Boolean)
+
+  function save(href) {
+    if (href.trim() !== link.href) onSave(href.trim())
+  }
+
+  return (
+    <li ref={rowRef} className={`link-row${selected ? ' selected' : ''}`}>
+      <div className="link-row-head">
+        <strong>{link.label}</strong>
+        {link.pending && <span className="pending-badge">Unpublished</span>}
+      </div>
+      <input
+        type="text"
+        inputMode="url"
+        value={value}
+        disabled={disabled}
+        aria-label={`Where "${link.label}" goes`}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => save(value)}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      />
+      <div className="link-quick">
+        {quick.map((q) => (
+          <button key={q.label} type="button" className="chip" disabled={disabled} onClick={() => { setValue(q.href); save(q.href) }}>
+            {q.label}
+          </button>
+        ))}
+        {link.changed && (
+          <button type="button" className="link-button" disabled={disabled} onClick={() => { setValue(link.default); save('') }}>
+            Reset
+          </button>
+        )}
+      </div>
+    </li>
+  )
+}
+
+function LinksPanel({ site, page, selectedKey, refreshKey, onChanged, onPendingChange }) {
+  const [links, setLinks] = useState(null)
+  const [available, setAvailable] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const rowRefs = useRef({})
+
+  function load() {
+    return getSiteLinks(site.slug, page).then((data) => {
+      setLinks(data.links)
+      setAvailable(data.available)
+      onPendingChange(data.has_pending)
+    })
+  }
+
+  useEffect(() => {
+    setLinks(null)
+    setError(null)
+    load().catch((err) => setError(err.message))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site.slug, page, refreshKey])
+
+  useEffect(() => {
+    if (selectedKey) rowRefs.current[selectedKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [selectedKey])
+
+  async function handleSave(key, href) {
+    setBusy(true)
+    setError(null)
+    try {
+      await setSiteLink(site.slug, key, href)
+      await load()
+      onChanged()
+    } catch (err) {
+      setError(err.message)
+      await load().catch(() => {})
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (links && links.length === 0) return null
+
+  return (
+    <div className="card">
+      <h2>Buttons &amp; links</h2>
+      {available ? (
+        <p className="field-hint images-hint">
+          Tap a button on the preview, or pick one below, to change where it goes — a web address, #section, or a quick
+          WhatsApp / Call / Email link. Goes live when you tap Publish changes.
+        </p>
+      ) : (
+        <div className="notice">Changing where your buttons and links go comes with every paid plan — upgrade on the Deploy tab.</div>
+      )}
+      {error && <div className="error">{error}</div>}
+      {!links && !error && <p className="field-hint">Loading links…</p>}
+      {links && (
+        <fieldset className={available ? 'plain-fieldset' : 'plain-fieldset locked-section'} disabled={!available}>
+          <ul className="link-list">
+            {links.map((link) => (
+              <LinkRow
+                key={link.key}
+                link={link}
+                site={site}
+                selected={selectedKey === link.key}
+                disabled={busy}
+                rowRef={(el) => { rowRefs.current[link.key] = el }}
+                onSave={(href) => handleSave(link.key, href)}
+              />
+            ))}
+          </ul>
+        </fieldset>
+      )}
+    </div>
+  )
+}
+
+function SectionsPanel({ site, customPage, refreshKey, onChanged, onPendingChange, onPagesChanged }) {
+  const [data, setData] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const [title, setTitle] = useState(customPage.title)
+
+  useEffect(() => setTitle(customPage.title), [customPage.title])
+
+  function apply(result) {
+    setData(result)
+    onPendingChange(result.has_pending)
+  }
+
+  useEffect(() => {
+    setData(null)
+    getPageSections(site.slug, customPage.id).then(apply).catch((err) => setError(err.message))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site.slug, customPage.id, refreshKey])
+
+  async function run(fn) {
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await fn()
+      if (result && result.sections) apply(result)
+      onChanged()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const act = (body) => run(() => pageSectionAction(site.slug, customPage.id, body))
+
+  async function saveSettings(fields) {
+    setError(null)
+    try {
+      await updateSitePage(site.slug, customPage.id, fields)
+      onPagesChanged()
+      onChanged()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm(`Delete the "${customPage.title}" page and everything on it? This can't be undone.`)) return
+    try {
+      await deleteSitePage(site.slug, customPage.id)
+      onPagesChanged(null)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  if (!data) return error ? <div className="card error">{error}</div> : null
+
+  return (
+    <>
+      <div className="card">
+        <h2>Sections on this page</h2>
+        <p className="field-hint images-hint">Tap any text on the preview to edit it. Change pictures and button links here.</p>
+        {error && <div className="error">{error}</div>}
+        <fieldset className="plain-fieldset" disabled={busy}>
+          {data.sections.length === 0 && <p className="field-hint">No sections yet — add one below.</p>}
+          {data.sections.map((sec, i) => {
+            const fields = Object.keys(sec.fields)
+            return (
+              <div key={sec.id} className="section-card">
+                <div className="link-row-head">
+                  <strong>{sec.label}</strong>
+                  <span className="section-tools">
+                    <button type="button" className="chip" disabled={i === 0} onClick={() => act({ action: 'move', id: sec.id, direction: -1 })} aria-label="Move up">↑</button>
+                    <button type="button" className="chip" disabled={i === data.sections.length - 1} onClick={() => act({ action: 'move', id: sec.id, direction: 1 })} aria-label="Move down">↓</button>
+                    <button type="button" className="link-button" onClick={() => act({ action: 'remove', id: sec.id })}>Remove</button>
+                  </span>
+                </div>
+                {fields.filter((f) => f.endsWith('image')).length > 0 && (
+                  <div className="image-grid">
+                    {fields.filter((f) => f.endsWith('image')).map((f) => (
+                      <div key={f} className="image-tile">
+                        <div className="image-thumb"><img src={sec.fields[f]} alt="" /></div>
+                        <label className="image-replace">
+                          Replace
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            onChange={async (e) => {
+                              const file = e.target.files[0]
+                              e.target.value = ''
+                              if (file) run(async () => uploadSectionImage(site.slug, customPage.id, sec.id, f, await shrinkImage(file)))
+                            }}
+                          />
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {fields.filter((f) => f.endsWith('_url')).map((f) => {
+                  const labelField = f.replace(/_url$/, '')
+                  return (
+                    <div key={f} className="section-link">
+                      <label htmlFor={`${sec.id}-${f}`}>"{sec.fields[labelField] || 'Button'}" goes to</label>
+                      <input
+                        id={`${sec.id}-${f}`}
+                        type="text"
+                        inputMode="url"
+                        defaultValue={sec.fields[f]}
+                        key={sec.fields[f]}
+                        onBlur={(e) => e.target.value.trim() !== sec.fields[f] && act({ action: 'set', id: sec.id, field: f, value: e.target.value.trim() })}
+                        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+          <h3 className="domain-list-title">Add a section</h3>
+          <div className="section-catalog">
+            {data.catalog.map((c) => (
+              <button key={c.type} type="button" className="section-type" onClick={() => act({ action: 'add', type: c.type })}>
+                <strong>{c.label}</strong>
+                <span>{c.description}</span>
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      </div>
+
+      <div className="card">
+        <h2>Page settings</h2>
+        <label htmlFor="page-title">Page name</label>
+        <input
+          id="page-title"
+          type="text"
+          maxLength={80}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={() => title.trim() && title.trim() !== customPage.title && saveSettings({ title: title.trim() })}
+        />
+        <p className="field-hint">Address: /{customPage.slug}/</p>
+        <label htmlFor="page-nav" className="checkbox-label">
+          <input
+            id="page-nav"
+            type="checkbox"
+            checked={customPage.show_in_nav}
+            onChange={(e) => saveSettings({ show_in_nav: e.target.checked })}
+            style={{ marginRight: '8px' }}
+          />
+          Show this page in the site's menu
+        </label>
+        <button type="button" className="danger-button" onClick={handleDelete}>Delete this page</button>
+      </div>
+    </>
+  )
+}
+
+function AddPageButton({ site, pagesState, onCreated }) {
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  if (!pagesState) return null
+  if (!pagesState.available) {
+    return <p className="field-hint add-page-hint">Adding your own pages comes with every paid plan.</p>
+  }
+  const used = pagesState.pages.length
+  const limitText = pagesState.limit === null ? '' : ` (${used} of ${pagesState.limit})`
+
+  async function handleCreate(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      const data = await createSitePage(site.slug, title.trim())
+      setTitle('')
+      setOpen(false)
+      onCreated(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className="link-button add-page-button" disabled={!pagesState.can_add} onClick={() => setOpen(true)}>
+        + Add a page{limitText}
+      </button>
+    )
+  }
+  return (
+    <form onSubmit={handleCreate} className="add-page-form">
+      {error && <div className="error">{error}</div>}
+      <label htmlFor="new-page-title">New page name</label>
+      <div className="domain-search-form">
+        <input id="new-page-title" type="text" maxLength={80} placeholder="e.g. Pricing" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus required />
+        <button type="submit" disabled={busy || !title.trim()}>{busy ? 'Adding…' : 'Add'}</button>
+      </div>
+      <button type="button" className="link-button" onClick={() => setOpen(false)}>Cancel</button>
+    </form>
   )
 }
 
@@ -1705,7 +2096,15 @@ function VisualEditor({ site }) {
   const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
   const [saveError, setSaveError] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)
+  const [selectedLink, setSelectedLink] = useState(null)
+  const [pagesState, setPagesState] = useState(null)
+  const [imagesPending, setImagesPending] = useState(false)
+  const [previewNonce, setPreviewNonce] = useState(0)
+  const [imagesRefresh, setImagesRefresh] = useState(0)
   const iframeRef = useRef(null)
+  // The preview is on another origin, so it can't be reloaded through
+  // contentWindow.location — changing its URL reloads it instead.
+  const reloadPreview = () => setPreviewNonce((n) => n + 1)
 
   useEffect(() => {
     setGroups(null)
@@ -1728,12 +2127,25 @@ function VisualEditor({ site }) {
       .catch((err) => setLoadError(err.message))
   }, [site.slug, site.subscription_status])
 
+  function loadCustomPages() {
+    return getSitePages(site.slug).then(setPagesState).catch(() => setPagesState(null))
+  }
+
+  useEffect(() => {
+    loadCustomPages()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site.slug, site.subscription_status])
+
   useEffect(() => {
     function handleMessage(e) {
       if (iframeRef.current && e.source !== iframeRef.current.contentWindow) return
       const msg = e.data
       if (msg && msg.source === 'vicinic-editor' && msg.type === 'image-clicked') {
         setSelectedImage(msg.src)
+        return
+      }
+      if (msg && msg.source === 'vicinic-editor' && msg.type === 'link-clicked') {
+        setSelectedLink(msg.key)
         return
       }
       if (!msg || msg.source !== 'vicinic-editor' || msg.type !== 'slot-changed') return
@@ -1766,10 +2178,33 @@ function VisualEditor({ site }) {
     setSaveState('saving')
     setSaveError(null)
     try {
-      const data = await saveSiteSlots(site.slug, drafts)
-      setGroups(data.groups)
-      clearDraft(site.slug)
-      setDrafts({})
+      const slotDrafts = {}
+      const sectionDrafts = {}
+      Object.entries(drafts).forEach(([key, value]) => {
+        if (key.startsWith('sp:')) {
+          const pageId = key.split(':')[1]
+          sectionDrafts[pageId] = { ...(sectionDrafts[pageId] || {}), [key]: value }
+        } else {
+          slotDrafts[key] = value
+        }
+      })
+      for (const [pageId, values] of Object.entries(sectionDrafts)) {
+        await pageSectionAction(site.slug, pageId, { action: 'set_many', values })
+      }
+      if (Object.keys(slotDrafts).length > 0) {
+        const data = await saveSiteSlots(site.slug, slotDrafts)
+        setGroups(data.groups)
+      }
+      if (Object.keys(drafts).length > 0) {
+        clearDraft(site.slug)
+        setDrafts({})
+      }
+      if (imagesPending || Object.keys(sectionDrafts).length > 0) {
+        await publishSiteImages(site.slug)
+        setImagesPending(false)
+        setImagesRefresh((n) => n + 1)
+        loadCustomPages()
+      }
       setSaveState('saved')
     } catch (err) {
       setSaveError(err.message)
@@ -1777,11 +2212,25 @@ function VisualEditor({ site }) {
     }
   }
 
-  function handleDiscard() {
+  async function handleDiscard() {
     clearDraft(site.slug)
     setDrafts({})
     setSaveState('idle')
-    iframeRef.current?.contentWindow?.location.reload()
+    if (imagesPending) {
+      try {
+        await discardSiteImages(site.slug)
+      } catch (err) {
+        setSaveError(err.message)
+      }
+      setImagesPending(false)
+      setImagesRefresh((n) => n + 1)
+      const refreshed = await getSitePages(site.slug).catch(() => null)
+      setPagesState(refreshed)
+      if (refreshed && !refreshed.pages.some((p) => p.slug === activePage) && !groups.some((g) => g.page === activePage)) {
+        setActivePage('')
+      }
+    }
+    reloadPreview()
   }
 
   if (loadError) return <div className="card error">Could not load this site's text: {loadError}</div>
@@ -1789,22 +2238,42 @@ function VisualEditor({ site }) {
 
   const pages = groups.filter((g) => g.page !== null)
   const isFreeTier = site.subscription_status !== 'active'
-  const isDirty = Object.keys(drafts).length > 0
-  const previewUrl = `${API_BASE}/${site.slug}/${activePage ? `${activePage}/` : ''}?vicinic_edit=1`
-  const fallbackSlots = groups
-    .filter((g) => g.page === null || g.page === activePage)
-    .flatMap((g) => g.slots.filter((s) => NON_INLINE_TAGS.has(slotTag(s.label))))
+  const isDirty = Object.keys(drafts).length > 0 || imagesPending
+  const previewUrl = `${API_BASE}/${site.slug}/${activePage ? `${activePage}/` : ''}?vicinic_edit=1&v=${previewNonce}`
+  const customPages = pagesState ? pagesState.pages : []
+  const activeCustom = customPages.find((p) => p.slug === activePage) || null
+  const fallbackSlots = activeCustom
+    ? []
+    : groups
+        .filter((g) => g.page === null || g.page === activePage)
+        .flatMap((g) => g.slots.filter((s) => NON_INLINE_TAGS.has(slotTag(s.label))))
 
   return (
     <>
-      {!isFreeTier && pages.length > 1 && (
+      {!isFreeTier && (
         <div className="card site-picker">
           <label htmlFor="preview-page">Page</label>
           <select id="preview-page" value={activePage} onChange={(e) => setActivePage(e.target.value)}>
             {pages.map((g) => (
               <option key={g.page} value={g.page}>{g.label}</option>
             ))}
+            {customPages.length > 0 && (
+              <optgroup label="Your pages">
+                {customPages.map((p) => (
+                  <option key={p.slug} value={p.slug}>{p.title}{p.published ? '' : ' (not published yet)'}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
+          <AddPageButton
+            site={site}
+            pagesState={pagesState}
+            onCreated={(data) => {
+              setPagesState(data)
+              setImagesPending(true)
+              setActivePage(data.page.slug)
+            }}
+          />
         </div>
       )}
       {isFreeTier && pages.length > 1 && (
@@ -1813,18 +2282,48 @@ function VisualEditor({ site }) {
         </div>
       )}
 
-      <div className="card notice">Tap any text on the preview to edit it, or tap an image to replace it.</div>
+      <div className="card notice">Tap any text on the preview to edit it — or tap an image or button to change it below.</div>
 
       <div className="visual-editor-frame">
         <iframe ref={iframeRef} src={previewUrl} title="Site preview" onLoad={sendDraftToPreview} />
       </div>
 
+      {activeCustom && (
+        <SectionsPanel
+          site={site}
+          customPage={activeCustom}
+          refreshKey={imagesRefresh}
+          onChanged={reloadPreview}
+          onPendingChange={setImagesPending}
+          onPagesChanged={(deleted) => {
+            loadCustomPages()
+            if (deleted === null) setActivePage('')
+          }}
+        />
+      )}
+
+      {!activeCustom && (
       <ImagesPanel
         site={site}
         page={activePage}
         selectedSrc={selectedImage}
-        onChanged={() => iframeRef.current?.contentWindow?.location.reload()}
+        refreshKey={imagesRefresh}
+        onChanged={reloadPreview}
+        onPendingChange={setImagesPending}
       />
+
+      )}
+
+      {!activeCustom && (
+      <LinksPanel
+        site={site}
+        page={activePage}
+        selectedKey={selectedLink}
+        refreshKey={imagesRefresh}
+        onChanged={reloadPreview}
+        onPendingChange={setImagesPending}
+      />
+      )}
 
       {fallbackSlots.length > 0 && (
         <div className="card">
