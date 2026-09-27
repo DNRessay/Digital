@@ -161,6 +161,7 @@ function CreateSite({ onCreated }) {
   const [templatesError, setTemplatesError] = useState(null)
   const [siteName, setSiteName] = useState('')
   const [templateSlug, setTemplateSlug] = useState('')
+  const [step, setStep] = useState('name') // name | template
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
 
@@ -189,30 +190,53 @@ function CreateSite({ onCreated }) {
 
   const noTemplates = templates && templates.length === 0
 
+  if (step === 'name') {
+    return (
+      <form
+        className="card"
+        onSubmit={(e) => {
+          e.preventDefault()
+          setStep('template')
+        }}
+      >
+        <h2>Create your site</h2>
+        <p>First, what's your business called?</p>
+        <label htmlFor="site-name">Site name</label>
+        <input id="site-name" type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)} autoFocus required />
+        <button type="submit" disabled={!siteName.trim()}>Next</button>
+      </form>
+    )
+  }
+
   return (
     <form className="card" onSubmit={handleSubmit}>
-      <h2>Create your site</h2>
-      <p>Pick a template and we'll set it up — every bit of its text is yours to edit right away.</p>
+      <button type="button" className="link-button" onClick={() => setStep('name')}>← Back</button>
+      <h2>Pick a look for {siteName.trim()}</h2>
+      <p>Swipe through the templates — every bit of text is yours to edit once it's set up.</p>
       {error && <div className="error">{error}</div>}
       {templatesError && <div className="error">Could not load templates: {templatesError}</div>}
       {noTemplates && <div className="error">No templates are available yet — check back soon.</div>}
+      {!templates && !templatesError && <p className="field-hint">Loading templates…</p>}
 
-      <label htmlFor="site-name">Site name</label>
-      <input id="site-name" type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)} required />
-
-      <label htmlFor="template">Template</label>
-      <select
-        id="template"
-        value={templateSlug}
-        onChange={(e) => setTemplateSlug(e.target.value)}
-        required
-        disabled={!templates || noTemplates}
-      >
-        {!templates && <option value="">Loading…</option>}
-        {templates && templates.map((t) => (
-          <option key={t.slug} value={t.slug}>{t.name}</option>
-        ))}
-      </select>
+      {templates && templates.length > 0 && (
+        <div className="template-carousel" role="radiogroup" aria-label="Templates">
+          {templates.map((t) => (
+            <button
+              key={t.slug}
+              type="button"
+              role="radio"
+              aria-checked={templateSlug === t.slug}
+              className={`template-card${templateSlug === t.slug ? ' selected' : ''}`}
+              onClick={() => setTemplateSlug(t.slug)}
+            >
+              <div className="template-preview">
+                <iframe src={`${API_BASE}/template-preview/${t.slug}/`} title={`${t.name} preview`} loading="lazy" tabIndex={-1} />
+              </div>
+              <span className="template-name">{t.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <button type="submit" disabled={busy || noTemplates || !templateSlug}>
         {busy ? 'Creating your site…' : 'Create site'}
