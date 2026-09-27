@@ -569,3 +569,40 @@ button:disabled {
   content: " ✓";
   color: #2e8b57;
 }
+
+.domain-included {
+  color: #2e8b57;
+}
+
+.email-inboxes {
+  margin-bottom: 8px;
+}
+
+.email-inboxes .domain-list-title {
+  margin-top: 0;
+}
+
+.email-inboxes > .field-hint {
+  margin: 0 0 12px;
+}
+
+.email-route-list .field-hint {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.bottom-nav-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.nav-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d93025;
+  border: 2px solid #fff;
+}

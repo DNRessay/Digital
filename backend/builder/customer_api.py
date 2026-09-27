@@ -16,6 +16,7 @@ import json
 import re
 import uuid
 from datetime import timedelta
+from decimal import Decimal
 from urllib.parse import urlparse
 
 from django.conf import settings
@@ -33,7 +34,8 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import CustomerAuthToken, DomainPurchase, EmailRoute, Site, SiteSlotValue, SiteVisit, Template
+from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteSlotValue, SiteVisit, Template
+from .payfast_views import _start_manual_za_registration
 from .services import cloudflare, domain_search, whatsapp
 from .services.cloudflare import CloudflareError
 from .services.whatsapp import WhatsAppError
@@ -97,8 +99,32 @@ def _full_name(user):
     return f"{user.first_name} {user.last_name}".strip()
 
 
+def _profile_for(user):
+    profile, _ = CustomerProfile.objects.get_or_create(user=user, defaults={"legal_name": _full_name(user)})
+    return profile
+
+
+def _serialize_profile(profile):
+    return {
+        "legal_name": profile.legal_name,
+        "email": profile.user.email,
+        "phone": profile.phone,
+        "street": profile.street,
+        "city": profile.city,
+        "state": profile.state,
+        "postal_code": profile.postal_code,
+        "country_code": profile.country_code,
+        "complete": profile.is_complete,
+    }
+
+
 def _serialize_user(user):
-    return {"username": user.username, "name": _full_name(user), "email": user.email}
+    return {
+        "username": user.username,
+        "name": _full_name(user),
+        "email": user.email,
+        "profile_complete": _profile_for(user).is_complete,
+    }
 
 
 def _serialize_site(site):
@@ -116,6 +142,7 @@ def _serialize_site(site):
         "email": site.email,
         "address": site.address,
         "ai_assistant_enabled": site.ai_assistant_enabled,
+        "ai_assistant_available": site.ai_assistant_available,
         "ai_assistant_description": site.ai_assistant_description,
         "primary_color": site.primary_color,
         "default_primary_color": site.template.default_primary_color,
@@ -124,6 +151,7 @@ def _serialize_site(site):
         "cloudflare_nameservers": [ns for ns in site.cloudflare_nameservers.split(",") if ns],
         "whatsapp_connected": bool(site.whatsapp_waba_id and site.whatsapp_phone_number_id),
         "managed_deploy": site.template.managed_deploy,
+        "free_domain_available": site.free_domain_available,
     }
 
 
@@ -563,14 +591,13 @@ def api_customer_site_email_routes(request, site_slug):
         if from_address.rsplit("@", 1)[-1] != site.custom_domain:
             return JsonResponse({"error": f"The from-address must be on {site.custom_domain}."}, status=400)
 
+        if not site.email_destinations.filter(email=to_address, verified=True).exists():
+            return JsonResponse({"error": f"Add and verify {to_address} under Your inboxes first."}, status=400)
+
         route = EmailRoute(site=site, from_address=from_address, to_address=to_address)
         try:
-            cloudflare.add_destination_address(to_address)
-            if cloudflare.is_destination_verified(to_address):
-                route.cloudflare_rule_id = cloudflare.create_routing_rule(site.cloudflare_zone_id, from_address, to_address)
-                route.status = EmailRoute.STATUS_ACTIVE
-            else:
-                route.status = EmailRoute.STATUS_PENDING_VERIFICATION
+            route.cloudflare_rule_id = cloudflare.create_routing_rule(site.cloudflare_zone_id, from_address, to_address)
+            route.status = EmailRoute.STATUS_ACTIVE
         except CloudflareError as exc:
             route.status = EmailRoute.STATUS_ERROR
             route.error_message = str(exc)[:255]
@@ -631,11 +658,24 @@ def api_customer_site_email_route_delete(request, site_slug, route_id):
     return JsonResponse({"deleted": True})
 
 
-def _serialize_domain_option(option):
+def _is_included_domain(site, option):
+    """The one .co.za a paid plan includes (R50 of the plan reserved for it)
+    — only while unclaimed, and only if our cost fits inside that reserve."""
+    return (
+        site.free_domain_available
+        and option["tld"] == ".co.za"
+        and option["cost_currency"] == "ZAR"
+        and option["cost_amount"] <= settings.INCLUDED_DOMAIN_RESERVE_ZAR
+    )
+
+
+def _serialize_domain_option(option, site):
+    included = _is_included_domain(site, option)
     return {
         "domain": option["domain"],
         "tld": option["tld"],
-        "price_zar": str(option["price_zar"]),
+        "price_zar": "0.00" if included else str(option["price_zar"]),
+        "included": included,
         "manual": option["manual"],
         "recommended": option["recommended"],
     }
@@ -657,12 +697,12 @@ def api_customer_domain_search(request, site_slug):
     return JsonResponse(
         {
             "name": result["name"],
-            "searched": _serialize_domain_option(result["searched"]) if result["searched"] else None,
+            "searched": _serialize_domain_option(result["searched"], site) if result["searched"] else None,
             "searched_domain": result["searched_domain"],
             "searched_taken": result["searched_taken"],
-            "recommended": _serialize_domain_option(result["recommended"]) if result["recommended"] else None,
+            "recommended": _serialize_domain_option(result["recommended"], site) if result["recommended"] else None,
             "recommended_taken": result["recommended_taken"],
-            "options": [_serialize_domain_option(o) for o in result["options"]],
+            "options": [_serialize_domain_option(o, site) for o in result["options"]],
             "partial": bool(result["errors"]),
         }
     )
@@ -684,7 +724,7 @@ def api_customer_domain_check(request, site_slug):
     quote = domain_search.quote(domain)
     if not quote["registrable"]:
         return JsonResponse({"available": False, "reason": quote["reason"]})
-    return JsonResponse({"available": True, **_serialize_domain_option(quote)})
+    return JsonResponse({"available": True, **_serialize_domain_option(quote, site)})
 
 
 @csrf_exempt
@@ -702,8 +742,6 @@ def api_customer_domain_purchase(request, site_slug):
 
     body = _json_body(request)
     domain = _normalize_domain(str(body.get("domain", "")))
-    registrant = body.get("registrant") or {}
-    address = registrant.get("address") or {}
     return_url = str(body.get("return_url", "")).strip()
     cancel_url = str(body.get("cancel_url", "")).strip()
 
@@ -712,20 +750,26 @@ def api_customer_domain_purchase(request, site_slug):
     if not _origin_allowed(return_url) or not _origin_allowed(cancel_url):
         return JsonResponse({"error": "return_url/cancel_url must be one of this site's known frontend origins."}, status=400)
 
-    missing = [f for f in ("name", "email", "phone") if not str(registrant.get(f, "")).strip()]
-    missing += [f"address.{f}" for f in ("street", "city", "postal_code", "country_code") if not str(address.get(f, "")).strip()]
-    if missing:
-        return JsonResponse({"error": f"Missing registrant details: {', '.join(missing)}."}, status=400)
-    try:
-        validate_email(str(registrant["email"]).strip())
-    except ValidationError:
-        return JsonResponse({"error": "Registrant email isn't valid."}, status=400)
+    # The registrant (legal owner) is always the customer's own saved profile.
+    profile = _profile_for(request.customer_user)
+    if not profile.is_complete:
+        return JsonResponse({"error": "Complete your details on the Profile tab first.", "profile_incomplete": True}, status=400)
+    registrant = profile.as_registrant()
+    address = registrant["address"]
 
     check = domain_search.quote(domain)
     if not check["registrable"]:
         return JsonResponse({"error": check["reason"]}, status=400)
     provider = DomainPurchase.PROVIDER_HOSTAFRICA if check["provider"] == "hostafrica" else DomainPurchase.PROVIDER_CLOUDFLARE
     price_zar = check["price_zar"]
+
+    included = _is_included_domain(site, check)
+    if included:
+        # Claim atomically so two concurrent requests can't both use it.
+        if not Site.objects.filter(pk=site.pk, free_domain_available=True).update(free_domain_available=False):
+            return JsonResponse({"error": "Your included domain has already been claimed."}, status=409)
+        site.free_domain_available = False
+        price_zar = Decimal("0.00")
 
     purchase = DomainPurchase.objects.create(
         site=site,
@@ -742,8 +786,16 @@ def api_customer_domain_purchase(request, site_slug):
         registrant_address_state=str(address.get("state", "")).strip()[:100],
         registrant_address_postal_code=str(address["postal_code"]).strip()[:20],
         registrant_address_country=str(address["country_code"]).strip().upper()[:2],
-        payfast_m_payment_id=f"{site.slug}-domain-{uuid.uuid4().hex[:12]}",
+        payfast_m_payment_id=f"{site.slug}-{'included' if included else 'domain'}-{uuid.uuid4().hex[:12]}",
+        status=DomainPurchase.STATUS_PAID if included else DomainPurchase.STATUS_PENDING_PAYMENT,
     )
+
+    if included:
+        # Nothing to charge — straight to the same hand-off a paid .za
+        # order gets once PayFast confirms it.
+        _start_manual_za_registration(purchase)
+        site.refresh_from_db()
+        return JsonResponse({"included": True, "site": _serialize_site(site)}, status=201)
 
     notify_url = request.build_absolute_uri(reverse("payfast-notify"))
     process_url, fields = build_domain_purchase_payload(purchase, return_url, cancel_url, notify_url)
@@ -811,3 +863,95 @@ def api_customer_site_visitors(request, site_slug):
     ]
     total = visits.values("visitor_id").distinct().count()
     return JsonResponse({"days": series, "total_unique": total})
+
+
+def _serialize_destination(destination):
+    return {"id": destination.id, "email": destination.email, "verified": destination.verified}
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "POST"])
+def api_customer_site_email_destinations(request, site_slug):
+    """The inboxes a site's owner can forward mail to. Adding one makes
+    Cloudflare email it a verification link; GET refreshes which have
+    clicked it. Forwarding rules may only use verified inboxes, so nothing
+    is routed to an address its owner never confirmed."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+
+    if request.method == "POST":
+        if (locked := _managed_deploy_error(site)) is not None:
+            return locked
+        email = str(_json_body(request).get("email", "")).strip().lower()
+        try:
+            validate_email(email)
+        except ValidationError:
+            return JsonResponse({"error": "Enter a valid email address."}, status=400)
+        if site.email_destinations.count() >= 10:
+            return JsonResponse({"error": "You can add up to 10 inboxes."}, status=400)
+        destination, created = EmailDestination.objects.get_or_create(site=site, email=email)
+        if created or not destination.verified:
+            try:
+                cloudflare.add_destination_address(email)
+            except CloudflareError as exc:
+                if created:
+                    destination.delete()
+                return JsonResponse({"error": f"Couldn't add {email}: {exc}"}, status=400)
+        return JsonResponse({"destination": _serialize_destination(destination)}, status=201 if created else 200)
+
+    destinations = list(site.email_destinations.order_by("id"))
+    pending = [d for d in destinations if not d.verified]
+    if pending:
+        try:
+            verified = cloudflare.verified_destinations()
+        except CloudflareError:
+            verified = set()
+        for d in pending:
+            if d.email in verified:
+                d.verified = True
+                d.save(update_fields=["verified"])
+    return JsonResponse({"destinations": [_serialize_destination(d) for d in destinations]})
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["DELETE"])
+def api_customer_site_email_destination_delete(request, site_slug, destination_id):
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    if (locked := _managed_deploy_error(site)) is not None:
+        return locked
+    destination = site.email_destinations.filter(id=destination_id).first()
+    if destination is None:
+        return JsonResponse({"error": "Inbox not found."}, status=404)
+    if site.email_routes.filter(to_address=destination.email).exists():
+        return JsonResponse({"error": "Remove the forwarding rules that use this inbox first."}, status=400)
+    destination.delete()
+    return JsonResponse({"deleted": True})
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "PATCH"])
+def api_customer_profile(request):
+    """The Profile tab's "Your details" — the contact details used as the
+    registrant for any domain this customer buys."""
+    profile = _profile_for(request.customer_user)
+    if request.method == "PATCH":
+        body = _json_body(request)
+        limits = {"legal_name": 200, "phone": 30, "street": 200, "city": 100, "state": 100, "postal_code": 20}
+        for field, limit in limits.items():
+            if field in body:
+                setattr(profile, field, str(body[field]).strip()[:limit])
+        if "country_code" in body:
+            code = str(body["country_code"]).strip().upper()
+            if not re.fullmatch(r"[A-Z]{2}", code):
+                return JsonResponse({"error": "Country code must be 2 letters, e.g. ZA."}, status=400)
+            profile.country_code = code
+        if profile.phone and not re.fullmatch(r"\+?[0-9 ()-]{7,20}", profile.phone):
+            return JsonResponse({"error": "Enter your phone number with country code, e.g. +27821234567."}, status=400)
+        profile.save()
+    return JsonResponse({"profile": _serialize_profile(profile)})

@@ -100,6 +100,28 @@ def check_domains(domains):
     return out
 
 
+# Dialling codes, longest first so e.g. "+263" wins over "+26".
+_DIAL_CODES = sorted(["1", "7", "20", "27", "30", "31", "32", "33", "34", "39", "41", "44", "49", "61", "64", "81", "86", "91",
+                      "211", "212", "213", "216", "218", "220", "221", "222", "223", "224", "225", "226", "227", "228",
+                      "229", "230", "231", "232", "233", "234", "235", "236", "237", "238", "239", "240", "241", "242",
+                      "243", "244", "245", "246", "248", "249", "250", "251", "252", "253", "254", "255", "256", "257",
+                      "258", "260", "261", "262", "263", "264", "265", "266", "267", "268", "269", "290", "291", "297",
+                      "298", "299", "351", "353", "971"], key=len, reverse=True)
+
+
+def _epp_phone(phone):
+    """Registries want EPP format: "+<country code>.<number>", e.g.
+    +27.821234567. Accepts "+27821234567", "+27 82 123 4567", or a local
+    South African "0821234567"."""
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    if phone.strip().startswith("+"):
+        code = next((c for c in _DIAL_CODES if digits.startswith(c)), digits[:2])
+        return f"+{code}.{digits[len(code):]}"
+    if digits.startswith("0"):
+        return f"+27.{digits[1:]}"
+    return f"+27.{digits}"
+
+
 def register_domain(domain, registrant):
     """The "Register" step — actually purchases the domain, charged
     immediately to Vicinic's own Cloudflare account payment method,
@@ -119,7 +141,7 @@ def register_domain(domain, registrant):
             "contacts": {
                 "registrant": {
                     "email": registrant["email"],
-                    "phone": registrant["phone"],
+                    "phone": _epp_phone(registrant["phone"]),
                     "postal_info": {
                         "name": registrant["name"],
                         "address": {
@@ -353,6 +375,15 @@ def add_destination_address(email):
     except CloudflareError as exc:
         if "already exists" not in str(exc).lower():
             raise
+
+
+def verified_destinations():
+    """Every destination address on the account that has clicked Cloudflare's
+    verification link, lowercased — one call for a whole list of inboxes."""
+    addresses = _request(
+        "GET", f"/accounts/{settings.CLOUDFLARE_ACCOUNT_ID}/email/routing/addresses", params={"verified": "true", "per_page": 50}
+    )
+    return {addr.get("email", "").lower() for addr in addresses if addr.get("verified")}
 
 
 def is_destination_verified(email):

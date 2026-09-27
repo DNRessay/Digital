@@ -144,7 +144,11 @@ def _start_manual_za_registration(purchase):
 
     body = "\n".join(
         [
-            f"A customer paid R{purchase.price_zar} for {purchase.domain} — register it by hand in the HostAfrica panel.",
+            (
+                f"A customer claimed the .co.za included with their plan: {purchase.domain} — register it by hand in the HostAfrica panel."
+                if purchase.price_zar == 0
+                else f"A customer paid R{purchase.price_zar} for {purchase.domain} — register it by hand in the HostAfrica panel."
+            ),
             "",
             f"Site: {site.name} ({site.slug})",
             f"PayFast reference: {purchase.payfast_m_payment_id}",
@@ -166,7 +170,8 @@ def _start_manual_za_registration(purchase):
             "Then mark this DomainPurchase as registered in Django admin.",
         ]
     )
-    notify_admin(f"{'[TEST] ' if test else ''}Register {purchase.domain} (paid .co.za order)", body)
+    kind = "included with plan" if purchase.price_zar == 0 else "paid order"
+    notify_admin(f"{'[TEST] ' if test else ''}Register {purchase.domain} ({kind})", body)
 
 
 @csrf_exempt
@@ -222,11 +227,17 @@ def payfast_notify(request):
                 )
                 return HttpResponse(status=400)
 
+        first_activation = site.subscription_status != Site.SUBSCRIPTION_ACTIVE
         site.subscription_status = Site.SUBSCRIPTION_ACTIVE
         site.package = package_id
         if token:
             site.payfast_token = token
-        site.save(update_fields=["subscription_status", "package", "payfast_token"])
+        fields = ["subscription_status", "package", "payfast_token"]
+        if first_activation and not site.custom_domain:
+            # R50 of the plan price is reserved for one included .co.za.
+            site.free_domain_available = True
+            fields.append("free_domain_available")
+        site.save(update_fields=fields)
     elif payment_status == "CANCELLED":
         site.subscription_status = Site.SUBSCRIPTION_CANCELLED
         site.save(update_fields=["subscription_status"])

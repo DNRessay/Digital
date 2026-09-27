@@ -176,15 +176,35 @@ export function disconnectWhatsApp(siteSlug) {
   return apiFetch(`/api/customer/sites/${siteSlug}/whatsapp/`, { method: 'DELETE' })
 }
 
-export function purchaseDomain(siteSlug, domain, registrant, returnUrl, cancelUrl) {
+export function purchaseDomain(siteSlug, domain, returnUrl, cancelUrl) {
   return apiFetch(`/api/customer/sites/${siteSlug}/domain/purchase/`, {
     method: 'POST',
-    body: { domain, registrant, return_url: returnUrl, cancel_url: cancelUrl },
+    body: { domain, return_url: returnUrl, cancel_url: cancelUrl },
   })
+}
+
+export function getProfile() {
+  return apiFetch('/api/customer/profile/')
+}
+
+export function updateProfile(fields) {
+  return apiFetch('/api/customer/profile/', { method: 'PATCH', body: fields })
 }
 
 export function getVisitors(siteSlug, days = 30) {
   return apiFetch(`/api/customer/sites/${siteSlug}/visitors/?days=${days}`)
+}
+
+export function listEmailDestinations(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/email-destinations/`)
+}
+
+export function addEmailDestination(siteSlug, email) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/email-destinations/`, { method: 'POST', body: { email } })
+}
+
+export function deleteEmailDestination(siteSlug, destinationId) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/email-destinations/${destinationId}/`, { method: 'DELETE' })
 }
 
 export function listEmailRoutes(siteSlug) {
