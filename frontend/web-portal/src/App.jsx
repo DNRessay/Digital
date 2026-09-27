@@ -770,6 +770,7 @@ function EmailRoutingSection({ site }) {
 
   const verified = destinations.filter((d) => d.verified)
   const disabled = !domainReady || verified.length === 0
+  const available = site.ai_assistant_available && domainReady
 
   async function handleAdd(e) {
     e.preventDefault()
@@ -803,13 +804,20 @@ function EmailRoutingSection({ site }) {
   return (
     <div className="card">
       <h2>Email routing</h2>
-      {error && <div className="error">{error}</div>}
+      {!available && (
+        <div className="notice">
+          {site.ai_assistant_available
+            ? 'Email forwarding switches on once your custom domain above is connected and active.'
+            : 'Email forwarding (e.g. hello@yourbusiness.co.za to your Gmail) comes with every paid plan and your own domain — upgrade above to set it up.'}
+        </div>
+      )}
+      {error && available && <div className="error">{error}</div>}
 
+      <fieldset className={available ? 'plain-fieldset' : 'plain-fieldset locked-section'} disabled={!available}>
       <EmailInboxes site={site} destinations={destinations} setDestinations={setDestinations} />
 
       <h3 className="domain-list-title">Forwarding rules</h3>
-      {!domainReady && <p className="notice">Connect and activate your custom domain above first.</p>}
-      {domainReady && verified.length === 0 && <p className="notice">Verify at least one inbox above first.</p>}
+      {available && verified.length === 0 && <p className="notice">Verify at least one inbox above first.</p>}
 
       <form onSubmit={handleAdd} className="email-route-form">
         <label htmlFor="route-from">Forward mail sent to</label>
@@ -866,6 +874,7 @@ function EmailRoutingSection({ site }) {
           </ul>
         </div>
       )}
+      </fieldset>
     </div>
   )
 }
@@ -1050,6 +1059,9 @@ function WhatsAppConnectSection({ site, onSiteUpdated }) {
         further — a real WhatsApp Business number that replies automatically using the same description, in
         WhatsApp itself.
       </p>
+      {!site.ai_assistant_available && !site.whatsapp_connected && (
+        <div className="notice">The WhatsApp AI bot comes with every paid plan — upgrade above to connect your number.</div>
+      )}
       {error && <div className="error">{error}</div>}
       {site.whatsapp_connected ? (
         <>
@@ -1059,7 +1071,7 @@ function WhatsAppConnectSection({ site, onSiteUpdated }) {
           </button>
         </>
       ) : (
-        <button type="button" onClick={handleConnect} disabled={state === 'connecting'}>
+        <button type="button" onClick={handleConnect} disabled={state === 'connecting' || !site.ai_assistant_available}>
           {state === 'connecting' ? 'Connecting…' : 'Connect your WhatsApp number'}
         </button>
       )}
@@ -1658,7 +1670,16 @@ export default function App() {
   const [selectedSlug, setSelectedSlug] = useState(null)
   const [loadError, setLoadError] = useState(null)
   const [checkoutNotice, setCheckoutNotice] = useState(null) // null | 'success' | 'cancelled'
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTabState] = useState(() => {
+    const fromHash = window.location.hash.replace('#', '')
+    return TABS.some((t) => t.key === fromHash) ? fromHash : 'overview'
+  })
+
+  // Keep the open tab in the URL (#profile, #deploy, ...) so a refresh stays put.
+  function setActiveTab(tab) {
+    setActiveTabState(tab)
+    window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}#${tab}`)
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -1667,7 +1688,7 @@ export default function App() {
     setCheckoutNotice(notice)
     params.delete('checkout')
     const rest = params.toString()
-    window.history.replaceState({}, '', window.location.pathname + (rest ? `?${rest}` : ''))
+    window.history.replaceState({}, '', window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash)
   }, [])
 
   async function loadSites() {

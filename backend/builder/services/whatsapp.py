@@ -72,7 +72,10 @@ def generate_reply(site, question):
     from getting any reply at all, so this falls back to a plain
     "we'll get back to you" message on any failure. Reuses the exact same
     context (site.ai_assistant_description) as the on-site chat widget, so
-    the two channels answer consistently."""
+    the two channels answer consistently. The AI is a paid-plan feature:
+    a site that's no longer on a paid plan gets the plain fallback."""
+    if not site.ai_assistant_available:
+        return FALLBACK_REPLY
     try:
         return ask_assistant(site, question)
     except AiAssistantError:

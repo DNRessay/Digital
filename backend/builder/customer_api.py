@@ -169,6 +169,14 @@ def _get_owned_site_or_none(user, site_slug):
     return Site.objects.filter(slug=site_slug, owner=user).select_related("template").first()
 
 
+def _email_routing_error(site):
+    if not site.ai_assistant_available:
+        return JsonResponse({"error": "Email forwarding comes with every paid plan — upgrade to set it up."}, status=403)
+    if site.domain_status != Site.DOMAIN_ACTIVE:
+        return JsonResponse({"error": "Connect and activate your custom domain first."}, status=400)
+    return None
+
+
 def _managed_deploy_error(site):
     if site.template.managed_deploy:
         return JsonResponse({"error": "This site's domain and email are managed by Vicinic — contact us to change them."}, status=403)
@@ -577,8 +585,8 @@ def api_customer_site_email_routes(request, site_slug):
         return locked
 
     if request.method == "POST":
-        if site.domain_status != Site.DOMAIN_ACTIVE:
-            return JsonResponse({"error": "Connect and activate your custom domain first."}, status=400)
+        if (blocked := _email_routing_error(site)) is not None:
+            return blocked
 
         body = _json_body(request)
         from_address = str(body.get("from_address", "")).strip().lower()
@@ -818,6 +826,9 @@ def api_customer_site_whatsapp(request, site_slug):
     if (locked := _managed_deploy_error(site)) is not None:
         return locked
 
+    if request.method == "POST" and not site.ai_assistant_available:
+        return JsonResponse({"error": "The WhatsApp AI bot comes with every paid plan — upgrade to connect your number."}, status=403)
+
     if request.method == "DELETE":
         site.whatsapp_waba_id = ""
         site.whatsapp_phone_number_id = ""
@@ -882,7 +893,7 @@ def api_customer_site_email_destinations(request, site_slug):
         return JsonResponse({"error": "Site not found."}, status=404)
 
     if request.method == "POST":
-        if (locked := _managed_deploy_error(site)) is not None:
+        if (locked := _managed_deploy_error(site) or _email_routing_error(site)) is not None:
             return locked
         email = str(_json_body(request).get("email", "")).strip().lower()
         try:
