@@ -647,14 +647,17 @@ def _price_zar_for_cost(cost_amount, cost_currency):
 def _price_zar_for_hostafrica_cost(cost_amount, cost_currency):
     if cost_currency != "ZAR":
         raise HostAfricaError(f"Expected a ZAR price from HostAfrica, got {cost_currency}.")
-    zar = cost_amount + settings.DOMAIN_MARKUP_ZAR
+    # Flat customer price for .za; a premium name costing more than that
+    # falls back to cost + markup so it's never sold at a loss.
+    flat = settings.ZA_DOMAIN_PRICE_ZAR
+    zar = flat if cost_amount < flat else cost_amount + settings.DOMAIN_MARKUP_ZAR
     return zar.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _manual_za_quote(domain):
     """.za quote while registration is done by hand: HostAfrica's own
-    availability + cost (plus DOMAIN_MARKUP_ZAR) when its API answers,
-    otherwise a DNS-based availability guess at the flat ZA_DOMAIN_PRICE_ZAR."""
+    availability when its API answers,
+    otherwise a DNS-based availability guess — both at the flat ZA_DOMAIN_PRICE_ZAR."""
     try:
         result = hostafrica.check_domain(domain)
     except HostAfricaError:
