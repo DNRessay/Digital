@@ -34,9 +34,10 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteSlotValue, SiteVisit, Template
+from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteImage, SiteSlotValue, SiteVisit, Template
 from .payfast_views import _start_manual_za_registration
-from .services import cloudflare, domain_search, whatsapp
+from .services import cloudflare, domain_search, site_images, whatsapp
+from .services.site_images import ImageUploadError
 from .services.cloudflare import CloudflareError
 from .services.whatsapp import WhatsAppError
 from .services.payfast import PACKAGES, PayFastError, build_checkout_payload, build_domain_purchase_payload
@@ -152,6 +153,7 @@ def _serialize_site(site):
         "whatsapp_connected": bool(site.whatsapp_waba_id and site.whatsapp_phone_number_id),
         "managed_deploy": site.template.managed_deploy,
         "free_domain_available": site.free_domain_available,
+        "has_paid_plan": site.has_paid_plan,
     }
 
 
@@ -967,3 +969,62 @@ def api_customer_profile(request):
             return JsonResponse({"error": "Enter your phone number with country code, e.g. +27821234567."}, status=400)
         profile.save()
     return JsonResponse({"profile": _serialize_profile(profile)})
+
+
+def _serialize_site_image(original, override):
+    return {"original": original, "current": override.file.url if override else original, "replaced": override is not None}
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "POST", "DELETE"])
+def api_customer_site_images(request, site_slug):
+    """The editor's Images panel. GET ?page=<slug> lists the images on one
+    page (header/footer included) with any replacement; POST (multipart:
+    original, file) replaces one; DELETE ?original=<url> resets it to the
+    template's own image. Replacing images is a paid-plan feature."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+
+    overrides = {image.original_url: image for image in site.images.all()}
+
+    if request.method == "GET":
+        page = site.template.pages.filter(slug=request.GET.get("page", "")).first()
+        if page is None:
+            return JsonResponse({"error": "Page not found."}, status=404)
+        return JsonResponse(
+            {
+                "available": site.has_paid_plan,
+                "images": [_serialize_site_image(url, overrides.get(url)) for url in site_images.image_urls(page.document)],
+            }
+        )
+
+    if not site.has_paid_plan:
+        return JsonResponse({"error": "Replacing images comes with every paid plan — upgrade to use it."}, status=403)
+
+    original = (request.POST.get("original") if request.method == "POST" else request.GET.get("original", "")) or ""
+    known = {url for page in site.template.pages.all() for url in site_images.image_urls(page.document)}
+    if original not in known:
+        return JsonResponse({"error": "That image isn't part of this site's template."}, status=400)
+
+    existing = overrides.get(original)
+    if request.method == "DELETE":
+        if existing:
+            existing.file.delete(save=False)
+            existing.delete()
+        return JsonResponse({"image": _serialize_site_image(original, None)})
+
+    uploaded = request.FILES.get("file")
+    if uploaded is None:
+        return JsonResponse({"error": "Choose an image to upload."}, status=400)
+    try:
+        name, content = site_images.process_upload(uploaded, site.slug)
+    except ImageUploadError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    image = existing or SiteImage(site=site, original_url=original)
+    old_file = image.file.name if existing else None
+    image.file.save(name, content, save=True)
+    if old_file:
+        image.file.storage.delete(old_file)
+    return JsonResponse({"image": _serialize_site_image(original, image)})
