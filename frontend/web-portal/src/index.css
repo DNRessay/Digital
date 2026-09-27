@@ -509,3 +509,63 @@ button:disabled {
 .card p {
   overflow-wrap: anywhere;
 }
+
+.template-carousel {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 4px 2px 12px;
+  margin: 8px -2px 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.template-card {
+  flex: 0 0 78%;
+  max-width: 300px;
+  scroll-snap-align: center;
+  padding: 0;
+  margin: 0;
+  background: #fff;
+  color: #0b0f19;
+  border: 2px solid #e4e7ee;
+  border-radius: 12px;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+}
+
+.template-card.selected {
+  border-color: #2e8b57;
+  box-shadow: 0 0 0 3px rgba(46, 139, 87, 0.2);
+}
+
+.template-preview {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: #f6f7fb;
+}
+
+.template-preview iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 400%;
+  height: 400%;
+  border: 0;
+  transform: scale(0.25);
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.template-name {
+  display: block;
+  padding: 10px 12px;
+  font-weight: 600;
+}
+
+.template-card.selected .template-name::after {
+  content: " ✓";
+  color: #2e8b57;
+}

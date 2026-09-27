@@ -390,6 +390,21 @@ def _track_visit(request, site, response):
     return response
 
 
+def template_preview(request, template_slug):
+    """Public, read-only render of a template's home page with its own
+    default text — what web-portal's "Create your site" carousel embeds
+    (in an iframe) so customers can see a template before picking it."""
+    template = get_object_or_404(Template, slug=template_slug, is_active=True)
+    page = get_object_or_404(TemplatePage, template=template, slug="")
+    preview_site = Site(name=template.name, slug="preview", template=template)
+    context = {"site": preview_site}
+    for slot in list(template.slots.filter(page__isnull=True)) + list(page.slots.all()):
+        context[slot.key] = slot.default_text
+    response = HttpResponse(django_engine.from_string(page.document).render(context))
+    response.xframe_options_exempt = True
+    return response
+
+
 def site_home(request, slug):
     site = get_object_or_404(Site, slug=slug, is_published=True)
     page = get_object_or_404(TemplatePage, template=site.template, slug="")
