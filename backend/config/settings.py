@@ -199,6 +199,12 @@ HOSTAFRICA_API_KEY = os.environ.get("HOSTAFRICA_API_KEY", "")
 # AI blog drafts (builder/blog_api.py) go live on their own after this many
 # hours unless a staff member approves, rejects or holds them first.
 BLOG_REVIEW_HOURS = int(os.environ.get("BLOG_REVIEW_HOURS", "48"))
+# Approving a post starts the Blog workflow's publish job right away through
+# GitHub's API (a fine-grained token with Actions: read & write on the repo);
+# without a token approved posts wait for the workflow's daily run.
+BLOG_DISPATCH_TOKEN = os.environ.get("BLOG_DISPATCH_TOKEN", "")
+BLOG_REPO = os.environ.get("BLOG_REPO", "DNRessay/Digital")
+BLOG_REPO_BRANCH = os.environ.get("BLOG_REPO_BRANCH", "claude/viincci-digital-website-b1m1zn")
 # The research pipeline (blog_research/) reads GROQ_API_KEYS (comma-separated,
 # rotated on rate limits), SERPAPI_KEY and NASA_API_KEY straight from the
 # environment.

@@ -31,6 +31,28 @@ def enqueue(post):
         threading.Thread(target=run, args=(post.id,), daemon=True).start()
 
 
+def trigger_publish():
+    """Starts the Blog workflow's publish job now (instead of waiting for its
+    daily run). Returns False when no token is set or GitHub refuses."""
+    import requests
+
+    if not settings.BLOG_DISPATCH_TOKEN:
+        return False
+    try:
+        r = requests.post(
+            f"https://api.github.com/repos/{settings.BLOG_REPO}/actions/workflows/blog.yml/dispatches",
+            headers={"Authorization": f"Bearer {settings.BLOG_DISPATCH_TOKEN}", "Accept": "application/vnd.github+json"},
+            json={"ref": settings.BLOG_REPO_BRANCH, "inputs": {"job": "publish"}},
+            timeout=15,
+        )
+    except requests.RequestException:
+        log.exception("blog publish dispatch failed")
+        return False
+    if r.status_code != 204:
+        log.warning("blog publish dispatch: GitHub answered %s %s", r.status_code, r.text[:300])
+    return r.status_code == 204
+
+
 def seen_ids():
     ids = set()
     for source_ids in BlogPost.objects.values_list("source_ids", flat=True):

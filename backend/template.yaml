@@ -87,6 +87,11 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: NASA API key for the blog's APOD source (optional; DEMO_KEY otherwise)
+  BlogDispatchToken:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: GitHub token (Actions read & write on the repo) so approving a blog post publishes it at once — see builder/services/blog_jobs.py
   WhatsAppAccessToken:
     Type: String
     Default: ""
@@ -189,6 +194,7 @@ Resources:
           GROQ_API_KEYS: !Ref GroqApiKeys
           SERPAPI_KEY: !Ref SerpApiKey
           NASA_API_KEY: !Ref NasaApiKey
+          BLOG_DISPATCH_TOKEN: !Ref BlogDispatchToken
       # Blog research runs as an async self-invoke (builder/services/blog_jobs.py)
       # and can take several minutes of LLM calls.
       Timeout: 600
