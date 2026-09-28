@@ -333,3 +333,15 @@ export function updateEnquiry(siteSlug, enquiryId, fields) {
 export function deleteEnquiry(siteSlug, enquiryId) {
   return apiFetch(`/api/customer/sites/${siteSlug}/enquiries/${enquiryId}/`, { method: 'DELETE' })
 }
+
+export function getStaff(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/staff/`)
+}
+
+export function addStaff(siteSlug, name, email, password) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/staff/`, { method: 'POST', body: { name, email, password } })
+}
+
+export function removeStaff(siteSlug, memberId) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/staff/${memberId}/`, { method: 'DELETE' })
+}

@@ -1144,3 +1144,13 @@ button.secondary {
   padding: 10px 0;
   border-bottom: 1px solid #eef0f5;
 }
+
+.team-member {
+  flex-direction: row !important;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.team-form {
+  margin-top: 12px;
+}

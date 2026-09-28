@@ -55,6 +55,9 @@ import {
   getEnquiries,
   updateEnquiry,
   deleteEnquiry,
+  getStaff,
+  addStaff,
+  removeStaff,
 } from './api.js'
 
 const WHATSAPP_APP_ID = import.meta.env.VITE_WHATSAPP_APP_ID || ''
@@ -1508,6 +1511,108 @@ function ProfileDetails({ onCompleteChange }) {
   )
 }
 
+function TeamCard({ site }) {
+  const [state, setState] = useState(null)
+  const [error, setError] = useState(null)
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    getStaff(site.slug).then(setState).catch((err) => setError(err.message))
+  }, [site.slug])
+
+  async function handleAdd(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      setState(await addStaff(site.slug, name, email, password))
+      setAdding(false)
+      setName('')
+      setEmail('')
+      setPassword('')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRemove(member) {
+    if (!window.confirm(`Remove ${member.name || member.email}'s access to ${site.name}?`)) return
+    try {
+      await removeStaff(site.slug, member.id)
+      setState((s) => ({ ...s, staff: s.staff.filter((m) => m.id !== member.id) }))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  if (state && !state.available) {
+    return (
+      <div className="card locked-card">
+        <h2>Team</h2>
+        <p>Give your staff their own login to update the site and handle bookings — without sharing your password.</p>
+        <p className="field-hint">
+          Included with Growth Hub and Business OS — <a href="https://vicinic.co.za/pricing" target="_blank" rel="noreferrer">see plans</a>.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card">
+      <h2>Team</h2>
+      <p className="field-hint">
+        Staff sign in at console.vicinic.co.za with their email. They can edit the site and handle customers and bookings,
+        but not billing, domains, email or the team.
+      </p>
+      {error && <div className="error">{error}</div>}
+      {!state && !error && <p>Loading…</p>}
+      {state && (
+        <>
+          {state.staff.length > 0 && (
+            <ul className="customer-list">
+              {state.staff.map((m) => (
+                <li key={m.id} className="team-member">
+                  <span>
+                    <strong>{m.name || m.email}</strong>
+                    <span className="field-hint"> {m.email}</span>
+                  </span>
+                  <button type="button" className="link-button danger" onClick={() => handleRemove(m)}>Remove</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {adding ? (
+            <form onSubmit={handleAdd} className="team-form">
+              <label htmlFor="staff-name">Name</label>
+              <input id="staff-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
+              <label htmlFor="staff-email">Email (their login)</label>
+              <input id="staff-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="off" />
+              <label htmlFor="staff-password">Password</label>
+              <input id="staff-password" type="text" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+              <p className="field-hint">Share the password with them yourself. If they already have a Vicinic account, leave it blank — they keep their own.</p>
+              <div className="enquiry-actions">
+                <button type="submit" disabled={busy}>{busy ? 'Adding…' : 'Add team member'}</button>
+                <button type="button" className="secondary" onClick={() => setAdding(false)}>Cancel</button>
+              </div>
+            </form>
+          ) : (
+            state.staff.length < state.limit && (
+              <button type="button" className="add-page-button" onClick={() => setAdding(true)}>+ Add a team member</button>
+            )
+          )}
+          <p className="field-hint">{state.staff.length} of {state.limit} staff logins used.</p>
+        </>
+      )}
+    </div>
+  )
+}
+
 function ProfileTab({ displayName, username, email, onLogout, site, onSiteDeleted, onProfileCompleteChange }) {
   return (
     <>
@@ -1519,7 +1624,8 @@ function ProfileTab({ displayName, username, email, onLogout, site, onSiteDelete
         <button type="button" className="link-button" onClick={onLogout}>Sign out</button>
       </div>
       <ProfileDetails onCompleteChange={onProfileCompleteChange} />
-      {site && <DeleteSiteSection site={site} onSiteDeleted={onSiteDeleted} />}
+      {site && site.role !== 'staff' && <TeamCard site={site} />}
+      {site && site.role !== 'staff' && <DeleteSiteSection site={site} onSiteDeleted={onSiteDeleted} />}
     </>
   )
 }
@@ -1721,10 +1827,12 @@ function CustomersTab({ site, onSiteUpdated }) {
       <div className="card">
         <h2>Customers &amp; bookings</h2>
         <p>Messages from your contact form and booking requests from the Book button land here. We also email them to {site.email || 'your account email'}.</p>
-        <label className="toggle-row">
-          <input type="checkbox" checked={site.bookings_enabled} onChange={toggleBookings} />
-          <span>Show the <strong>Book</strong> button on my site</span>
-        </label>
+        {site.role !== 'staff' && (
+          <label className="toggle-row">
+            <input type="checkbox" checked={site.bookings_enabled} onChange={toggleBookings} />
+            <span>Show the <strong>Book</strong> button on my site</span>
+          </label>
+        )}
       </div>
       <div className="card">
         <div className="segmented">
@@ -1780,10 +1888,12 @@ function CustomersTab({ site, onSiteUpdated }) {
   )
 }
 
-function BottomNav({ active, onSelect, badges = {} }) {
+const STAFF_TABS = ['edit', 'customers', 'profile']
+
+function BottomNav({ active, onSelect, badges = {}, staff = false }) {
   return (
     <nav className="bottom-nav">
-      {TABS.map((tab) => (
+      {TABS.filter((tab) => !staff || STAFF_TABS.includes(tab.key)).map((tab) => (
         <button
           key={tab.key}
           type="button"
@@ -2965,6 +3075,9 @@ export default function App() {
 
   const selectedSite = sites.find((s) => s.slug === selectedSlug)
   const hasSite = sites.length > 0
+  const isStaff = selectedSite?.role === 'staff'
+  // Staff only get the content, customers and profile tabs.
+  const shownTab = isStaff && !STAFF_TABS.includes(activeTab) ? 'edit' : activeTab
 
   return (
     <div className={`page${hasSite ? ' has-bottom-nav' : ''}`}>
@@ -2977,28 +3090,28 @@ export default function App() {
       ) : (
         <>
           {sites.length > 1 && <SitePicker sites={sites} selected={selectedSlug} onSelect={setSelectedSlug} />}
-          {selectedSite && activeTab === 'overview' && (
+          {selectedSite && shownTab === 'overview' && (
             <OverviewTab
               site={selectedSite}
               checkoutNotice={checkoutNotice}
               onSiteUpdated={(updated) => setSites((prev) => prev.map((s) => (s.slug === updated.slug ? updated : s)))}
             />
           )}
-          {selectedSite && activeTab === 'edit' && <VisualEditor site={selectedSite} />}
-          {selectedSite && activeTab === 'customers' && (
+          {selectedSite && shownTab === 'edit' && <VisualEditor site={selectedSite} />}
+          {selectedSite && shownTab === 'customers' && (
             <CustomersTab
               site={selectedSite}
               onSiteUpdated={(updated) => setSites((prev) => prev.map((s) => (s.slug === updated.slug ? updated : s)))}
             />
           )}
-          {selectedSite && activeTab === 'deploy' && (
+          {selectedSite && shownTab === 'deploy' && (
             <DeployTab
               site={selectedSite}
               onSiteUpdated={(updated) => setSites((prev) => prev.map((s) => (s.slug === updated.slug ? updated : s)))}
               onGoToProfile={() => setActiveTab('profile')}
             />
           )}
-          {activeTab === 'profile' && (
+          {shownTab === 'profile' && (
             <ProfileTab
               displayName={displayName}
               username={username}
@@ -3016,7 +3129,7 @@ export default function App() {
               }}
             />
           )}
-          <BottomNav active={activeTab} onSelect={setActiveTab} badges={profileComplete ? {} : { profile: true }} />
+          <BottomNav active={shownTab} onSelect={setActiveTab} staff={isStaff} badges={profileComplete ? {} : { profile: true }} />
         </>
       )}
     </div>

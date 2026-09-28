@@ -36,7 +36,7 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteEnquiry, SiteImage, SiteLink, SitePage, SiteSlotValue, SiteVisit, Template
+from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteEnquiry, SiteStaff, SiteImage, SiteLink, SitePage, SiteSlotValue, SiteVisit, Template
 from .payfast_views import _start_manual_za_registration
 from .services import cloudflare, domain_search, site_images, site_links, site_menu, site_pages, site_sections, whatsapp
 from .services.site_images import ImageUploadError
@@ -174,7 +174,24 @@ def _serialize_email_route(route):
 
 
 def _get_owned_site_or_none(user, site_slug):
+    """Owner only — billing, domains, email, WhatsApp, team and deletion."""
     return Site.objects.filter(slug=site_slug, owner=user).select_related("template").first()
+
+
+def _get_site_or_none(user, site_slug):
+    """The owner, or a staff member while the site's plan includes staff
+    logins — for editing content and handling customers."""
+    site = Site.objects.filter(slug=site_slug).select_related("template").first()
+    if site is None:
+        return None
+    if site.owner_id == user.id:
+        return site
+    if site.growth_features_available and site.staff.filter(user=user).exists():
+        return site
+    return None
+
+
+STAFF_LIMITS = {Site.PACKAGE_GROWTH: 5, Site.PACKAGE_BUSINESS_OS: 20}
 
 
 def _email_routing_error(site):
@@ -320,8 +337,15 @@ def api_customer_register(request):
 @require_http_methods(["GET", "POST"])
 def api_customer_sites(request):
     if request.method == "GET":
-        sites = Site.objects.filter(owner=request.customer_user).select_related("template")
-        return JsonResponse({"sites": [_serialize_site(s) for s in sites]})
+        user = request.customer_user
+        owned = list(Site.objects.filter(owner=user).select_related("template"))
+        staffed = [
+            s for s in Site.objects.filter(staff__user=user).exclude(owner=user).select_related("template")
+            if s.growth_features_available
+        ]
+        return JsonResponse(
+            {"sites": [{**_serialize_site(s), "role": "owner"} for s in owned] + [{**_serialize_site(s), "role": "staff"} for s in staffed]}
+        )
 
     body = _json_body(request)
     site_name = str(body.get("site_name", "")).strip()
@@ -494,7 +518,7 @@ def api_customer_checkout(request, site_slug):
 @customer_token_required
 @require_http_methods(["GET", "POST"])
 def api_customer_site_slots(request, site_slug):
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
 
@@ -876,7 +900,7 @@ def api_customer_site_whatsapp(request, site_slug):
 def api_customer_site_visitors(request, site_slug):
     """Unique visitors per day for the Overview tab's chart, oldest first,
     zero-filled over the last `days` days (default 30, max 90)."""
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     try:
@@ -1042,7 +1066,7 @@ def api_customer_site_images(request, site_slug):
     original, file) stages a replacement; DELETE ?original=<url> stages a
     reset to the template's own image. Nothing goes live until
     .../images/publish/. Replacing images is a paid-plan feature."""
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
 
@@ -1102,7 +1126,7 @@ def api_customer_site_images(request, site_slug):
 def api_customer_site_logo_scale(request, site_slug):
     """Stages a logo size (50-200% of the template's own); published with
     the rest of the editor's changes. Paid plans only."""
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     if not site.has_paid_plan:
@@ -1122,7 +1146,7 @@ def api_customer_site_logo_scale(request, site_slug):
 def api_customer_site_images_commit(request, site_slug, action):
     """action "publish": staged image replacements/resets, link changes and
     logo size go live; "discard": throw them away."""
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     if action not in ("publish", "discard"):
@@ -1211,7 +1235,7 @@ def api_customer_site_links(request, site_slug):
     .../images/publish/. Paid plans only."""
     from .views import _resolve_slots
 
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     overrides = {link.key: link for link in site.links.all()}
@@ -1338,7 +1362,7 @@ def api_customer_site_menu(request, site_slug):
     live with .../images/publish/. Paid plans only."""
     from .views import _render_site_page
 
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     home = site.template.pages.filter(slug="").first()
@@ -1395,7 +1419,7 @@ def _custom_pages_state(site):
 
 
 def _owned_custom_page(request, site_slug, page_id):
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return None, None, JsonResponse({"error": "Site not found."}, status=404)
     custom_page = site.custom_pages.filter(id=page_id).first()
@@ -1412,7 +1436,7 @@ def _owned_custom_page(request, site_slug, page_id):
 def api_customer_site_pages(request, site_slug):
     """Customer-added pages. GET lists them with the plan's page limit;
     POST {title} adds one (unpublished until the editor's Publish)."""
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     if request.method == "POST":
@@ -1623,7 +1647,7 @@ def _customers(site):
 def api_customer_site_enquiries(request, site_slug):
     """Growth+: the site's enquiries and booking requests (newest first,
     optionally ?status=) plus the merged customer list."""
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     available = site.growth_features_available
@@ -1647,7 +1671,7 @@ def api_customer_site_enquiries(request, site_slug):
 @require_http_methods(["PATCH", "DELETE"])
 def api_customer_site_enquiry(request, site_slug, enquiry_id):
     """PATCH {status?, notes?} or DELETE one enquiry/booking."""
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     enquiry = site.enquiries.filter(id=enquiry_id).first()
@@ -1665,3 +1689,77 @@ def api_customer_site_enquiry(request, site_slug, enquiry_id):
         enquiry.notes = str(body["notes"])[:5000]
     enquiry.save()
     return JsonResponse({"enquiry": _serialize_enquiry(enquiry)})
+
+
+def _serialize_staff(member):
+    u = member.user
+    return {"id": member.id, "name": f"{u.first_name} {u.last_name}".strip(), "email": u.email, "username": u.username}
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "POST"])
+def api_customer_site_staff(request, site_slug):
+    """Owner only. GET the team; POST {name, email, password} gives a team
+    member a portal login for this site (or adds an existing Vicinic
+    account with that email, keeping its own password)."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    limit = STAFF_LIMITS.get(site.package, 0) if site.growth_features_available else 0
+
+    def state():
+        return {
+            "available": site.growth_features_available,
+            "limit": limit,
+            "staff": [_serialize_staff(m) for m in site.staff.select_related("user").order_by("created_at")],
+        }
+
+    if request.method == "GET":
+        return JsonResponse(state())
+    if not site.growth_features_available:
+        return JsonResponse({"error": "Staff logins come with Growth Hub and Business OS."}, status=403)
+    if site.staff.count() >= limit:
+        return JsonResponse({"error": f"Your plan allows {limit} staff logins."}, status=400)
+
+    body = _json_body(request)
+    name = " ".join(str(body.get("name", "")).split())[:150]
+    email = str(body.get("email", "")).strip().lower()
+    password = str(body.get("password", ""))
+    try:
+        validate_email(email)
+    except ValidationError:
+        return JsonResponse({"error": "Enter a valid email address."}, status=400)
+    if email == (request.customer_user.email or "").lower():
+        return JsonResponse({"error": "That's your own account."}, status=400)
+
+    user = User.objects.filter(email__iexact=email).first()
+    if user is None:
+        if not name:
+            return JsonResponse({"error": "Enter their name."}, status=400)
+        try:
+            validate_password(password)
+        except ValidationError as exc:
+            return JsonResponse({"error": " ".join(exc.messages)}, status=400)
+        if User.objects.filter(username__iexact=email).exists():
+            return JsonResponse({"error": "An account with that login already exists."}, status=409)
+        first, _, last = name.partition(" ")
+        user = User.objects.create_user(username=email, email=email, password=password, first_name=first[:150], last_name=last[:150])
+    if user.id == site.owner_id:
+        return JsonResponse({"error": "That's the site owner."}, status=400)
+    SiteStaff.objects.get_or_create(site=site, user=user)
+    return JsonResponse(state(), status=201)
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["DELETE"])
+def api_customer_site_staff_member(request, site_slug, member_id):
+    """Owner only — removes a team member's access (their account stays)."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    deleted, _ = site.staff.filter(id=member_id).delete()
+    if not deleted:
+        return JsonResponse({"error": "Not found."}, status=404)
+    return JsonResponse({"deleted": True})

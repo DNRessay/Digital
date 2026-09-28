@@ -662,3 +662,19 @@ class SiteEnquiry(models.Model):
 
     def __str__(self):
         return f"{self.site.slug}: {self.kind} from {self.name or self.email}"
+
+
+class SiteStaff(models.Model):
+    """Growth+: a team member the owner has given a portal login for this
+    site. Staff can edit the site's content and handle its customers, but
+    not billing, domains, email routing, WhatsApp, the team or deletion."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="staff")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="staff_sites")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("site", "user")]
+
+    def __str__(self):
+        return f"{self.user} @ {self.site.slug}"

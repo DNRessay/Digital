@@ -155,6 +155,16 @@ urlpatterns = [
         name="api-customer-site-enquiry",
     ),
     path(
+        "api/customer/sites/<slug:site_slug>/staff/",
+        customer_api.api_customer_site_staff,
+        name="api-customer-site-staff",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/staff/<int:member_id>/",
+        customer_api.api_customer_site_staff_member,
+        name="api-customer-site-staff-member",
+    ),
+    path(
         "api/customer/sites/<slug:site_slug>/whatsapp/",
         customer_api.api_customer_site_whatsapp,
         name="api-customer-site-whatsapp",
