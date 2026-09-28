@@ -142,10 +142,24 @@ export default function TermsPage() {
       </p>
 
       <h2>11. Changes and law</h2>
-      <p>
-        We may update these terms and will change the date above when we do; material changes will be communicated by
-        email or in your portal. These terms are governed by the laws of the Republic of South Africa.
-      </p>
+      <ul>
+        <li>
+          Vicinic operates in accordance with the Constitution of the Republic of South Africa and all applicable South
+          African law. These terms are governed by that law, and nothing in them removes rights the law gives you.
+        </li>
+        <li>
+          We may add to or change these terms. Changes are published on this page with a new date, and material changes
+          are also sent by email or shown in your portal.
+        </li>
+        <li>
+          <strong>Changes take effect 14 days after they are published.</strong> If you keep using Vicinic after that,
+          you accept the updated terms. If you don't agree, you can cancel before they take effect.
+        </li>
+        <li>
+          Any dispute or claim is decided under the version of these terms in effect on the date of the incident it
+          relates to. Earlier versions are kept and available on request.
+        </li>
+      </ul>
 
       <h2>12. Contact</h2>
       <p>
