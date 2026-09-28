@@ -29,6 +29,7 @@ it, and that received order is what's re-signed and compared against.
 Reference: https://developers.payfast.co.za/docs
 """
 import hashlib
+import json
 from decimal import Decimal
 from urllib.parse import quote_plus
 
@@ -43,9 +44,10 @@ PACKAGES = {
     # below keys off of to build a plain once-off charge instead of a
     # PayFast subscription.
     "starter": {"label": "Starter Site", "monthly": Decimal("0.00"), "setup": Decimal("250.00")},
-    # Sold through the sales team (features are set up for the customer), so
-    # they can't be bought from the portal; the admin console sets the plan.
-    "growth": {"label": "Growth Hub", "monthly": Decimal("349.00"), "setup": Decimal("2500.00"), "sales_only": True},
+    # Business OS is sold through the sales team (its features are set up for
+    # the customer), so it can't be bought from the portal; the admin console
+    # sets the plan.
+    "growth": {"label": "Growth Hub", "monthly": Decimal("349.00"), "setup": Decimal("2500.00")},
     "business_os": {"label": "Business OS", "monthly": Decimal("699.00"), "setup": Decimal("5500.00"), "sales_only": True},
 }
 
@@ -185,3 +187,30 @@ def confirm_with_payfast(raw_body):
     except requests.RequestException:
         return False
     return response.text.strip() == "VALID"
+
+
+def build_store_order_payload(order, owner_merchant_id, return_url, cancel_url, notify_url):
+    """A once-off charge for a Business OS store order. The owner's share
+    goes straight to their own PayFast account via PayFast Split Payments
+    (the `setup` field, last in the payload); Vicinic keeps the rest.
+    custom_str2 is "order:<id>" so payfast_notify can route the ITN."""
+    fields = [
+        ("merchant_id", settings.PAYFAST_MERCHANT_ID),
+        ("merchant_key", settings.PAYFAST_MERCHANT_KEY),
+        ("return_url", return_url),
+        ("cancel_url", cancel_url),
+        ("notify_url", notify_url),
+        ("name_first", order.name.split(" ")[0][:100]),
+        ("email_address", order.email),
+        ("m_payment_id", order.reference),
+        ("amount", f"{order.total:.2f}"),
+        ("item_name", f"{order.site.name} order {order.reference}"[:100]),
+        ("custom_str1", order.site.slug),
+        ("custom_str2", f"order:{order.id}"),
+    ]
+    if owner_merchant_id:
+        fields.append(
+            ("setup", json.dumps({"split_payment": {"merchant_id": int(owner_merchant_id), "percentage": settings.STORE_OWNER_SHARE_PERCENT}}))
+        )
+    signature = _sign(fields)
+    return _process_url(), fields + [("signature", signature)]

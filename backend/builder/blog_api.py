@@ -296,3 +296,17 @@ def admin_blog_action(request, post_id, action):
     if action == "approve":
         publishing = blog_jobs.trigger_publish()
     return JsonResponse({"post": _serialize(post, full=True), "publishing": publishing})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@pipeline_required
+def pipeline_site_posts(request):
+    """Daily: queue a post for every Growth+ site that's due one (see
+    services.site_blog.is_due — up to 20 a month, spread evenly)."""
+    from .services import site_blog
+
+    due = site_blog.due_sites()
+    for site in due:
+        site_blog.enqueue(site)
+    return JsonResponse({"queued": [s.slug for s in due]})

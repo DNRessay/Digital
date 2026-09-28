@@ -27,3 +27,25 @@ def notify_admin(subject, body):
     except Exception:
         logger.exception("Could not send admin notification: %s\n%s", subject, body)
         return False
+
+
+def send_email(to, subject, body, reply_to=None):
+    """Emails a customer (e.g. a site owner about a new enquiry) from the
+    Vicinic identity. While SES is in sandbox mode only verified addresses
+    receive mail — the enquiry is still saved either way. Never raises."""
+    source = settings.ADMIN_NOTIFY_EMAIL
+    if not source or not to:
+        return False
+    params = {
+        "Source": source,
+        "Destination": {"ToAddresses": [to]},
+        "Message": {"Subject": {"Data": subject[:200]}, "Body": {"Text": {"Data": body}}},
+    }
+    if reply_to:
+        params["ReplyToAddresses"] = [reply_to]
+    try:
+        boto3.client("ses", region_name=settings.SES_REGION).send_email(**params)
+        return True
+    except Exception:
+        logger.exception("Could not email %s: %s", to, subject)
+        return False

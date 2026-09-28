@@ -16,7 +16,7 @@ import json
 import re
 import uuid
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from html import unescape as html_unescape
 from urllib.parse import urlparse
 
@@ -36,7 +36,7 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteImage, SiteLink, SitePage, SiteSlotValue, SiteVisit, Template
+from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteEnquiry, Order, Product, SitePost, SiteStaff, SiteImage, SiteLink, SitePage, SiteSlotValue, SiteVisit, Template
 from .payfast_views import _start_manual_za_registration
 from .services import cloudflare, domain_search, site_images, site_links, site_menu, site_pages, site_sections, whatsapp
 from .services.site_images import ImageUploadError
@@ -158,6 +158,9 @@ def _serialize_site(site):
         "free_domain_available": site.free_domain_available,
         "has_paid_plan": site.has_paid_plan,
         "whatsapp_bot_available": site.whatsapp_bot_available,
+        "growth_features_available": site.growth_features_available,
+        "business_os_available": site.business_os_available,
+        "bookings_enabled": site.bookings_enabled,
     }
 
 
@@ -172,7 +175,24 @@ def _serialize_email_route(route):
 
 
 def _get_owned_site_or_none(user, site_slug):
+    """Owner only — billing, domains, email, WhatsApp, team and deletion."""
     return Site.objects.filter(slug=site_slug, owner=user).select_related("template").first()
+
+
+def _get_site_or_none(user, site_slug):
+    """The owner, or a staff member while the site's plan includes staff
+    logins — for editing content and handling customers."""
+    site = Site.objects.filter(slug=site_slug).select_related("template").first()
+    if site is None:
+        return None
+    if site.owner_id == user.id:
+        return site
+    if site.growth_features_available and site.staff.filter(user=user).exists():
+        return site
+    return None
+
+
+STAFF_LIMITS = {Site.PACKAGE_GROWTH: 5, Site.PACKAGE_BUSINESS_OS: 20}
 
 
 def _email_routing_error(site):
@@ -318,8 +338,15 @@ def api_customer_register(request):
 @require_http_methods(["GET", "POST"])
 def api_customer_sites(request):
     if request.method == "GET":
-        sites = Site.objects.filter(owner=request.customer_user).select_related("template")
-        return JsonResponse({"sites": [_serialize_site(s) for s in sites]})
+        user = request.customer_user
+        owned = list(Site.objects.filter(owner=user).select_related("template"))
+        staffed = [
+            s for s in Site.objects.filter(staff__user=user).exclude(owner=user).select_related("template")
+            if s.growth_features_available
+        ]
+        return JsonResponse(
+            {"sites": [{**_serialize_site(s), "role": "owner"} for s in owned] + [{**_serialize_site(s), "role": "staff"} for s in staffed]}
+        )
 
     body = _json_body(request)
     site_name = str(body.get("site_name", "")).strip()
@@ -396,6 +423,8 @@ def api_customer_site_update(request, site_slug):
         fields["address"] = str(body["address"]).strip()[:255]
     if "ai_assistant_enabled" in body:
         fields["ai_assistant_enabled"] = bool(body["ai_assistant_enabled"])
+    if "bookings_enabled" in body:
+        fields["bookings_enabled"] = bool(body["bookings_enabled"])
     if "ai_assistant_description" in body:
         fields["ai_assistant_description"] = str(body["ai_assistant_description"]).strip()[:2000]
 
@@ -490,7 +519,7 @@ def api_customer_checkout(request, site_slug):
 @customer_token_required
 @require_http_methods(["GET", "POST"])
 def api_customer_site_slots(request, site_slug):
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
 
@@ -872,7 +901,7 @@ def api_customer_site_whatsapp(request, site_slug):
 def api_customer_site_visitors(request, site_slug):
     """Unique visitors per day for the Overview tab's chart, oldest first,
     zero-filled over the last `days` days (default 30, max 90)."""
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     try:
@@ -1038,7 +1067,7 @@ def api_customer_site_images(request, site_slug):
     original, file) stages a replacement; DELETE ?original=<url> stages a
     reset to the template's own image. Nothing goes live until
     .../images/publish/. Replacing images is a paid-plan feature."""
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
 
@@ -1098,7 +1127,7 @@ def api_customer_site_images(request, site_slug):
 def api_customer_site_logo_scale(request, site_slug):
     """Stages a logo size (50-200% of the template's own); published with
     the rest of the editor's changes. Paid plans only."""
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     if not site.has_paid_plan:
@@ -1118,7 +1147,7 @@ def api_customer_site_logo_scale(request, site_slug):
 def api_customer_site_images_commit(request, site_slug, action):
     """action "publish": staged image replacements/resets, link changes and
     logo size go live; "discard": throw them away."""
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     if action not in ("publish", "discard"):
@@ -1207,7 +1236,7 @@ def api_customer_site_links(request, site_slug):
     .../images/publish/. Paid plans only."""
     from .views import _resolve_slots
 
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     overrides = {link.key: link for link in site.links.all()}
@@ -1316,6 +1345,8 @@ def _link_choices(site, page):
         if p.slug not in site_pages.STARTER_SLUGS
     ]
     pages += [{"target": f"page:{p.slug}", "title": p.title} for p in site.custom_pages.all()]
+    if site.growth_features_available and not any(p["target"] == "page:blog" for p in pages):
+        pages.append({"target": "page:blog", "title": "Blog"})
     seen, sections = set(), []
     for section_id in SECTION_ID_RE.findall(page.document if page else ""):
         if section_id not in seen and section_id not in ("header", "footer", "main", "navmenu"):
@@ -1334,7 +1365,7 @@ def api_customer_site_menu(request, site_slug):
     live with .../images/publish/. Paid plans only."""
     from .views import _render_site_page
 
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     home = site.template.pages.filter(slug="").first()
@@ -1391,7 +1422,7 @@ def _custom_pages_state(site):
 
 
 def _owned_custom_page(request, site_slug, page_id):
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return None, None, JsonResponse({"error": "Site not found."}, status=404)
     custom_page = site.custom_pages.filter(id=page_id).first()
@@ -1408,7 +1439,7 @@ def _owned_custom_page(request, site_slug, page_id):
 def api_customer_site_pages(request, site_slug):
     """Customer-added pages. GET lists them with the plan's page limit;
     POST {title} adds one (unpublished until the editor's Publish)."""
-    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    site = _get_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
     if request.method == "POST":
@@ -1574,3 +1605,425 @@ def api_customer_site_page_section_image(request, site_slug, page_id, section_id
     custom_page.draft_sections = sections
     custom_page.save(update_fields=["draft_sections"])
     return JsonResponse(_sections_payload(site, custom_page))
+
+
+def _serialize_enquiry(e):
+    return {
+        "id": e.id,
+        "kind": e.kind,
+        "name": e.name,
+        "email": e.email,
+        "phone": e.phone,
+        "subject": e.subject,
+        "message": e.message,
+        "preferred_date": e.preferred_date.isoformat() if e.preferred_date else None,
+        "preferred_time": e.preferred_time,
+        "status": e.status,
+        "notes": e.notes,
+        "created_at": e.created_at.isoformat(),
+    }
+
+
+def _customers(site):
+    """Everyone who has contacted the site, merged by email (or phone)."""
+    people = {}
+    for e in site.enquiries.order_by("created_at"):
+        key = (e.email or e.phone or f"#{e.id}").lower()
+        person = people.setdefault(
+            key, {"name": "", "email": "", "phone": "", "enquiries": 0, "bookings": 0, "first_seen": e.created_at, "last_seen": e.created_at}
+        )
+        person["name"] = e.name or person["name"]
+        person["email"] = e.email or person["email"]
+        person["phone"] = e.phone or person["phone"]
+        person["bookings" if e.kind == SiteEnquiry.KIND_BOOKING else "enquiries"] += 1
+        person["last_seen"] = e.created_at
+    for o in site.orders.exclude(status__in=[Order.STATUS_PENDING, Order.STATUS_CANCELLED]).order_by("created_at"):
+        key = o.email.lower()
+        person = people.setdefault(
+            key, {"name": "", "email": "", "phone": "", "enquiries": 0, "bookings": 0, "first_seen": o.created_at, "last_seen": o.created_at}
+        )
+        person["name"] = o.name or person["name"]
+        person["email"] = o.email
+        person["phone"] = o.phone or person["phone"]
+        person["orders"] = person.get("orders", 0) + 1
+        person["spent"] = str(Decimal(person.get("spent", "0")) + o.total)
+        person["first_seen"] = min(person["first_seen"], o.created_at)
+        person["last_seen"] = max(person["last_seen"], o.created_at)
+    for person in people.values():
+        person.setdefault("orders", 0)
+        person.setdefault("spent", "0.00")
+    out = sorted(people.values(), key=lambda p: p["last_seen"], reverse=True)
+    for p in out:
+        p["first_seen"] = p["first_seen"].isoformat()
+        p["last_seen"] = p["last_seen"].isoformat()
+    return out
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET"])
+def api_customer_site_enquiries(request, site_slug):
+    """Growth+: the site's enquiries and booking requests (newest first,
+    optionally ?status=) plus the merged customer list."""
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    available = site.growth_features_available
+    items = site.enquiries.all()
+    status = request.GET.get("status")
+    if status in dict(SiteEnquiry.STATUS_CHOICES):
+        items = items.filter(status=status)
+    return JsonResponse(
+        {
+            "available": available,
+            "bookings_enabled": site.bookings_enabled,
+            "enquiries": [_serialize_enquiry(e) for e in items[:300]] if available else [],
+            "customers": _customers(site) if available else [],
+            "new_count": site.enquiries.filter(status=SiteEnquiry.STATUS_NEW).count() if available else 0,
+        }
+    )
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["PATCH", "DELETE"])
+def api_customer_site_enquiry(request, site_slug, enquiry_id):
+    """PATCH {status?, notes?} or DELETE one enquiry/booking."""
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    enquiry = site.enquiries.filter(id=enquiry_id).first()
+    if enquiry is None:
+        return JsonResponse({"error": "Not found."}, status=404)
+    if request.method == "DELETE":
+        enquiry.delete()
+        return JsonResponse({"deleted": True})
+    body = _json_body(request)
+    if "status" in body:
+        if body["status"] not in dict(SiteEnquiry.STATUS_CHOICES):
+            return JsonResponse({"error": "Unknown status."}, status=400)
+        enquiry.status = body["status"]
+    if "notes" in body:
+        enquiry.notes = str(body["notes"])[:5000]
+    enquiry.save()
+    return JsonResponse({"enquiry": _serialize_enquiry(enquiry)})
+
+
+def _serialize_staff(member):
+    u = member.user
+    return {"id": member.id, "name": f"{u.first_name} {u.last_name}".strip(), "email": u.email, "username": u.username}
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "POST"])
+def api_customer_site_staff(request, site_slug):
+    """Owner only. GET the team; POST {name, email, password} gives a team
+    member a portal login for this site (or adds an existing Vicinic
+    account with that email, keeping its own password)."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    limit = STAFF_LIMITS.get(site.package, 0) if site.growth_features_available else 0
+
+    def state():
+        return {
+            "available": site.growth_features_available,
+            "limit": limit,
+            "staff": [_serialize_staff(m) for m in site.staff.select_related("user").order_by("created_at")],
+        }
+
+    if request.method == "GET":
+        return JsonResponse(state())
+    if not site.growth_features_available:
+        return JsonResponse({"error": "Staff logins come with Growth Hub and Business OS."}, status=403)
+    if site.staff.count() >= limit:
+        return JsonResponse({"error": f"Your plan allows {limit} staff logins."}, status=400)
+
+    body = _json_body(request)
+    name = " ".join(str(body.get("name", "")).split())[:150]
+    email = str(body.get("email", "")).strip().lower()
+    password = str(body.get("password", ""))
+    try:
+        validate_email(email)
+    except ValidationError:
+        return JsonResponse({"error": "Enter a valid email address."}, status=400)
+    if email == (request.customer_user.email or "").lower():
+        return JsonResponse({"error": "That's your own account."}, status=400)
+
+    user = User.objects.filter(email__iexact=email).first()
+    if user is None:
+        if not name:
+            return JsonResponse({"error": "Enter their name."}, status=400)
+        try:
+            validate_password(password)
+        except ValidationError as exc:
+            return JsonResponse({"error": " ".join(exc.messages)}, status=400)
+        if User.objects.filter(username__iexact=email).exists():
+            return JsonResponse({"error": "An account with that login already exists."}, status=409)
+        first, _, last = name.partition(" ")
+        user = User.objects.create_user(username=email, email=email, password=password, first_name=first[:150], last_name=last[:150])
+    if user.id == site.owner_id:
+        return JsonResponse({"error": "That's the site owner."}, status=400)
+    SiteStaff.objects.get_or_create(site=site, user=user)
+    return JsonResponse(state(), status=201)
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["DELETE"])
+def api_customer_site_staff_member(request, site_slug, member_id):
+    """Owner only — removes a team member's access (their account stays)."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    deleted, _ = site.staff.filter(id=member_id).delete()
+    if not deleted:
+        return JsonResponse({"error": "Not found."}, status=404)
+    return JsonResponse({"deleted": True})
+
+
+def _blog_state(site):
+    from .services import site_blog
+
+    return {
+        "available": site.growth_features_available,
+        "enabled": site.blog_enabled,
+        "topics": site.blog_topics,
+        "limit": site_blog.MONTHLY_LIMIT,
+        "this_month": site_blog.posts_this_month(site),
+        "posts": [
+            {"id": p.id, "title": p.title, "slug": p.slug, "summary": p.summary, "published": p.published, "created_at": p.created_at.isoformat()}
+            for p in site.posts.all()[:100]
+        ],
+    }
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "PATCH", "POST"])
+def api_customer_site_blog(request, site_slug):
+    """Growth+ automated blog. GET its state and posts; PATCH {enabled?,
+    topics?}; POST asks for a post now (counts toward the monthly limit)."""
+    from .services import site_blog
+
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    if request.method == "GET":
+        return JsonResponse(_blog_state(site))
+    if not site.growth_features_available:
+        return JsonResponse({"error": "The automated blog comes with Growth Hub and Business OS."}, status=403)
+    if request.method == "PATCH":
+        body = _json_body(request)
+        fields = []
+        if "enabled" in body:
+            site.blog_enabled = bool(body["enabled"])
+            fields.append("blog_enabled")
+        if "topics" in body:
+            site.blog_topics = str(body["topics"])[:1000]
+            fields.append("blog_topics")
+        if fields:
+            site.save(update_fields=fields)
+        return JsonResponse(_blog_state(site))
+    if not site_blog.can_write(site):
+        return JsonResponse({"error": f"You've had this month's {site_blog.MONTHLY_LIMIT} posts — more next month."}, status=400)
+    site_blog.enqueue(site)
+    return JsonResponse({**_blog_state(site), "queued": True}, status=202)
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["PATCH", "DELETE"])
+def api_customer_site_blog_post(request, site_slug, post_id):
+    """PATCH {published} hides/shows a post; DELETE removes it."""
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    post = site.posts.filter(id=post_id).first()
+    if post is None:
+        return JsonResponse({"error": "Not found."}, status=404)
+    if request.method == "DELETE":
+        post.delete()
+    else:
+        post.published = bool(_json_body(request).get("published", post.published))
+        post.save(update_fields=["published"])
+    return JsonResponse(_blog_state(site))
+
+
+def _serialize_product(p):
+    return {
+        "id": p.id, "name": p.name, "slug": p.slug, "description": p.description, "price": str(p.price),
+        "image_url": p.image_url, "stock": p.stock, "active": p.active,
+    }
+
+
+def _serialize_order(o):
+    return {
+        "id": o.id, "reference": o.reference, "name": o.name, "email": o.email, "phone": o.phone, "address": o.address,
+        "items": o.items, "total": str(o.total), "owner_share": str(o.owner_share), "status": o.status,
+        "notes": o.notes, "tracking": o.tracking, "created_at": o.created_at.isoformat(),
+        "paid_at": o.paid_at.isoformat() if o.paid_at else None,
+    }
+
+
+def _store_state(site, include_owner_settings):
+    from django.conf import settings as dj_settings
+
+    state = {
+        "available": site.business_os_available,
+        "products": [_serialize_product(p) for p in site.products.all()] if site.business_os_available else [],
+        "owner_share_percent": dj_settings.STORE_OWNER_SHARE_PERCENT,
+        "payouts_connected": bool(site.store_payfast_merchant_id),
+    }
+    if include_owner_settings:
+        state["payfast_merchant_id"] = site.store_payfast_merchant_id
+    return state
+
+
+def _product_fields(site, body, product=None):
+    from .services import store
+
+    name = " ".join(str(body.get("name", product.name if product else "")).split())[:120]
+    if not name:
+        raise ValueError("Give the product a name.")
+    try:
+        price = Decimal(str(body.get("price", product.price if product else ""))).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        raise ValueError("Enter a price, like 199.99.")
+    if price < Decimal("5.00") or price > Decimal("1000000"):
+        raise ValueError("Prices must be between R5 and R1,000,000.")
+    stock = body.get("stock", product.stock if product else None)
+    if stock in ("", None):
+        stock = None
+    else:
+        try:
+            stock = max(int(stock), 0)
+        except (TypeError, ValueError):
+            raise ValueError("Stock must be a whole number, or empty for unlimited.")
+    fields = {
+        "name": name,
+        "price": price,
+        "stock": stock,
+        "description": str(body.get("description", product.description if product else ""))[:5000],
+        "active": bool(body.get("active", product.active if product else True)),
+    }
+    if product is None:
+        base = slugify(name)[:100] or "item"
+        if base in store.RESERVED_PRODUCT_SLUGS:
+            base = f"{base}-item"
+        slug, n = base, 2
+        while site.products.filter(slug=slug).exists():
+            slug, n = f"{base}-{n}", n + 1
+        fields["slug"] = slug
+    return fields
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "POST", "PATCH"])
+def api_customer_site_store(request, site_slug):
+    """Business OS store. GET products + settings; POST {name, price, …}
+    adds a product; PATCH {payfast_merchant_id} (owner only) sets where the
+    owner's share of each sale is paid."""
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    is_owner = site.owner_id == request.customer_user.id
+    if request.method == "GET":
+        return JsonResponse(_store_state(site, is_owner))
+    if not site.business_os_available:
+        return JsonResponse({"error": "The online store comes with Business OS."}, status=403)
+    body = _json_body(request)
+    if request.method == "PATCH":
+        if not is_owner:
+            return JsonResponse({"error": "Only the site owner can change payout details."}, status=403)
+        merchant_id = str(body.get("payfast_merchant_id", "")).strip()
+        if merchant_id and not re.fullmatch(r"\d{5,12}", merchant_id):
+            return JsonResponse({"error": "A PayFast merchant ID is a number, like 10012345."}, status=400)
+        site.store_payfast_merchant_id = merchant_id
+        site.save(update_fields=["store_payfast_merchant_id"])
+        return JsonResponse(_store_state(site, is_owner))
+    if site.products.count() >= 500:
+        return JsonResponse({"error": "A store can have up to 500 products."}, status=400)
+    try:
+        product = Product.objects.create(site=site, order=site.products.count(), **_product_fields(site, body))
+    except ValueError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    return JsonResponse({**_store_state(site, is_owner), "product": _serialize_product(product)}, status=201)
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["PATCH", "DELETE", "POST"])
+def api_customer_site_product(request, site_slug, product_id):
+    """PATCH edits a product, DELETE removes it, POST (multipart file)
+    uploads its photo."""
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    product = site.products.filter(id=product_id).first()
+    if product is None:
+        return JsonResponse({"error": "Not found."}, status=404)
+    is_owner = site.owner_id == request.customer_user.id
+    if request.method == "DELETE":
+        product.delete()
+        return JsonResponse(_store_state(site, is_owner))
+    if not site.business_os_available:
+        return JsonResponse({"error": "The online store comes with Business OS."}, status=403)
+    if request.method == "POST":
+        uploaded = request.FILES.get("file")
+        if uploaded is None:
+            return JsonResponse({"error": "Choose an image to upload."}, status=400)
+        try:
+            name, content = site_images.process_upload(uploaded, site.slug)
+        except ImageUploadError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+        from django.core.files.storage import default_storage
+
+        product.image_url = default_storage.url(default_storage.save(f"product_images/{name}", content))
+        product.save(update_fields=["image_url"])
+        return JsonResponse(_store_state(site, is_owner))
+    try:
+        for key, value in _product_fields(site, _json_body(request), product).items():
+            setattr(product, key, value)
+    except ValueError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    product.save()
+    return JsonResponse(_store_state(site, is_owner))
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET"])
+def api_customer_site_orders(request, site_slug):
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    orders = site.orders.exclude(status=Order.STATUS_PENDING)[:300] if site.business_os_available else []
+    return JsonResponse({"available": site.business_os_available, "orders": [_serialize_order(o) for o in orders]})
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["PATCH"])
+def api_customer_site_order(request, site_slug, order_id):
+    """PATCH {status?, notes?, tracking?} — e.g. mark shipped with a tracking number."""
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    order = site.orders.filter(id=order_id).first()
+    if order is None:
+        return JsonResponse({"error": "Not found."}, status=404)
+    body = _json_body(request)
+    if "status" in body:
+        allowed = {Order.STATUS_PAID, Order.STATUS_SHIPPED, Order.STATUS_DONE, Order.STATUS_CANCELLED}
+        if body["status"] not in allowed:
+            return JsonResponse({"error": "Unknown status."}, status=400)
+        order.status = body["status"]
+    if "notes" in body:
+        order.notes = str(body["notes"])[:5000]
+    if "tracking" in body:
+        order.tracking = str(body["tracking"])[:200]
+    order.save(update_fields=["status", "notes", "tracking"])
+    return JsonResponse({"order": _serialize_order(order)})

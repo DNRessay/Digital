@@ -6,7 +6,6 @@ from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.core.mail import BadHeaderError, send_mail
 from django.db import IntegrityError
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -23,7 +22,8 @@ from .forms import TemplateUploadForm
 from .branding_assets import LOGO_WHITE_DATA_URI
 from .models import Site, SitePage, SiteSlotValue, SiteVisit, Template, TemplatePage
 from .services.ai_assistant import AiAssistantError, ask_assistant
-from .services import site_links, site_menu, site_pages
+from .services import enquiries, site_blog, site_links, site_menu, site_pages, store
+from .services.payfast import build_store_order_payload
 from .services.site_images import apply_overrides, logo_scale_css, logo_urls
 from .services.slot_extractor import slot_tag
 from .services.template_ingest import IngestError, ingest_converted_zip
@@ -74,8 +74,38 @@ CHAT_ICON = (
 # has a number. Vanilla JS/CSS, no build step, since it's injected into
 # arbitrary customer-uploaded template HTML the same way BRANDING_BADGE_HTML
 # and EDITOR_BRIDGE_HTML are.
-def _floating_buttons_html(site, chat_url):
+CALENDAR_ICON = (
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 2h2v2h6V2h2v2h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3V2zm12 8H5v9h14v-9zM7 12h4v4H7v-4z"/></svg>'
+)
+
+
+def _booking_html(site, booking_url):
+    """The floating Book button's panel: a small booking-request form that
+    posts to the site's contact endpoint (saved as a SiteEnquiry)."""
+    if not booking_url:
+        return "", ""
     business_name = escape(site.name)
+    toggle = f'<button class="vicinic-fab" id="vicinic-book-toggle" aria-label="Book with {business_name}">{CALENDAR_ICON}</button>'
+    panel = f"""<div id="vicinic-book-panel" class="vicinic-panel">
+  <div class="vicinic-panel-header">Book with {business_name}<button type="button" class="vicinic-panel-close" aria-label="Close">&times;</button></div>
+  <form id="vicinic-book-form" data-url="{escape(booking_url)}">
+    <input type="hidden" name="kind" value="booking">
+    <input type="text" name="website" tabindex="-1" autocomplete="off" style="display:none">
+    <input name="name" placeholder="Your name" required maxlength="120">
+    <input name="email" type="email" placeholder="Email" maxlength="254">
+    <input name="phone" type="tel" placeholder="Phone" maxlength="30">
+    <div class="vicinic-row"><input name="preferred_date" type="date" required><input name="preferred_time" type="time"></div>
+    <textarea name="message" rows="3" placeholder="What would you like to book?" maxlength="2000"></textarea>
+    <button type="submit">Request booking</button>
+    <p class="vicinic-book-note"></p>
+  </form>
+</div>"""
+    return toggle, panel
+
+
+def _floating_buttons_html(site, chat_url, booking_url=None):
+    business_name = escape(site.name)
+    book_toggle_html, book_panel_html = _booking_html(site, booking_url)
     whatsapp_html = ""
     if site.whatsapp_number:
         number = re.sub(r"\D", "", site.whatsapp_number)
@@ -130,13 +160,29 @@ def _floating_buttons_html(site, chat_url):
   #vicinic-chat-input {{ flex: 1; border: none; padding: 10px; font: inherit; }}
   #vicinic-chat-input:focus {{ outline: none; }}
   #vicinic-chat-form button {{ border: none; background: #111; color: #fff; padding: 0 14px; cursor: pointer; }}
+  #vicinic-book-panel {{
+    position: fixed; bottom: 76px; right: 15px; z-index: 2147483646;
+    width: min(320px, calc(100vw - 24px)); display: none; flex-direction: column;
+    background: #fff; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.25); overflow: hidden;
+    font: 14px/1.4 system-ui,-apple-system,sans-serif; color: #111;
+  }}
+  #vicinic-book-panel.vicinic-open {{ display: flex; }}
+  .vicinic-panel-header {{ background: #111; color: #fff; padding: 10px 14px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }}
+  .vicinic-panel-close {{ background: none; border: none; color: #fff; font-size: 20px; line-height: 1; cursor: pointer; }}
+  #vicinic-book-form {{ display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }}
+  #vicinic-book-form input, #vicinic-book-form textarea {{ border: 1px solid #ddd; border-radius: 8px; padding: 8px 10px; font: inherit; width: 100%; box-sizing: border-box; }}
+  #vicinic-book-form .vicinic-row {{ display: flex; gap: 8px; }}
+  #vicinic-book-form button[type=submit] {{ border: none; border-radius: 8px; background: #111; color: #fff; padding: 10px; font-weight: 600; cursor: pointer; }}
+  .vicinic-book-note {{ margin: 0; font-size: 13px; color: #555; }}
 </style>
-<div id="vicinic-fab-stack">{chat_toggle_html}{whatsapp_html}</div>
+<div id="vicinic-fab-stack">{chat_toggle_html}{book_toggle_html}{whatsapp_html}</div>
 {chat_panel_html}
+{book_panel_html}
 <script>
 (function () {{
   var stack = document.getElementById('vicinic-fab-stack');
   var panel = document.getElementById('vicinic-chat-panel');
+  var bookPanel = document.getElementById('vicinic-book-panel');
 
   // Sit directly above the template's back-to-top button, same width,
   // right edge and corner shape. Many templates park it off-screen
@@ -176,14 +222,42 @@ def _floating_buttons_html(site, chat_url):
       b.style.height = size + 'px';
       b.style.borderRadius = radius;
     }});
-    if (panel) {{
-      panel.style.right = right + 'px';
-      panel.style.bottom = (bottom + stack.offsetHeight + 10) + 'px';
-    }}
+    [panel, bookPanel].forEach(function (p) {{
+      if (!p) return;
+      p.style.right = right + 'px';
+      p.style.bottom = (bottom + stack.offsetHeight + 10) + 'px';
+    }});
   }}
   place();
   window.addEventListener('load', place);
   window.addEventListener('resize', place);
+
+  if (bookPanel) {{
+    var bookForm = document.getElementById('vicinic-book-form');
+    var bookNote = bookPanel.querySelector('.vicinic-book-note');
+    var dateInput = bookForm.querySelector('input[name=preferred_date]');
+    dateInput.min = new Date().toISOString().slice(0, 10);
+    document.getElementById('vicinic-book-toggle').addEventListener('click', function () {{
+      if (panel) panel.classList.remove('vicinic-open');
+      bookPanel.classList.toggle('vicinic-open');
+    }});
+    bookPanel.querySelector('.vicinic-panel-close').addEventListener('click', function () {{
+      bookPanel.classList.remove('vicinic-open');
+    }});
+    bookForm.addEventListener('submit', function (e) {{
+      e.preventDefault();
+      var data = new FormData(bookForm);
+      if (!data.get('email') && !data.get('phone')) {{ bookNote.textContent = 'Add an email or phone number so we can confirm.'; return; }}
+      var btn = bookForm.querySelector('button[type=submit]');
+      btn.disabled = true;
+      bookNote.textContent = 'Sending…';
+      fetch(bookForm.dataset.url, {{ method: 'POST', body: data }})
+        .then(function (r) {{ return r.text().then(function (t) {{ if (!r.ok) throw new Error(t); }}); }})
+        .then(function () {{ bookForm.reset(); bookNote.textContent = "Thanks! We'll be in touch to confirm your booking."; }})
+        .catch(function (err) {{ bookNote.textContent = (err && err.message) || 'Sorry, something went wrong. Please try again.'; }})
+        .finally(function () {{ btn.disabled = false; }});
+    }});
+  }}
 
   if (!panel) return;
   var toggle = document.getElementById('vicinic-chat-toggle');
@@ -192,6 +266,7 @@ def _floating_buttons_html(site, chat_url):
   var input = document.getElementById('vicinic-chat-input');
 
   toggle.addEventListener('click', function () {{
+    if (bookPanel) bookPanel.classList.remove('vicinic-open');
     panel.classList.toggle('vicinic-open');
   }});
 
@@ -231,10 +306,10 @@ def _floating_buttons_html(site, chat_url):
 """
 
 
-def _inject_floating_buttons(html, site, chat_url):
+def _inject_floating_buttons(html, site, chat_url, booking_url=None):
     lower = html.lower()
     idx = lower.rfind("</body>")
-    widget_html = _floating_buttons_html(site, chat_url)
+    widget_html = _floating_buttons_html(site, chat_url, booking_url)
     if idx == -1:
         return html + widget_html
     return html[:idx] + widget_html + html[idx:]
@@ -443,7 +518,7 @@ def _inject_map_address(html, address):
     return GOOGLE_MAPS_IFRAME_SRC_RE.sub(lambda m: m.group(1) + new_src + m.group(3), html)
 
 
-def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None, custom_page=None):
+def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None, custom_page=None, blog_page=None):
     """`page` is the TemplatePage to render; for a customer-added page
     (`custom_page`, a SitePage) it's the template's starter page, whose
     main content gets swapped for the custom page's sections."""
@@ -454,18 +529,26 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None
         href = link.current(draft=edit_mode)
         if href:
             link_overrides[link.key] = href
-    source = site_pages.document_with_marker(page.document) if custom_page else page.document
+    source = site_pages.document_with_marker(page.document) if custom_page or blog_page else page.document
     document = site_links.apply(source, link_overrides, annotate=edit_mode, base_path=base_path)
     template = django_engine.from_string(document)
     html = template.render(context)
     if custom_page:
         html = site_pages.fill(html, custom_page, site.name, edit_mode)
+    elif blog_page:
+        title, inner = blog_page
+        html = site_blog.fill(html, site_pages.SECTIONS_MARKER, inner, title, site.name)
     menu = site_menu.current(site, edit_mode)
     if menu is not None:
         html = site_menu.render(html, menu, base_path)
     else:
         nav_pages = site.custom_pages.filter(show_in_nav=True) if edit_mode else site.custom_pages.filter(show_in_nav=True, published=True)
-        html = site_pages.inject_nav(html, [(f"{base_path}{p.slug}/", p.title) for p in nav_pages])
+        nav_items = [(f"{base_path}{p.slug}/", p.title) for p in nav_pages]
+        if site.growth_features_available and site.posts.filter(published=True).exists():
+            nav_items.append((f"{base_path}blog/", "Blog"))
+        if site.business_os_available and site.products.filter(active=True).exists():
+            nav_items.append((f"{base_path}shop/", "Shop"))
+        html = site_pages.inject_nav(html, nav_items)
     html = site_menu.add_mobile_menu(html)
     overrides = {}
     for image in site.images.all():
@@ -487,8 +570,9 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None
         if site.is_branded:
             html = _inject_branding_badge(html)
         chat = chat_url if site.ai_assistant_active else None
-        if chat or (site.whatsapp_number and site.has_paid_plan):
-            html = _inject_floating_buttons(html, site, chat)
+        booking = f"{base_path}contact/" if site.growth_features_available and site.bookings_enabled else None
+        if chat or booking or (site.whatsapp_number and site.has_paid_plan):
+            html = _inject_floating_buttons(html, site, chat, booking)
     response = HttpResponse(html)
     if edit_mode:
         # web-portal (a different origin) embeds this in an iframe for the
@@ -562,9 +646,97 @@ def _page_or_custom(site, page_slug, edit_mode):
     return starter, custom
 
 
+def _blog_page(site, post_slug, base_path):
+    """(starter TemplatePage, (title, inner html)) for the site's blog, or Http404."""
+    starter = site_pages.starter_page(site.template)
+    if starter is None or not site.growth_features_available:
+        raise Http404("No blog.")
+    if post_slug is None:
+        return starter, ("Blog", site_blog.list_html(site, base_path))
+    post = site.posts.filter(slug=post_slug, published=True).first()
+    if post is None:
+        raise Http404("No such post.")
+    return starter, (post.title, site_blog.post_html(site, post, base_path))
+
+
+def _shop_response(request, site, base_path, chat_url, view, arg=None):
+    """Every /shop/ route, for both slug and custom-domain URLs."""
+    if not store.available(site):
+        raise Http404("No shop.")
+    if view == "data":
+        products = site.products.filter(active=True)
+        return JsonResponse(
+            {"products": [{"id": p.id, "name": p.name, "price": float(p.price), "in_stock": p.in_stock} for p in products]}
+        )
+    if view == "checkout":
+        if request.method != "POST":
+            return HttpResponse(status=405)
+        try:
+            body = json.loads(request.body or b"{}")
+            order = store.create_order(site, body)
+        except (json.JSONDecodeError, store.StoreError) as exc:
+            return JsonResponse({"error": str(exc) if isinstance(exc, store.StoreError) else "Invalid request."}, status=400)
+        origin = f"https://{site.custom_domain}" if base_path == "/" and site.custom_domain else request.build_absolute_uri("/").rstrip("/")
+        process_url, fields = build_store_order_payload(
+            order,
+            site.store_payfast_merchant_id,
+            f"{origin}{base_path}shop/thanks/?ref={order.reference}",
+            f"{origin}{base_path}shop/cart/",
+            f"https://{settings.PLATFORM_ORIGIN_HOST}/api/payfast/notify/",
+        )
+        return JsonResponse({"process_url": process_url, "fields": fields})
+    starter = site_pages.starter_page(site.template)
+    if starter is None:
+        raise Http404("No shop.")
+    if view == "list":
+        title, inner = "Shop", store.list_html(site, base_path)
+    elif view == "cart":
+        title, inner = "Cart", store.cart_html(site, base_path)
+    elif view == "thanks":
+        order = site.orders.filter(reference=request.GET.get("ref", "")).first()
+        title, inner = "Thank you", store.thanks_html(site, order, base_path)
+    else:
+        product = site.products.filter(slug=arg, active=True).first()
+        if product is None:
+            raise Http404("No such product.")
+        title, inner = product.name, store.product_html(site, product, base_path)
+    inner += store.store_script(site, base_path)
+    return _track_visit(request, site, _render_site_page(site, starter, chat_url=chat_url, base_path=base_path, blog_page=(title, inner)))
+
+
+@csrf_exempt  # the shop's own injected JS posts checkout without a CSRF token
+def site_shop(request, slug, view="list", product_slug=None):
+    site = get_object_or_404(Site, slug=slug, is_published=True)
+    return _shop_response(request, site, f"/{slug}/", reverse("builder:site-ai-chat", args=[slug]), view, product_slug)
+
+
+@csrf_exempt
+def custom_domain_shop(request, view="list", product_slug=None):
+    return _shop_response(request, request.custom_domain_site, "/", reverse("custom-domain-ai-chat"), view, product_slug)
+
+
+def site_blog_post(request, slug, post_slug):
+    site = get_object_or_404(Site, slug=slug, is_published=True)
+    page, blog = _blog_page(site, post_slug, f"/{slug}/")
+    chat_url = reverse("builder:site-ai-chat", args=[slug])
+    return _track_visit(request, site, _render_site_page(site, page, chat_url=chat_url, blog_page=blog))
+
+
+def custom_domain_blog_post(request, post_slug):
+    site = request.custom_domain_site
+    page, blog = _blog_page(site, post_slug, "/")
+    return _track_visit(
+        request, site, _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat"), base_path="/", blog_page=blog)
+    )
+
+
 def site_page(request, slug, page_slug):
     site = get_object_or_404(Site, slug=slug, is_published=True)
     edit_mode = request.GET.get("vicinic_edit") == "1"
+    if page_slug == "blog" and not SitePage.objects.filter(site=site, slug="blog").exists():
+        page, blog = _blog_page(site, None, f"/{slug}/")
+        chat_url = reverse("builder:site-ai-chat", args=[slug])
+        return _track_visit(request, site, _render_site_page(site, page, edit_mode=edit_mode, chat_url=chat_url, blog_page=blog))
     page, custom = _page_or_custom(site, page_slug, edit_mode)
     chat_url = reverse("builder:site-ai-chat", args=[slug])
     return _track_visit(
@@ -587,6 +759,11 @@ def custom_domain_home(request):
 
 def custom_domain_page(request, page_slug):
     site = request.custom_domain_site
+    if page_slug == "blog" and not SitePage.objects.filter(site=site, slug="blog").exists():
+        page, blog = _blog_page(site, None, "/")
+        return _track_visit(
+            request, site, _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat"), base_path="/", blog_page=blog)
+        )
     page, custom = _page_or_custom(site, page_slug, edit_mode=False)
     return _track_visit(
         request,
@@ -636,24 +813,22 @@ def site_ai_chat(request, slug):
 
 
 def _handle_contact(site, request):
-    name = request.POST.get("name", "")
-    email = request.POST.get("email", "")
-    subject = request.POST.get("subject", "")
-    message = request.POST.get("message", "")
-    recipient = site.email or settings.CONTACT_RECIPIENT_EMAIL
-
+    """The site's contact form (the template's own) and the floating Book
+    button both post here. Growth+ sites keep every message in the portal's
+    customer database; every site emails the owner."""
+    if request.POST.get("website"):  # honeypot — only bots fill it in
+        return HttpResponse("OK")
+    enquiry = enquiries.from_post(site, request.POST)
+    if not (enquiry.message or enquiry.preferred_date) or not (enquiry.email or enquiry.phone):
+        return HttpResponse("Please add your contact details and a message.", status=400)
+    if site.growth_features_available:
+        enquiry.save()
+        enquiries.notify_owner(enquiry)
+        return HttpResponse("OK")
+    recipient = enquiries.owner_email(site) or settings.CONTACT_RECIPIENT_EMAIL
     if not recipient:
         return HttpResponse("This site has no contact recipient configured.", status=500)
-
-    try:
-        send_mail(
-            subject=f"[{site.name}] {subject or 'New contact form message'}",
-            message=f"From: {name} <{email}>\n\n{message}",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[recipient],
-        )
-    except BadHeaderError:
-        return HttpResponse("Invalid header found.", status=400)
+    enquiries.notify_owner(enquiry)
     return HttpResponse("OK")
 
 

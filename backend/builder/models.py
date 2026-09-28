@@ -219,6 +219,14 @@ class Site(models.Model):
         help_text="Comma-separated — what the customer needs to set at their registrar for domain_status to become active.",
     )
 
+    store_payfast_merchant_id = models.CharField(
+        max_length=20, blank=True, help_text="Business OS: the owner's own PayFast merchant ID that receives their share of store sales."
+    )
+    blog_enabled = models.BooleanField(default=True, help_text="Growth+: write blog posts automatically (up to 20 a month).")
+    blog_topics = models.TextField(blank=True, help_text="Owner's hints for what the automated blog should cover.")
+    bookings_enabled = models.BooleanField(
+        default=True, help_text="Growth+: show the floating 'Book' button so visitors can request a booking."
+    )
     is_published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -237,6 +245,17 @@ class Site(models.Model):
         """Connecting the customer's own WhatsApp number (the WhatsApp AI bot)
         is a Growth Hub / Business OS feature — not on Starter."""
         return self.has_paid_plan and self.package in (self.PACKAGE_GROWTH, self.PACKAGE_BUSINESS_OS)
+
+    @property
+    def growth_features_available(self):
+        """Growth Hub / Business OS extras — the enquiry & booking database,
+        staff logins and the automated blog. On as soon as the plan is paid."""
+        return self.has_paid_plan and self.package in (self.PACKAGE_GROWTH, self.PACKAGE_BUSINESS_OS)
+
+    @property
+    def business_os_available(self):
+        """Business OS extras — the online store and order management."""
+        return self.has_paid_plan and self.package == self.PACKAGE_BUSINESS_OS
 
     @property
     def ai_assistant_active(self):
@@ -614,3 +633,144 @@ class BlogPost(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class SiteEnquiry(models.Model):
+    """A message or booking request from a visitor to a customer's site —
+    the Growth Hub customer database. Saved from the site's contact form and
+    the floating "Book" button; the owner manages them in the portal."""
+
+    KIND_ENQUIRY = "enquiry"
+    KIND_BOOKING = "booking"
+    KIND_CHOICES = [(KIND_ENQUIRY, "Enquiry"), (KIND_BOOKING, "Booking request")]
+    STATUS_NEW = "new"
+    STATUS_CONFIRMED = "confirmed"
+    STATUS_DECLINED = "declined"
+    STATUS_DONE = "done"
+    STATUS_CHOICES = [
+        (STATUS_NEW, "New"),
+        (STATUS_CONFIRMED, "Confirmed"),
+        (STATUS_DECLINED, "Declined"),
+        (STATUS_DONE, "Done"),
+    ]
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="enquiries")
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_ENQUIRY)
+    name = models.CharField(max_length=120, blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    subject = models.CharField(max_length=200, blank=True)
+    message = models.TextField(blank=True)
+    preferred_date = models.DateField(null=True, blank=True)
+    preferred_time = models.CharField(max_length=20, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_NEW)
+    notes = models.TextField(blank=True, help_text="The owner's private notes.")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.site.slug}: {self.kind} from {self.name or self.email}"
+
+
+class SiteStaff(models.Model):
+    """Growth+: a team member the owner has given a portal login for this
+    site. Staff can edit the site's content and handle its customers, but
+    not billing, domains, email routing, WhatsApp, the team or deletion."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="staff")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="staff_sites")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("site", "user")]
+
+    def __str__(self):
+        return f"{self.user} @ {self.site.slug}"
+
+
+class SitePost(models.Model):
+    """Growth+: a post on a customer's own site blog (/<site>/blog/),
+    written automatically about the business (services.site_blog)."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="posts")
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=120)
+    summary = models.CharField(max_length=300, blank=True)
+    body = models.TextField(help_text="Markdown.")
+    published = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        unique_together = [("site", "slug")]
+
+    def __str__(self):
+        return f"{self.site.slug}: {self.title}"
+
+
+class Product(models.Model):
+    """Business OS: an item in a customer's online store (/<site>/shop/)."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="products")
+    name = models.CharField(max_length=120)
+    slug = models.SlugField(max_length=120)
+    description = models.TextField(blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    image_url = models.CharField(max_length=1000, blank=True)
+    stock = models.PositiveIntegerField(null=True, blank=True, help_text="Empty = unlimited.")
+    active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "created_at"]
+        unique_together = [("site", "slug")]
+
+    @property
+    def in_stock(self):
+        return self.stock is None or self.stock > 0
+
+    def __str__(self):
+        return f"{self.site.slug}: {self.name}"
+
+
+class Order(models.Model):
+    """Business OS: a shopper's order from a customer's store, paid through
+    Vicinic's PayFast with the owner's share split to their own account."""
+
+    STATUS_PENDING = "pending"
+    STATUS_PAID = "paid"
+    STATUS_SHIPPED = "shipped"
+    STATUS_DONE = "done"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Awaiting payment"),
+        (STATUS_PAID, "Paid"),
+        (STATUS_SHIPPED, "Shipped"),
+        (STATUS_DONE, "Completed"),
+        (STATUS_CANCELLED, "Cancelled"),
+    ]
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="orders")
+    reference = models.CharField(max_length=64, unique=True, help_text="PayFast m_payment_id.")
+    name = models.CharField(max_length=120)
+    email = models.EmailField()
+    phone = models.CharField(max_length=30, blank=True)
+    address = models.TextField(blank=True, help_text="Delivery address, or empty for collection.")
+    items = models.JSONField(default=list, help_text="[{product_id, name, price, qty}] as bought.")
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+    owner_share = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    notes = models.TextField(blank=True)
+    tracking = models.CharField(max_length=200, blank=True)
+    payfast_payment_id = models.CharField(max_length=40, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.site.slug}: {self.reference}"

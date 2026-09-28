@@ -27,6 +27,7 @@ urlpatterns = [
     path("api/blog/pipeline/auto/", blog_api.pipeline_auto, name="api-blog-auto"),
     path("api/blog/pipeline/due/", blog_api.pipeline_due, name="api-blog-due"),
     path("api/blog/pipeline/published/", blog_api.pipeline_published, name="api-blog-published"),
+    path("api/blog/pipeline/site-posts/", blog_api.pipeline_site_posts, name="api-blog-site-posts"),
     path("api/admin/analytics/", api_views.api_admin_analytics, name="api-admin-analytics"),
     path("api/admin/domain-lookup/", api_views.api_admin_domain_lookup, name="api-admin-domain-lookup"),
     path("api/admin/domain-attach/", api_views.api_admin_domain_attach, name="api-admin-domain-attach"),
@@ -143,6 +144,48 @@ urlpatterns = [
         "api/customer/sites/<slug:site_slug>/domain/purchase/",
         customer_api.api_customer_domain_purchase,
         name="api-customer-domain-purchase",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/enquiries/",
+        customer_api.api_customer_site_enquiries,
+        name="api-customer-site-enquiries",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/enquiries/<int:enquiry_id>/",
+        customer_api.api_customer_site_enquiry,
+        name="api-customer-site-enquiry",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/blog/",
+        customer_api.api_customer_site_blog,
+        name="api-customer-site-blog",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/blog/<int:post_id>/",
+        customer_api.api_customer_site_blog_post,
+        name="api-customer-site-blog-post",
+    ),
+    path("api/customer/sites/<slug:site_slug>/store/", customer_api.api_customer_site_store, name="api-customer-site-store"),
+    path(
+        "api/customer/sites/<slug:site_slug>/store/<int:product_id>/",
+        customer_api.api_customer_site_product,
+        name="api-customer-site-product",
+    ),
+    path("api/customer/sites/<slug:site_slug>/orders/", customer_api.api_customer_site_orders, name="api-customer-site-orders"),
+    path(
+        "api/customer/sites/<slug:site_slug>/orders/<int:order_id>/",
+        customer_api.api_customer_site_order,
+        name="api-customer-site-order",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/staff/",
+        customer_api.api_customer_site_staff,
+        name="api-customer-site-staff",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/staff/<int:member_id>/",
+        customer_api.api_customer_site_staff_member,
+        name="api-customer-site-staff-member",
     ),
     path(
         "api/customer/sites/<slug:site_slug>/whatsapp/",
