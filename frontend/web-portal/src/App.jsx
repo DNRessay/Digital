@@ -18,6 +18,9 @@ import {
   getProfile,
   getSiteImages,
   getSiteLinks,
+  getSiteMenu,
+  resetSiteMenu,
+  saveSiteMenu,
   getSiteSlots,
   getVisitors,
   listEmailDestinations,
@@ -1766,54 +1769,306 @@ function ImagesPanel({ site, page, selectedSrc, refreshKey, onChanged, onPending
   )
 }
 
-function LinkRow({ link, site, selected, rowRef, disabled, onSave }) {
-  const [value, setValue] = useState(link.href)
-  useEffect(() => setValue(link.href), [link.href])
+const TARGET_KINDS = [
+  ['page', 'A page on your site'],
+  ['section', 'A section of this page'],
+  ['url', 'Web address'],
+  ['email', 'Email'],
+  ['phone', 'Phone call'],
+  ['whatsapp', 'WhatsApp'],
+]
 
-  const quick = [
-    site.whatsapp_number && { label: 'WhatsApp', href: `https://wa.me/${site.whatsapp_number.replace(/\D/g, '')}` },
-    site.phone && { label: 'Call', href: `tel:${site.phone.replace(/[^\d+]/g, '')}` },
-    site.email && { label: 'Email', href: `mailto:${site.email}` },
-  ].filter(Boolean)
+function targetKind(target) {
+  if (target.startsWith('page:')) return 'page'
+  if (target.startsWith('#')) return 'section'
+  if (target.startsWith('mailto:')) return 'email'
+  if (target.startsWith('tel:')) return 'phone'
+  if (/^https:\/\/wa\.me\//.test(target)) return 'whatsapp'
+  return 'url'
+}
 
-  function save(href) {
-    if (href.trim() !== link.href) onSave(href.trim())
+// Where a link or menu item goes, as plain choices instead of a raw href.
+function TargetPicker({ value, pages, sections, site, disabled, label, onChange }) {
+  const [kind, setKind] = useState(targetKind(value))
+  const [text, setText] = useState('')
+  useEffect(() => {
+    const k = targetKind(value)
+    setKind(k)
+    setText(
+      k === 'email' ? value.slice(7) : k === 'phone' ? value.slice(4) : k === 'whatsapp' ? value.replace('https://wa.me/', '+') : k === 'url' && value !== '#' ? value : ''
+    )
+  }, [value])
+
+  function pickKind(next) {
+    setKind(next)
+    if (next === 'page') onChange(pages[0]?.target || 'page:')
+    else if (next === 'section') onChange(sections[0]?.target || '#')
+    else if (next === 'email' && site.email) onChange(`mailto:${site.email}`)
+    else if (next === 'phone' && site.phone) onChange(`tel:${site.phone.replace(/[^\d+]/g, '')}`)
+    else if (next === 'whatsapp' && (site.whatsapp_number || site.phone)) {
+      onChange(`https://wa.me/${(site.whatsapp_number || site.phone).replace(/\D/g, '').replace(/^0/, '27')}`)
+    } else setText('')
   }
 
+  function commitText() {
+    const t = text.trim()
+    if (!t) return
+    if (kind === 'email') onChange(`mailto:${t}`)
+    else if (kind === 'phone') onChange(`tel:${t.replace(/[^\d+]/g, '')}`)
+    else if (kind === 'whatsapp') onChange(`https://wa.me/${t.replace(/\D/g, '').replace(/^0/, '27')}`)
+    else onChange(/^[a-z]+:|^\//i.test(t) ? t : `https://${t}`)
+  }
+
+  const knownPage = pages.some((p) => p.target === value)
+  const knownSection = sections.some((s) => s.target === value)
+  return (
+    <div className="target-picker">
+      <select value={kind} disabled={disabled} aria-label={`What "${label}" links to`} onChange={(e) => pickKind(e.target.value)}>
+        {TARGET_KINDS.map(([k, name]) => (
+          <option key={k} value={k}>{name}</option>
+        ))}
+      </select>
+      {kind === 'page' && (
+        <select value={knownPage ? value : ''} disabled={disabled} aria-label="Page" onChange={(e) => onChange(e.target.value)}>
+          {!knownPage && <option value="">Choose a page…</option>}
+          {pages.map((p) => (
+            <option key={p.target} value={p.target}>{p.title}</option>
+          ))}
+        </select>
+      )}
+      {kind === 'section' && (
+        <select value={knownSection ? value : ''} disabled={disabled} aria-label="Section" onChange={(e) => onChange(e.target.value)}>
+          {!knownSection && <option value="">{value === '#' ? 'Nowhere yet — choose a section…' : 'Choose a section…'}</option>}
+          {sections.map((s) => (
+            <option key={s.target} value={s.target}>{s.title}</option>
+          ))}
+        </select>
+      )}
+      {['url', 'email', 'phone', 'whatsapp'].includes(kind) && (
+        <input
+          type={kind === 'email' ? 'email' : kind === 'url' ? 'url' : 'tel'}
+          inputMode={kind === 'url' ? 'url' : kind === 'email' ? 'email' : 'tel'}
+          placeholder={{ url: 'https://…', email: 'you@business.co.za', phone: '082 123 4567', whatsapp: '082 123 4567' }[kind]}
+          value={text}
+          disabled={disabled}
+          aria-label={TARGET_KINDS.find(([k]) => k === kind)[1]}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commitText}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+        />
+      )}
+    </div>
+  )
+}
+
+function LinkRow({ link, site, choices, selected, rowRef, disabled, onSave }) {
   return (
     <li ref={rowRef} className={`link-row${selected ? ' selected' : ''}`}>
       <div className="link-row-head">
         <strong>{link.label}</strong>
         {link.pending && <span className="pending-badge">Unpublished</span>}
       </div>
-      <input
-        type="text"
-        inputMode="url"
-        value={value}
-        disabled={disabled}
-        aria-label={`Where "${link.label}" goes`}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={() => save(value)}
-        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-      />
-      <div className="link-quick">
-        {quick.map((q) => (
-          <button key={q.label} type="button" className="chip" disabled={disabled} onClick={() => { setValue(q.href); save(q.href) }}>
-            {q.label}
-          </button>
-        ))}
-        {link.changed && (
-          <button type="button" className="link-button" disabled={disabled} onClick={() => { setValue(link.default); save('') }}>
-            Reset
-          </button>
-        )}
-      </div>
+      {link.locked ? (
+        <p className="field-hint">Template credit — it stays on the Starter plan. Growth and Business OS can change it.</p>
+      ) : (
+        <>
+          <TargetPicker
+            value={link.href}
+            pages={choices.pages}
+            sections={choices.sections}
+            site={site}
+            label={link.label}
+            disabled={disabled}
+            onChange={(href) => href !== link.href && onSave(href)}
+          />
+          {link.changed && (
+            <button type="button" className="link-button" disabled={disabled} onClick={() => onSave('')}>
+              Back to the template's link
+            </button>
+          )}
+        </>
+      )}
     </li>
+  )
+}
+
+function MenuItemEditor({ item, index, count, site, choices, disabled, onChange, onMove, onRemove, isChild }) {
+  const hasChildren = !isChild && item.children.length > 0
+  return (
+    <li className={`menu-item${isChild ? ' menu-child' : ''}`}>
+      <div className="menu-item-head">
+        <input
+          type="text"
+          value={item.label}
+          maxLength={40}
+          disabled={disabled}
+          aria-label="Menu item name"
+          placeholder="Name"
+          onChange={(e) => onChange({ ...item, label: e.target.value })}
+        />
+        <button type="button" className="icon-button" disabled={disabled || index === 0} aria-label="Move up" onClick={() => onMove(-1)}>↑</button>
+        <button type="button" className="icon-button" disabled={disabled || index === count - 1} aria-label="Move down" onClick={() => onMove(1)}>↓</button>
+        <button type="button" className="icon-button danger" disabled={disabled} aria-label="Remove" onClick={onRemove}>✕</button>
+      </div>
+      {hasChildren ? (
+        <p className="field-hint">Dropdown — opens the links below.</p>
+      ) : (
+        <TargetPicker
+          value={item.target}
+          pages={choices.pages}
+          sections={choices.sections}
+          site={site}
+          label={item.label}
+          disabled={disabled}
+          onChange={(target) => onChange({ ...item, target })}
+        />
+      )}
+      {!isChild && (
+        <>
+          {hasChildren && (
+            <ul className="menu-children">
+              {item.children.map((child, i) => (
+                <MenuItemEditor
+                  key={i}
+                  item={child}
+                  index={i}
+                  count={item.children.length}
+                  site={site}
+                  choices={choices}
+                  disabled={disabled}
+                  isChild
+                  onChange={(next) => onChange({ ...item, children: item.children.map((c, j) => (j === i ? next : c)) })}
+                  onMove={(d) => onChange({ ...item, children: moveItem(item.children, i, d) })}
+                  onRemove={() => onChange({ ...item, children: item.children.filter((_c, j) => j !== i) })}
+                />
+              ))}
+            </ul>
+          )}
+          <button
+            type="button"
+            className="link-button"
+            disabled={disabled || item.children.length >= 10}
+            onClick={() =>
+              onChange({
+                ...item,
+                target: '',
+                children: [...item.children, { label: '', target: choices.pages[0]?.target || 'page:' }],
+              })
+            }
+          >
+            {hasChildren ? '+ Add a dropdown link' : '+ Turn into a dropdown'}
+          </button>
+        </>
+      )}
+    </li>
+  )
+}
+
+function moveItem(list, index, delta) {
+  const next = [...list]
+  const [item] = next.splice(index, 1)
+  next.splice(index + delta, 0, item)
+  return next
+}
+
+function MenuPanel({ site, refreshKey, onChanged, onPendingChange }) {
+  const [data, setData] = useState(null)
+  const [items, setItems] = useState(null)
+  const [dirty, setDirty] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  function apply(res) {
+    setData(res)
+    setItems(res.items.map((i) => ({ ...i, children: i.children || [] })))
+    setDirty(false)
+    onPendingChange(res.has_pending)
+  }
+
+  useEffect(() => {
+    setData(null)
+    setError(null)
+    getSiteMenu(site.slug).then(apply).catch((err) => setError(err.message))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site.slug, refreshKey])
+
+  function edit(next) {
+    setItems(next)
+    setDirty(true)
+  }
+
+  async function run(fn) {
+    setBusy(true)
+    setError(null)
+    try {
+      apply(await fn())
+      onChanged()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (error && !data) return <div className="card error">Could not load the menu: {error}</div>
+  if (!data || !items) return null
+
+  return (
+    <div className="card">
+      <h2>Menu</h2>
+      {data.available ? (
+        <p className="field-hint images-hint">
+          The links across the top of your site. Rename, reorder, add or remove them — a page, a section, or any web
+          address. Tap Save menu, then Publish changes.
+        </p>
+      ) : (
+        <div className="notice">Editing your menu comes with every paid plan — upgrade on the Deploy tab.</div>
+      )}
+      {error && <div className="error">{error}</div>}
+      <fieldset className={data.available ? 'plain-fieldset' : 'plain-fieldset locked-section'} disabled={!data.available || busy}>
+        <ul className="menu-list">
+          {items.map((item, i) => (
+            <MenuItemEditor
+              key={i}
+              item={item}
+              index={i}
+              count={items.length}
+              site={site}
+              choices={data}
+              disabled={busy}
+              onChange={(next) => edit(items.map((it, j) => (j === i ? next : it)))}
+              onMove={(d) => edit(moveItem(items, i, d))}
+              onRemove={() => edit(items.filter((_it, j) => j !== i))}
+            />
+          ))}
+        </ul>
+        <div className="button-row">
+          <button
+            type="button"
+            className="secondary"
+            disabled={items.length >= 12}
+            onClick={() => edit([...items, { label: '', target: data.pages[0]?.target || 'page:', children: [] }])}
+          >
+            + Add menu item
+          </button>
+          <button type="button" disabled={!dirty} onClick={() => run(() => saveSiteMenu(site.slug, items))}>
+            {busy ? 'Saving…' : 'Save menu'}
+          </button>
+          {(data.customized || dirty) && (
+            <button type="button" className="link-button" onClick={() => run(() => resetSiteMenu(site.slug))}>
+              Use the template's menu
+            </button>
+          )}
+        </div>
+        {data.menu_pending && !dirty && <p className="field-hint">Saved — tap Publish changes to put it live.</p>}
+      </fieldset>
+    </div>
   )
 }
 
 function LinksPanel({ site, page, selectedKey, refreshKey, onChanged, onPendingChange }) {
   const [links, setLinks] = useState(null)
+  const [choices, setChoices] = useState({ pages: [], sections: [] })
   const [available, setAvailable] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -1822,6 +2077,7 @@ function LinksPanel({ site, page, selectedKey, refreshKey, onChanged, onPendingC
   function load() {
     return getSiteLinks(site.slug, page).then((data) => {
       setLinks(data.links)
+      setChoices({ pages: data.pages || [], sections: data.sections || [] })
       setAvailable(data.available)
       onPendingChange(data.has_pending)
     })
@@ -1860,8 +2116,8 @@ function LinksPanel({ site, page, selectedKey, refreshKey, onChanged, onPendingC
       <h2>Buttons &amp; links</h2>
       {available ? (
         <p className="field-hint images-hint">
-          Tap a button on the preview, or pick one below, to change where it goes — a web address, #section, or a quick
-          WhatsApp / Call / Email link. Goes live when you tap Publish changes.
+          Tap a button on the preview, or pick one below, to change where it goes — a page, a section, a web address,
+          email, phone or WhatsApp. Your top menu has its own panel. Goes live when you tap Publish changes.
         </p>
       ) : (
         <div className="notice">Changing where your buttons and links go comes with every paid plan — upgrade on the Deploy tab.</div>
@@ -1876,6 +2132,7 @@ function LinksPanel({ site, page, selectedKey, refreshKey, onChanged, onPendingC
                 key={link.key}
                 link={link}
                 site={site}
+                choices={choices}
                 selected={selectedKey === link.key}
                 disabled={busy}
                 rowRef={(el) => { rowRefs.current[link.key] = el }}
@@ -2321,6 +2578,10 @@ function VisualEditor({ site }) {
         onPendingChange={setImagesPending}
       />
 
+      )}
+
+      {!isFreeTier && (
+        <MenuPanel site={site} refreshKey={imagesRefresh} onChanged={reloadPreview} onPendingChange={setImagesPending} />
       )}
 
       {!activeCustom && (

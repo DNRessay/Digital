@@ -23,7 +23,7 @@ from .forms import TemplateUploadForm
 from .branding_assets import LOGO_WHITE_DATA_URI
 from .models import Site, SitePage, SiteSlotValue, SiteVisit, Template, TemplatePage
 from .services.ai_assistant import AiAssistantError, ask_assistant
-from .services import site_links, site_pages
+from .services import site_links, site_menu, site_pages
 from .services.site_images import apply_overrides, logo_scale_css, logo_urls
 from .services.slot_extractor import slot_tag
 from .services.template_ingest import IngestError, ingest_converted_zip
@@ -379,13 +379,17 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None
         if href:
             link_overrides[link.key] = href
     source = site_pages.document_with_marker(page.document) if custom_page else page.document
-    document = site_links.apply(source, link_overrides, annotate=edit_mode)
+    document = site_links.apply(source, link_overrides, annotate=edit_mode, base_path=base_path)
     template = django_engine.from_string(document)
     html = template.render(context)
     if custom_page:
         html = site_pages.fill(html, custom_page, site.name, edit_mode)
-    nav_pages = site.custom_pages.filter(show_in_nav=True) if edit_mode else site.custom_pages.filter(show_in_nav=True, published=True)
-    html = site_pages.inject_nav(html, [(f"{base_path}{p.slug}/", p.title) for p in nav_pages])
+    menu = site_menu.current(site, edit_mode)
+    if menu is not None:
+        html = site_menu.render(html, menu, base_path)
+    else:
+        nav_pages = site.custom_pages.filter(show_in_nav=True) if edit_mode else site.custom_pages.filter(show_in_nav=True, published=True)
+        html = site_pages.inject_nav(html, [(f"{base_path}{p.slug}/", p.title) for p in nav_pages])
     overrides = {}
     for image in site.images.all():
         url = image.url(draft=edit_mode)

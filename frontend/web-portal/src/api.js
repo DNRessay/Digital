@@ -275,6 +275,18 @@ export function setSiteLink(siteSlug, key, href) {
   return apiFetch(`/api/customer/sites/${siteSlug}/links/`, { method: 'POST', body: { key, href } })
 }
 
+export function getSiteMenu(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/menu/`)
+}
+
+export function saveSiteMenu(siteSlug, items) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/menu/`, { method: 'PUT', body: { items } })
+}
+
+export function resetSiteMenu(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/menu/`, { method: 'DELETE' })
+}
+
 export function getSitePages(siteSlug) {
   return apiFetch(`/api/customer/sites/${siteSlug}/pages/`)
 }
