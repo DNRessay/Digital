@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import LegalPage from './LegalPage.jsx'
 import { CONSENT_EVENT, clearConsent, getConsent } from '../../lib/consent.js'
 
-const LABELS = { all: 'All cookies accepted', essential: 'Essential cookies only' }
+const LABELS = { all: 'All cookies accepted', essential: 'Necessary cookies only' }
 
 export default function CookiesPage() {
   const [consent, setConsentState] = useState(getConsent)
