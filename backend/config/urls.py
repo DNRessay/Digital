@@ -79,6 +79,11 @@ urlpatterns = [
         name="api-customer-site-links",
     ),
     path(
+        "api/customer/sites/<slug:site_slug>/menu/",
+        customer_api.api_customer_site_menu,
+        name="api-customer-site-menu",
+    ),
+    path(
         "api/customer/sites/<slug:site_slug>/logo-scale/",
         customer_api.api_customer_site_logo_scale,
         name="api-customer-site-logo-scale",

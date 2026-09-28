@@ -161,6 +161,14 @@ class Site(models.Model):
     ]
     logo_scale = models.PositiveSmallIntegerField(default=100, help_text="Logo size in percent of the template's own.")
     draft_logo_scale = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Unpublished editor change to logo_scale.")
+    menu = models.JSONField(
+        null=True, blank=True,
+        help_text="Customised top menu (services/site_menu.py); empty = the template's own.",
+    )
+    draft_menu = models.JSONField(
+        null=True, blank=True,
+        help_text='Unpublished editor change to menu; "default" means back to the template\'s menu.',
+    )
     free_domain_available = models.BooleanField(
         default=False,
         help_text="One .co.za included with a paid plan (R50 of the plan price reserved for it) — set when the plan's "

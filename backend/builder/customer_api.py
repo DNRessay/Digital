@@ -37,7 +37,7 @@ from django.views.decorators.http import require_http_methods
 
 from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteImage, SiteLink, SitePage, SiteSlotValue, SiteVisit, Template
 from .payfast_views import _start_manual_za_registration
-from .services import cloudflare, domain_search, site_images, site_links, site_pages, site_sections, whatsapp
+from .services import cloudflare, domain_search, site_images, site_links, site_menu, site_pages, site_sections, whatsapp
 from .services.site_images import ImageUploadError
 from .services.site_links import InvalidLinkError
 from .services.cloudflare import CloudflareError
@@ -993,6 +993,7 @@ def _image_state(site):
         or site.links.filter(draft_href__isnull=False).exists()
         or site.custom_pages.filter(models.Q(published=False) | models.Q(draft_sections__isnull=False)).exists()
         or site.draft_logo_scale is not None
+        or site.draft_menu is not None
     )
     return {
         "available": site.has_paid_plan,
@@ -1143,6 +1144,12 @@ def api_customer_site_images_commit(request, site_slug, action):
             site.logo_scale = site.draft_logo_scale
         site.draft_logo_scale = None
         site.save(update_fields=["logo_scale", "draft_logo_scale"])
+
+    if site.draft_menu is not None:
+        if action == "publish":
+            site.menu = site.draft_menu if isinstance(site.draft_menu, list) else None
+        site.draft_menu = None
+        site.save(update_fields=["menu", "draft_menu"])
     return JsonResponse(_image_state(site))
 
 
@@ -1184,9 +1191,9 @@ def api_customer_site_links(request, site_slug):
             return JsonResponse({"error": "Page not found."}, status=404)
         context = _resolve_slots(site, page)
         items = []
-        for key, href, inner in site_links.find_links(page.document):
+        for key, href, inner in site_links.find_links(page.document, skip_nav=True):
             link = overrides.get(key)
-            default = _link_label(href, context) if "{" in href else href
+            default = site_links.normalize(href, f"/{site.slug}/")
             draft = link.current(draft=True) if link else ""
             items.append(
                 {
@@ -1196,17 +1203,20 @@ def api_customer_site_links(request, site_slug):
                     "href": draft or default,
                     "changed": bool(draft),
                     "pending": bool(link and link.draft_href is not None),
+                    "locked": _credit_locked(site, href),
                 }
             )
-        return JsonResponse({**_image_state(site), "links": items})
+        return JsonResponse({**_image_state(site), **_link_choices(site, page), "links": items})
 
     if not site.has_paid_plan:
         return JsonResponse({"error": "Changing links comes with every paid plan — upgrade to use it."}, status=403)
     body = _json_body(request)
     key = str(body.get("key", ""))
-    known = {k for page in site.template.pages.all() for k, _h, _i in site_links.find_links(page.document)}
-    if key not in known:
+    templates = {k: h for page in site.template.pages.all() for k, h, _i in site_links.find_links(page.document)}
+    if key not in templates:
         return JsonResponse({"error": "That link isn't part of this site's template."}, status=400)
+    if _credit_locked(site, templates[key]):
+        return JsonResponse({"error": "The template's credit link has to stay on the Starter plan."}, status=403)
     try:
         href = site_links.clean_href(str(body.get("href", "")))
     except InvalidLinkError as exc:
@@ -1222,6 +1232,76 @@ def api_customer_site_links(request, site_slug):
     elif link.pk:
         link.delete()
     return JsonResponse({**_image_state(site), "href": href})
+
+
+SECTION_ID_RE = re.compile(r"""<(?:section|div|main|header|footer)\b[^>]*\bid\s*=\s*["']([A-Za-z][\w-]*)["']""", re.IGNORECASE)
+
+
+def _credit_locked(site, href):
+    """The free template's credit link stays unless the plan pays for the licence."""
+    return site_links.is_credit(href) and not (
+        site.has_paid_plan and site.package in (Site.PACKAGE_GROWTH, Site.PACKAGE_BUSINESS_OS)
+    )
+
+
+def _link_choices(site, page):
+    """What a link or menu item can point at: the site's pages and the
+    sections of `page`."""
+    pages = [
+        {"target": f"page:{p.slug}", "title": "Home" if not p.slug else p.slug.replace("-", " ").capitalize()}
+        for p in site.template.pages.all()
+    ]
+    pages += [{"target": f"page:{p.slug}", "title": p.title} for p in site.custom_pages.all()]
+    seen, sections = set(), []
+    for section_id in SECTION_ID_RE.findall(page.document if page else ""):
+        if section_id not in seen and section_id not in ("header", "footer", "main", "navmenu"):
+            seen.add(section_id)
+            sections.append({"target": f"#{section_id}", "title": section_id.replace("-", " ").capitalize()})
+    return {"pages": pages, "sections": sections}
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "PUT", "DELETE"])
+def api_customer_site_menu(request, site_slug):
+    """The editor's Menu panel. GET the menu (unpublished changes included)
+    with the pages and home-page sections it can link to; PUT {items} stages
+    a new menu; DELETE stages going back to the template's own menu. Goes
+    live with .../images/publish/. Paid plans only."""
+    from .views import _render_site_page
+
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    home = site.template.pages.filter(slug="").first()
+    base_path = f"/{site.slug}/"
+
+    if request.method != "GET":
+        if not site.has_paid_plan:
+            return JsonResponse({"error": "Editing the menu comes with every paid plan — upgrade to use it."}, status=403)
+        if request.method == "DELETE":
+            site.draft_menu = "default" if site.menu is not None else None
+        else:
+            try:
+                site.draft_menu = site_menu.clean(_json_body(request).get("items"))
+            except site_menu.InvalidMenuError as exc:
+                return JsonResponse({"error": str(exc)}, status=400)
+        site.save(update_fields=["draft_menu"])
+
+    items = site_menu.current(site, edit_mode=True)
+    customized = items is not None
+    if items is None and home is not None:
+        rendered = _render_site_page(site, home, base_path=base_path).content.decode()
+        items = site_menu.template_menu(rendered, base_path)
+    return JsonResponse(
+        {
+            **_image_state(site),
+            **_link_choices(site, home),
+            "items": items or [],
+            "customized": customized,
+            "menu_pending": site.draft_menu is not None,
+        }
+    )
 
 
 def _serialize_custom_page(custom_page):
@@ -1283,6 +1363,7 @@ def api_customer_site_pages(request, site_slug):
             order=site.custom_pages.count(),
             draft_sections=[site_sections.new_section("hero")],
         )
+        site_menu.add_page(site, custom_page.title, custom_page.slug)
         return JsonResponse({**_custom_pages_state(site), "page": _serialize_custom_page(custom_page)}, status=201)
     return JsonResponse(_custom_pages_state(site))
 
@@ -1297,6 +1378,7 @@ def api_customer_site_page(request, site_slug, page_id):
     if error:
         return error
     if request.method == "DELETE":
+        site_menu.remove_page(site, custom_page.slug)
         custom_page.delete()
         return JsonResponse(_custom_pages_state(site))
     body = _json_body(request)
