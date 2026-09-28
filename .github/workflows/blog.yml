@@ -18,7 +18,7 @@ on:
         description: "draft only: auto, deep or pulse"
         default: auto
       category:
-        description: "draft only: deep category key (websites, marketing, ai_business, ecommerce, sa_business)"
+        description: "draft only: deep category key (websites, marketing, ai_business, ecommerce, sa_business, space_tech)"
         default: ""
 
 permissions:
@@ -43,6 +43,7 @@ jobs:
       - env:
           GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
           SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
           DJANGO_SECRET_KEY: ${{ secrets.AWS_DJANGO_SECRET_KEY }}
           POST_TYPE: ${{ inputs.type || 'auto' }}
           POST_CATEGORY: ${{ inputs.category }}

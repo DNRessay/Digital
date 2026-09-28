@@ -157,8 +157,9 @@ topics in `research/topics.yaml`. The `Blog` workflow (`.github/workflows/blog.y
    rebuilds the blog.
 
 The workflow needs the `GROQ_API_KEYS` repo secret (comma-separated keys,
-rotated on rate limits). `SERPAPI_KEY` is optional; news searches are skipped
-without it. It authenticates to the backend with a token derived from the
+rotated on rate limits). `SERPAPI_KEY` (Google News searches) and `NASA_API_KEY`
+(NASA APOD, for the Space & Tech category) are optional: without them news
+searches are skipped and NASA uses its rate-limited DEMO_KEY. It authenticates to the backend with a token derived from the
 existing `AWS_DJANGO_SECRET_KEY` secret. To run it by hand: Actions → Blog →
 Run workflow (`job` = `draft` or `publish`). For a local dry run:
 

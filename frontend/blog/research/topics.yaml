@@ -8,7 +8,7 @@ llm:
 schedule:
   mon: {type: deep, weights: {websites: 30, marketing: 30, ai_business: 20}}
   wed: {type: pulse, name: SA Small Business Pulse, categories: [sa_business]}
-  fri: {type: deep, weights: {marketing: 25, ai_business: 25, websites: 20, ecommerce: 20}}
+  fri: {type: deep, weights: {marketing: 25, ai_business: 25, websites: 20, ecommerce: 20, space_tech: 10}}
 
 categories:
   websites:
@@ -49,3 +49,11 @@ categories:
       - {type: rss, url: "https://businesstech.co.za/news/feed/", max: 15}
       - {type: rss, url: "https://techcabal.com/feed/", max: 15}
       - {type: serpapi_news, query: "South Africa small business SME", gl: za, max: 15}
+
+  space_tech:
+    name: Space & Tech
+    keywords: [nasa, space, satellite, telescope, starlink, internet, science, innovation, sansa, launch]
+    sources:
+      - {type: nasa_apod, count: 5}
+      - {type: serpapi_news, query: "space technology satellite internet South Africa", gl: za, max: 10}
+      - {type: serpapi_news, query: "NASA discovery", max: 10}
