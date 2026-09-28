@@ -93,6 +93,17 @@ def inject_nav(rendered_html, items):
     soup = BeautifulSoup(rendered_html, "html.parser")
     nav = soup.find("nav")
     menu = nav.find("ul") if nav else None
+    if menu is None and nav is not None and nav.find("a", recursive=False):
+        # A plain row of links (<nav><a>…</a></nav>): add ours to the row.
+        sample = nav.find("a", recursive=False)
+        link_classes = [c for c in (sample.get("class") or []) if c != "active"]
+        for href, title in items:
+            a = soup.new_tag("a", href=href)
+            if link_classes:
+                a["class"] = link_classes
+            a.string = title
+            nav.append(a)
+        return str(soup)
     if menu is None:
         return rendered_html
     sample_link = menu.find("a")
