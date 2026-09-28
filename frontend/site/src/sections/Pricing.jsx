@@ -28,6 +28,7 @@ const PLANS = [
       'Everything in Starter Site',
       'Free .co.za domain included',
       'Up to 10 extra pages',
+      'Blog with up to 20 AI-written posts, automated and free',
       'WhatsApp AI bot on your own business number',
       'Online bookings or enquiry form with customer database',
       'Staff logins and visitor analytics',
