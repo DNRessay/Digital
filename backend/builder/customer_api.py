@@ -17,6 +17,7 @@ import re
 import uuid
 from datetime import timedelta
 from decimal import Decimal
+from html import unescape as html_unescape
 from urllib.parse import urlparse
 
 from django.conf import settings
@@ -1190,11 +1191,16 @@ def api_customer_site_links(request, site_slug):
         if page is None:
             return JsonResponse({"error": "Page not found."}, status=404)
         context = _resolve_slots(site, page)
+        rendered = _rendered_hrefs(page, context)
         items = []
         for key, href, inner in site_links.find_links(page.document, skip_nav=True):
             link = overrides.get(key)
-            default = _link_target(site, href)
+            default = site_links.normalize(rendered[key], f"/{site.slug}/") if key in rendered else _link_target(site, href)
+            if "{" in default:
+                default = "#"
             draft = link.current(draft=True) if link else ""
+            if "{" in draft:
+                draft = ""
             items.append(
                 {
                     "key": key,
@@ -1235,6 +1241,22 @@ def api_customer_site_links(request, site_slug):
 
 
 SECTION_ID_RE = re.compile(r"""<(?:section|div|main|header|footer)\b[^>]*\bid\s*=\s*["']([A-Za-z][\w-]*)["']""", re.IGNORECASE)
+
+
+RENDERED_LINK_RE = re.compile(r"""<a\b[^>]*?\bhref\s*=\s*(["'])(.*?)\1[^>]*?\bdata-vicinic-link="([0-9a-f]{16})\"""", re.IGNORECASE | re.DOTALL)
+
+
+def _rendered_hrefs(page, context):
+    """{link key: href as the page actually renders it} — the template's own
+    links, read from the rendered HTML so any template-tag form resolves
+    exactly as visitors see it."""
+    from django.template import engines
+
+    try:
+        html = engines["django"].from_string(site_links.apply(page.document, {}, annotate=True)).render(context)
+    except Exception:
+        return {}
+    return {m[3]: html_unescape(m[2]) for m in RENDERED_LINK_RE.finditer(html)}
 
 
 def _link_target(site, href):
