@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { SIGNUP_URL } from '../lib/signup.js'
 import SectionLink from '../components/SectionLink.jsx'
+import '../styles/legal.css'
 
 const PLANS = [
   {
@@ -24,15 +25,18 @@ const PLANS = [
     setup: 'R2,500',
     delay: 200,
     featured: true,
+    cta: 'Contact sales',
+    to: 'contact',
     badge: { icon: 'bi-star-fill', text: 'Best fit for most businesses' },
     features: [
       'Everything in Starter Site',
       'Free .co.za domain included',
       'Up to 10 extra pages',
-      'Blog with up to 20 AI-written posts, automated and free',
+      { text: 'Blog with up to 20 AI-written posts, automated and free', sales: true },
       'WhatsApp AI bot on your own business number',
-      'Online bookings or enquiry form with customer database',
-      'Staff logins and visitor analytics',
+      { text: 'Online bookings or enquiry form with customer database', sales: true },
+      { text: 'Staff logins with Google Sign-In', sales: true },
+      'Visitor analytics',
       'Premium templates, including private custom templates',
     ],
   },
@@ -41,14 +45,16 @@ const PLANS = [
     price: 'R699',
     setup: 'R5,500',
     delay: 300,
+    cta: 'Contact sales',
+    to: 'contact',
     badge: { icon: 'bi-award', text: 'Full package' },
     features: [
       'Everything in Growth Hub',
       'Free .co.za domain included',
       'Unlimited pages',
-      'Free print-on-demand merch store — no stock, we print and ship per order',
-      'Online payments and order/booking management',
-      'Customer profiles and purchase/service history',
+      { text: 'Free print-on-demand merch store — no stock, we print and ship per order', sales: true },
+      { text: 'Online payments and order/booking management', sales: true },
+      { text: 'Customer profiles and purchase/service history', sales: true },
       'A fully custom design, private to your business',
     ],
   },
@@ -102,7 +108,7 @@ const SCHOOL_PLANS = [
   },
 ]
 
-function PlanCard({ plan, cta = 'Sign up free', to }) {
+function PlanCard({ plan, cta = plan.cta || 'Sign up free', to = plan.to }) {
   return (
     <div className="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay={plan.delay}>
       <div className={`pricing-card${plan.featured ? ' featured' : ''}`}>
@@ -112,9 +118,18 @@ function PlanCard({ plan, cta = 'Sign up free', to }) {
         <h3>{plan.name}</h3>
         <div className="pricing-price">{plan.price}<span>{plan.onceOff ? ' once-off' : '/month'}</span></div>
         <ul className="pricing-features">
-          {plan.features.map((feature) => (
-            <li key={feature}><i className="bi bi-check-circle-fill"></i> {feature}</li>
-          ))}
+          {plan.features.map((feature) => {
+            const { text, sales } = typeof feature === 'string' ? { text: feature } : feature
+            return (
+              <li key={text}>
+                <i className="bi bi-check-circle-fill"></i>{' '}
+                <span>
+                  {text}
+                  {sales && <span className="sales-tag">Via our sales team</span>}
+                </span>
+              </li>
+            )
+          })}
         </ul>
         {plan.setup && (
           <div className="pricing-setup">Once-off setup fee <strong>{plan.setup}</strong></div>
