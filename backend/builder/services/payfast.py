@@ -29,6 +29,7 @@ it, and that received order is what's re-signed and compared against.
 Reference: https://developers.payfast.co.za/docs
 """
 import hashlib
+import json
 from decimal import Decimal
 from urllib.parse import quote_plus
 
@@ -186,3 +187,30 @@ def confirm_with_payfast(raw_body):
     except requests.RequestException:
         return False
     return response.text.strip() == "VALID"
+
+
+def build_store_order_payload(order, owner_merchant_id, return_url, cancel_url, notify_url):
+    """A once-off charge for a Business OS store order. The owner's share
+    goes straight to their own PayFast account via PayFast Split Payments
+    (the `setup` field, last in the payload); Vicinic keeps the rest.
+    custom_str2 is "order:<id>" so payfast_notify can route the ITN."""
+    fields = [
+        ("merchant_id", settings.PAYFAST_MERCHANT_ID),
+        ("merchant_key", settings.PAYFAST_MERCHANT_KEY),
+        ("return_url", return_url),
+        ("cancel_url", cancel_url),
+        ("notify_url", notify_url),
+        ("name_first", order.name.split(" ")[0][:100]),
+        ("email_address", order.email),
+        ("m_payment_id", order.reference),
+        ("amount", f"{order.total:.2f}"),
+        ("item_name", f"{order.site.name} order {order.reference}"[:100]),
+        ("custom_str1", order.site.slug),
+        ("custom_str2", f"order:{order.id}"),
+    ]
+    if owner_merchant_id:
+        fields.append(
+            ("setup", json.dumps({"split_payment": {"merchant_id": int(owner_merchant_id), "percentage": settings.STORE_OWNER_SHARE_PERCENT}}))
+        )
+    signature = _sign(fields)
+    return _process_url(), fields + [("signature", signature)]

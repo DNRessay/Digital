@@ -61,6 +61,14 @@ import {
   writeSitePost,
   updateSitePost,
   deleteSitePost,
+  getStore,
+  addProduct,
+  setStorePayouts,
+  updateProduct,
+  deleteProduct,
+  uploadProductImage,
+  getOrders,
+  updateOrder,
   addStaff,
   removeStaff,
 } from './api.js'
@@ -1706,13 +1714,47 @@ const TABS = [
     ),
   },
   {
+    key: 'bookings',
+    label: 'Bookings',
+    tier: 'growth',
+    icon: (
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M3 10h18M8 3v4M16 3v4" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     key: 'customers',
-    label: 'Growth',
+    label: 'Customers',
+    tier: 'growth',
     icon: (
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="9" cy="8" r="3.2" />
         <path d="M3 20a6 6 0 0 1 12 0" strokeLinecap="round" />
         <path d="M16 4.5a3.2 3.2 0 0 1 0 6.4M18 14.5a6 6 0 0 1 3 5.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    key: 'blog',
+    label: 'Blog',
+    tier: 'growth',
+    icon: (
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M5 3h10l4 4v14H5z" strokeLinejoin="round" />
+        <path d="M9 11h6M9 15h6M9 7h3" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    key: 'store',
+    label: 'Store',
+    tier: 'business_os',
+    icon: (
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M4 8h16l-1.5 12h-13z" strokeLinejoin="round" />
+        <path d="M9 8V6a3 3 0 0 1 6 0v2" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -1924,12 +1966,222 @@ function BlogPanel({ site }) {
   )
 }
 
-function CustomersTab({ site, onSiteUpdated }) {
+function ProductEditor({ site, product, onSaved, onCancel }) {
+  const [name, setName] = useState(product?.name || '')
+  const [price, setPrice] = useState(product?.price || '')
+  const [stock, setStock] = useState(product?.stock ?? '')
+  const [description, setDescription] = useState(product?.description || '')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function handleSave(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    const fields = { name, price, stock: stock === '' ? null : stock, description }
+    try {
+      onSaved(product ? await updateProduct(site.slug, product.id, fields) : await addProduct(site.slug, fields))
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSave} className="product-editor">
+      {error && <div className="error">{error}</div>}
+      <label htmlFor="p-name">Name</label>
+      <input id="p-name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} />
+      <div className="product-row">
+        <span>
+          <label htmlFor="p-price">Price (R)</label>
+          <input id="p-price" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} required placeholder="199.00" />
+        </span>
+        <span>
+          <label htmlFor="p-stock">Stock</label>
+          <input id="p-stock" inputMode="numeric" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="Unlimited" />
+        </span>
+      </div>
+      <label htmlFor="p-desc">Description</label>
+      <textarea id="p-desc" rows="3" value={description} onChange={(e) => setDescription(e.target.value)} />
+      <div className="enquiry-actions">
+        <button type="submit" disabled={busy}>{busy ? 'Saving…' : product ? 'Save' : 'Add product'}</button>
+        <button type="button" className="secondary" onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
+  )
+}
+
+function StorePanel({ site }) {
+  const [state, setState] = useState(null)
+  const [error, setError] = useState(null)
+  const [editing, setEditing] = useState(null) // null | 'new' | product id
+  const [merchantId, setMerchantId] = useState('')
+  const [busy, setBusy] = useState(false)
+  const isOwner = site.role !== 'staff'
+
+  useEffect(() => {
+    getStore(site.slug)
+      .then((d) => {
+        setState(d)
+        setMerchantId(d.payfast_merchant_id || '')
+      })
+      .catch((err) => setError(err.message))
+  }, [site.slug])
+
+  async function run(action) {
+    setBusy(true)
+    setError(null)
+    try {
+      setState(await action())
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!state) return error ? <div className="error">{error}</div> : <p>Loading…</p>
+  const shopUrl = `${liveUrl(site)}shop/`
+
+  return (
+    <>
+      <p>
+        Sell online from your site's <a href={shopUrl} target="_blank" rel="noreferrer">Shop</a>. Shoppers pay securely with
+        PayFast; <strong>{state.owner_share_percent}%</strong> of each sale goes straight to your own PayFast account.
+      </p>
+      {error && <div className="error">{error}</div>}
+      {isOwner && (
+        <div className={state.payouts_connected ? 'payouts-box' : 'payouts-box notice'}>
+          <label htmlFor="pf-merchant">Your PayFast merchant ID (for payouts)</label>
+          <div className="product-row">
+            <input id="pf-merchant" inputMode="numeric" value={merchantId} onChange={(e) => setMerchantId(e.target.value)} placeholder="10012345" />
+            <button type="button" disabled={busy || merchantId === (state.payfast_merchant_id || '')} onClick={() => run(() => setStorePayouts(site.slug, merchantId.trim()))}>
+              Save
+            </button>
+          </div>
+          <p className="field-hint">
+            {state.payouts_connected
+              ? 'Payouts connected.'
+              : "Don't have one? Sign up free at payfast.io, then paste your merchant ID here. Until then, sales can't be paid out to you."}
+          </p>
+        </div>
+      )}
+      {editing === 'new' ? (
+        <ProductEditor site={site} onSaved={(d) => { setState(d); setEditing(null) }} onCancel={() => setEditing(null)} />
+      ) : (
+        <button type="button" className="add-page-button" onClick={() => setEditing('new')}>+ Add a product</button>
+      )}
+      <ul className="customer-list">
+        {state.products.map((p) =>
+          editing === p.id ? (
+            <li key={p.id}>
+              <ProductEditor site={site} product={p} onSaved={(d) => { setState(d); setEditing(null) }} onCancel={() => setEditing(null)} />
+            </li>
+          ) : (
+            <li key={p.id} className="product-item">
+              <label className="product-thumb" title="Upload photo">
+                {p.image_url ? <img src={p.image_url} alt="" /> : <span>+ Photo</span>}
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => e.target.files[0] && run(() => uploadProductImage(site.slug, p.id, e.target.files[0]))}
+                />
+              </label>
+              <span className="product-info">
+                <strong>{p.name}</strong>
+                <span className="field-hint">
+                  R{p.price} · {p.stock === null ? 'unlimited stock' : `${p.stock} in stock`}{p.active ? '' : ' · hidden'}
+                </span>
+              </span>
+              <span className="post-actions">
+                <button type="button" className="link-button" onClick={() => setEditing(p.id)}>Edit</button>
+                <button type="button" className="link-button" disabled={busy} onClick={() => run(() => updateProduct(site.slug, p.id, { active: !p.active }))}>
+                  {p.active ? 'Hide' : 'Show'}
+                </button>
+                <button
+                  type="button"
+                  className="link-button danger"
+                  disabled={busy}
+                  onClick={() => window.confirm(`Delete ${p.name}?`) && run(() => deleteProduct(site.slug, p.id))}
+                >
+                  Delete
+                </button>
+              </span>
+            </li>
+          )
+        )}
+      </ul>
+    </>
+  )
+}
+
+const ORDER_STATUSES = { paid: 'Paid', shipped: 'Shipped', done: 'Completed', cancelled: 'Cancelled' }
+
+function OrdersPanel({ site }) {
+  const [orders, setOrders] = useState(null)
+  const [error, setError] = useState(null)
+  const [open, setOpen] = useState(null)
+
+  useEffect(() => {
+    getOrders(site.slug).then((d) => setOrders(d.orders)).catch((err) => setError(err.message))
+  }, [site.slug])
+
+  async function save(order, fields) {
+    try {
+      const d = await updateOrder(site.slug, order.id, fields)
+      setOrders((list) => list.map((o) => (o.id === order.id ? d.order : o)))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  if (!orders) return error ? <div className="error">{error}</div> : <p>Loading…</p>
+  if (orders.length === 0) return <p className="field-hint">No orders yet. Paid orders from your Shop appear here.</p>
+
+  return (
+    <ul className="enquiry-list">
+      {error && <div className="error">{error}</div>}
+      {orders.map((o) => (
+        <li key={o.id} className={`enquiry${o.status === 'paid' ? ' enquiry-new' : ''}`}>
+          <button type="button" className="enquiry-head" onClick={() => setOpen(open === o.id ? null : o.id)}>
+            <span className="enquiry-kind booking">R{o.total}</span>
+            <strong>{o.name}</strong>
+            <span className="enquiry-when">{formatWhen(o.created_at)}</span>
+            <span className={`enquiry-status status-${o.status === 'paid' ? 'new' : o.status}`}>{ORDER_STATUSES[o.status] || o.status}</span>
+          </button>
+          {open === o.id && (
+            <div className="enquiry-body">
+              <ul>
+                {o.items.map((l, i) => <li key={i}>{l.qty} × {l.name} @ R{l.price}</li>)}
+              </ul>
+              <p className="field-hint">Ref {o.reference}{o.owner_share !== '0.00' ? ` · your share R${o.owner_share}` : ''}</p>
+              <p className="enquiry-contact">
+                <a href={`mailto:${o.email}`}>{o.email}</a>
+                {o.phone && <a href={`tel:${o.phone}`}>{o.phone}</a>}
+              </p>
+              <p className="enquiry-message">{o.address ? `Deliver to: ${o.address}` : 'Collection'}</p>
+              <label>Tracking number</label>
+              <input defaultValue={o.tracking} onBlur={(e) => e.target.value !== o.tracking && save(o, { tracking: e.target.value })} />
+              <div className="enquiry-actions">
+                {Object.entries(ORDER_STATUSES)
+                  .filter(([k]) => k !== o.status)
+                  .map(([k, label]) => (
+                    <button key={k} type="button" className="secondary" onClick={() => save(o, { status: k })}>Mark {label.toLowerCase()}</button>
+                  ))}
+              </div>
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function useEnquiries(site) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
-  const [filter, setFilter] = useState('')
-  const [view, setView] = useState('inbox')
-
   useEffect(() => {
     let cancelled = false
     setData(null)
@@ -1940,46 +2192,30 @@ function CustomersTab({ site, onSiteUpdated }) {
       cancelled = true
     }
   }, [site.slug])
+  return [data, setData, error, setError]
+}
+
+function BookingsTab({ site, onSiteUpdated }) {
+  const [data, setData, error, setError] = useEnquiries(site)
+  const [filter, setFilter] = useState('')
 
   async function toggleBookings() {
     try {
-      const updated = await updateSite(site.slug, { bookings_enabled: !site.bookings_enabled })
-      onSiteUpdated(updated)
+      onSiteUpdated(await updateSite(site.slug, { bookings_enabled: !site.bookings_enabled }))
     } catch (err) {
       setError(err.message)
     }
   }
 
-  if (!site.growth_features_available) {
-    return (
-      <div className="card locked-card">
-        <h2>Grow your business</h2>
-        <p>
-          An automated blog with up to 20 posts a month, and every enquiry and booking request from your site in one place, with a customer list, statuses and
-          notes. Visitors get a <strong>Book</strong> button on your site.
-        </p>
-        <p className="field-hint">
-          Included with Growth Hub and Business OS —{' '}
-          <a href="https://vicinic.co.za/pricing" target="_blank" rel="noreferrer">see plans</a>.
-        </p>
-      </div>
-    )
-  }
-
   const enquiries = (data?.enquiries || []).filter((e) => !filter || e.status === filter)
-
-  function replace(updated) {
-    setData((d) => ({ ...d, enquiries: d.enquiries.map((e) => (e.id === updated.id ? updated : e)) }))
-  }
-  function drop(id) {
-    setData((d) => ({ ...d, enquiries: d.enquiries.filter((e) => e.id !== id) }))
-  }
+  const replace = (updated) => setData((d) => ({ ...d, enquiries: d.enquiries.map((e) => (e.id === updated.id ? updated : e)) }))
+  const drop = (id) => setData((d) => ({ ...d, enquiries: d.enquiries.filter((e) => e.id !== id) }))
 
   return (
     <>
       <div className="card">
-        <h2>Customers &amp; bookings</h2>
-        <p>Messages from your contact form and booking requests from the Book button land here. We also email them to {site.email || 'your account email'}.</p>
+        <h2>Bookings &amp; enquiries{data?.new_count ? ` (${data.new_count} new)` : ''}</h2>
+        <p>Booking requests from the Book button and messages from your contact form land here. We also email them to {site.email || 'your account email'}.</p>
         {site.role !== 'staff' && (
           <label className="toggle-row">
             <input type="checkbox" checked={site.bookings_enabled} onChange={toggleBookings} />
@@ -1988,21 +2224,9 @@ function CustomersTab({ site, onSiteUpdated }) {
         )}
       </div>
       <div className="card">
-        <div className="segmented">
-          <button type="button" className={view === 'inbox' ? 'active' : ''} onClick={() => setView('inbox')}>
-            Inbox{data?.new_count ? ` (${data.new_count})` : ''}
-          </button>
-          <button type="button" className={view === 'people' ? 'active' : ''} onClick={() => setView('people')}>
-            Customers{data ? ` (${data.customers.length})` : ''}
-          </button>
-          <button type="button" className={view === 'blog' ? 'active' : ''} onClick={() => setView('blog')}>
-            Blog
-          </button>
-        </div>
-        {view === 'blog' && <BlogPanel site={site} />}
         {error && <div className="error">{error}</div>}
         {!data && !error && <p>Loading…</p>}
-        {data && view === 'inbox' && (
+        {data && (
           <>
             <div className="filter-row">
               <select value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -2011,7 +2235,7 @@ function CustomersTab({ site, onSiteUpdated }) {
               </select>
             </div>
             {enquiries.length === 0 ? (
-              <p className="field-hint">Nothing here yet. New enquiries and booking requests will show up as they arrive.</p>
+              <p className="field-hint">Nothing here yet. New booking requests and enquiries will show up as they arrive.</p>
             ) : (
               <ul className="enquiry-list">
                 {enquiries.map((e) => (
@@ -2021,36 +2245,80 @@ function CustomersTab({ site, onSiteUpdated }) {
             )}
           </>
         )}
-        {data && view === 'people' && (
-          data.customers.length === 0 ? (
-            <p className="field-hint">Your customer list builds itself from everyone who contacts you or books.</p>
-          ) : (
-            <ul className="customer-list">
-              {data.customers.map((c, i) => (
-                <li key={`${c.email}-${c.phone}-${i}`}>
-                  <strong>{c.name || c.email || c.phone}</strong>
-                  <span className="field-hint">
-                    {[c.email, c.phone].filter(Boolean).join(' · ')}
-                  </span>
-                  <span className="field-hint">
-                    {c.bookings} booking{c.bookings === 1 ? '' : 's'} · {c.enquiries} enquir{c.enquiries === 1 ? 'y' : 'ies'} · last {formatWhen(c.last_seen)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )
-        )}
       </div>
     </>
   )
 }
 
-const STAFF_TABS = ['edit', 'customers', 'profile']
+function CustomersTab({ site }) {
+  const [data, , error] = useEnquiries(site)
+  return (
+    <div className="card">
+      <h2>Customers{data ? ` (${data.customers.length})` : ''}</h2>
+      <p className="field-hint">
+        Everyone who has booked, sent an enquiry{site.business_os_available ? ' or bought from your shop' : ''}, merged by email or phone.
+      </p>
+      {error && <div className="error">{error}</div>}
+      {!data && !error && <p>Loading…</p>}
+      {data && (data.customers.length === 0 ? (
+        <p className="field-hint">Your customer list builds itself from everyone who contacts you or books.</p>
+      ) : (
+        <ul className="customer-list">
+          {data.customers.map((c, i) => (
+            <li key={`${c.email}-${c.phone}-${i}`}>
+              <strong>{c.name || c.email || c.phone}</strong>
+              <span className="field-hint">{[c.email, c.phone].filter(Boolean).join(' · ')}</span>
+              <span className="field-hint">
+                {c.orders > 0 && `${c.orders} order${c.orders === 1 ? '' : 's'} (R${c.spent}) · `}
+                {c.bookings} booking{c.bookings === 1 ? '' : 's'} · {c.enquiries} enquir{c.enquiries === 1 ? 'y' : 'ies'} · last {formatWhen(c.last_seen)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ))}
+    </div>
+  )
+}
 
-function BottomNav({ active, onSelect, badges = {}, staff = false }) {
+function BlogTab({ site }) {
+  return (
+    <div className="card">
+      <h2>Blog</h2>
+      <BlogPanel site={site} />
+    </div>
+  )
+}
+
+function StoreTab({ site }) {
+  const [view, setView] = useState('products')
+  return (
+    <div className="card">
+      <h2>Store</h2>
+      <div className="segmented">
+        <button type="button" className={view === 'products' ? 'active' : ''} onClick={() => setView('products')}>Products</button>
+        <button type="button" className={view === 'orders' ? 'active' : ''} onClick={() => setView('orders')}>Orders</button>
+      </div>
+      {view === 'products' ? <StorePanel site={site} /> : <OrdersPanel site={site} />}
+    </div>
+  )
+}
+
+const STAFF_TABS = ['edit', 'bookings', 'customers', 'blog', 'store', 'profile']
+
+// The tabs this site's plan includes (and, for staff, the ones they may use).
+function visibleTabs(site) {
+  return TABS.filter(
+    (tab) =>
+      (tab.tier !== 'growth' || site?.growth_features_available) &&
+      (tab.tier !== 'business_os' || site?.business_os_available) &&
+      (site?.role !== 'staff' || STAFF_TABS.includes(tab.key))
+  )
+}
+
+function BottomNav({ active, onSelect, badges = {}, site }) {
   return (
     <nav className="bottom-nav">
-      {TABS.filter((tab) => !staff || STAFF_TABS.includes(tab.key)).map((tab) => (
+      {visibleTabs(site).map((tab) => (
         <button
           key={tab.key}
           type="button"
@@ -3233,8 +3501,9 @@ export default function App() {
   const selectedSite = sites.find((s) => s.slug === selectedSlug)
   const hasSite = sites.length > 0
   const isStaff = selectedSite?.role === 'staff'
-  // Staff only get the content, customers and profile tabs.
-  const shownTab = isStaff && !STAFF_TABS.includes(activeTab) ? 'edit' : activeTab
+  // Fall back when the chosen tab isn't part of this site's plan (or role).
+  const tabs = visibleTabs(selectedSite)
+  const shownTab = tabs.some((t) => t.key === activeTab) || activeTab === 'profile' ? activeTab : isStaff ? 'edit' : 'overview'
 
   return (
     <div className={`page${hasSite ? ' has-bottom-nav' : ''}`}>
@@ -3255,12 +3524,15 @@ export default function App() {
             />
           )}
           {selectedSite && shownTab === 'edit' && <VisualEditor site={selectedSite} />}
-          {selectedSite && shownTab === 'customers' && (
-            <CustomersTab
+          {selectedSite && shownTab === 'bookings' && (
+            <BookingsTab
               site={selectedSite}
               onSiteUpdated={(updated) => setSites((prev) => prev.map((s) => (s.slug === updated.slug ? updated : s)))}
             />
           )}
+          {selectedSite && shownTab === 'customers' && <CustomersTab site={selectedSite} />}
+          {selectedSite && shownTab === 'blog' && <BlogTab site={selectedSite} />}
+          {selectedSite && shownTab === 'store' && <StoreTab site={selectedSite} />}
           {selectedSite && shownTab === 'deploy' && (
             <DeployTab
               site={selectedSite}
@@ -3286,7 +3558,7 @@ export default function App() {
               }}
             />
           )}
-          <BottomNav active={shownTab} onSelect={setActiveTab} staff={isStaff} badges={profileComplete ? {} : { profile: true }} />
+          <BottomNav active={shownTab} onSelect={setActiveTab} site={selectedSite} badges={profileComplete ? {} : { profile: true }} />
         </>
       )}
     </div>

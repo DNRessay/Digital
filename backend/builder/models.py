@@ -219,6 +219,9 @@ class Site(models.Model):
         help_text="Comma-separated — what the customer needs to set at their registrar for domain_status to become active.",
     )
 
+    store_payfast_merchant_id = models.CharField(
+        max_length=20, blank=True, help_text="Business OS: the owner's own PayFast merchant ID that receives their share of store sales."
+    )
     blog_enabled = models.BooleanField(default=True, help_text="Growth+: write blog posts automatically (up to 20 a month).")
     blog_topics = models.TextField(blank=True, help_text="Owner's hints for what the automated blog should cover.")
     bookings_enabled = models.BooleanField(
@@ -248,6 +251,11 @@ class Site(models.Model):
         """Growth Hub / Business OS extras — the enquiry & booking database,
         staff logins and the automated blog. On as soon as the plan is paid."""
         return self.has_paid_plan and self.package in (self.PACKAGE_GROWTH, self.PACKAGE_BUSINESS_OS)
+
+    @property
+    def business_os_available(self):
+        """Business OS extras — the online store and order management."""
+        return self.has_paid_plan and self.package == self.PACKAGE_BUSINESS_OS
 
     @property
     def ai_assistant_active(self):
@@ -700,3 +708,69 @@ class SitePost(models.Model):
 
     def __str__(self):
         return f"{self.site.slug}: {self.title}"
+
+
+class Product(models.Model):
+    """Business OS: an item in a customer's online store (/<site>/shop/)."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="products")
+    name = models.CharField(max_length=120)
+    slug = models.SlugField(max_length=120)
+    description = models.TextField(blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    image_url = models.CharField(max_length=1000, blank=True)
+    stock = models.PositiveIntegerField(null=True, blank=True, help_text="Empty = unlimited.")
+    active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "created_at"]
+        unique_together = [("site", "slug")]
+
+    @property
+    def in_stock(self):
+        return self.stock is None or self.stock > 0
+
+    def __str__(self):
+        return f"{self.site.slug}: {self.name}"
+
+
+class Order(models.Model):
+    """Business OS: a shopper's order from a customer's store, paid through
+    Vicinic's PayFast with the owner's share split to their own account."""
+
+    STATUS_PENDING = "pending"
+    STATUS_PAID = "paid"
+    STATUS_SHIPPED = "shipped"
+    STATUS_DONE = "done"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Awaiting payment"),
+        (STATUS_PAID, "Paid"),
+        (STATUS_SHIPPED, "Shipped"),
+        (STATUS_DONE, "Completed"),
+        (STATUS_CANCELLED, "Cancelled"),
+    ]
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="orders")
+    reference = models.CharField(max_length=64, unique=True, help_text="PayFast m_payment_id.")
+    name = models.CharField(max_length=120)
+    email = models.EmailField()
+    phone = models.CharField(max_length=30, blank=True)
+    address = models.TextField(blank=True, help_text="Delivery address, or empty for collection.")
+    items = models.JSONField(default=list, help_text="[{product_id, name, price, qty}] as bought.")
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+    owner_share = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    notes = models.TextField(blank=True)
+    tracking = models.CharField(max_length=200, blank=True)
+    payfast_payment_id = models.CharField(max_length=40, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.site.slug}: {self.reference}"

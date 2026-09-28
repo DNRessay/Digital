@@ -174,6 +174,24 @@ def _start_manual_za_registration(purchase):
     notify_admin(f"{'[TEST] ' if test else ''}Register {purchase.domain} ({kind})", body)
 
 
+def _handle_store_order_payment(order_id, payment_status, amount_gross, pf_payment_id):
+    from .models import Order
+    from .services import store
+
+    order = Order.objects.select_related("site").filter(id=order_id).first()
+    if order is None:
+        logger.warning("PayFast ITN: no store order %r", order_id)
+        return HttpResponse("OK")
+    if payment_status == "COMPLETE":
+        if not store.mark_paid(order, amount_gross, pf_payment_id):
+            logger.warning("PayFast ITN: amount mismatch for order %s (expected %s, got %s)", order.reference, order.total, amount_gross)
+            return HttpResponse(status=400)
+    elif payment_status == "CANCELLED" and order.status == Order.STATUS_PENDING:
+        order.status = Order.STATUS_CANCELLED
+        order.save(update_fields=["status"])
+    return HttpResponse("OK")
+
+
 @csrf_exempt
 @require_POST
 def payfast_notify(request):
@@ -195,6 +213,11 @@ def payfast_notify(request):
     package_id = request.POST.get("custom_str2", "")
     payment_status = request.POST.get("payment_status", "")
     token = request.POST.get("token", "")
+
+    if package_id.startswith("order:"):
+        return _handle_store_order_payment(
+            package_id.removeprefix("order:"), payment_status, request.POST.get("amount_gross", ""), request.POST.get("pf_payment_id", "")
+        )
 
     if package_id.startswith("domain:"):
         return _handle_domain_purchase_payment(package_id.removeprefix("domain:"), payment_status, request.POST.get("amount_gross", ""))

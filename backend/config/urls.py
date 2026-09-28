@@ -165,6 +165,18 @@ urlpatterns = [
         customer_api.api_customer_site_blog_post,
         name="api-customer-site-blog-post",
     ),
+    path("api/customer/sites/<slug:site_slug>/store/", customer_api.api_customer_site_store, name="api-customer-site-store"),
+    path(
+        "api/customer/sites/<slug:site_slug>/store/<int:product_id>/",
+        customer_api.api_customer_site_product,
+        name="api-customer-site-product",
+    ),
+    path("api/customer/sites/<slug:site_slug>/orders/", customer_api.api_customer_site_orders, name="api-customer-site-orders"),
+    path(
+        "api/customer/sites/<slug:site_slug>/orders/<int:order_id>/",
+        customer_api.api_customer_site_order,
+        name="api-customer-site-order",
+    ),
     path(
         "api/customer/sites/<slug:site_slug>/staff/",
         customer_api.api_customer_site_staff,

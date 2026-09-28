@@ -16,7 +16,7 @@ import json
 import re
 import uuid
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from html import unescape as html_unescape
 from urllib.parse import urlparse
 
@@ -36,7 +36,7 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteEnquiry, SitePost, SiteStaff, SiteImage, SiteLink, SitePage, SiteSlotValue, SiteVisit, Template
+from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteEnquiry, Order, Product, SitePost, SiteStaff, SiteImage, SiteLink, SitePage, SiteSlotValue, SiteVisit, Template
 from .payfast_views import _start_manual_za_registration
 from .services import cloudflare, domain_search, site_images, site_links, site_menu, site_pages, site_sections, whatsapp
 from .services.site_images import ImageUploadError
@@ -159,6 +159,7 @@ def _serialize_site(site):
         "has_paid_plan": site.has_paid_plan,
         "whatsapp_bot_available": site.whatsapp_bot_available,
         "growth_features_available": site.growth_features_available,
+        "business_os_available": site.business_os_available,
         "bookings_enabled": site.bookings_enabled,
     }
 
@@ -1636,6 +1637,21 @@ def _customers(site):
         person["phone"] = e.phone or person["phone"]
         person["bookings" if e.kind == SiteEnquiry.KIND_BOOKING else "enquiries"] += 1
         person["last_seen"] = e.created_at
+    for o in site.orders.exclude(status__in=[Order.STATUS_PENDING, Order.STATUS_CANCELLED]).order_by("created_at"):
+        key = o.email.lower()
+        person = people.setdefault(
+            key, {"name": "", "email": "", "phone": "", "enquiries": 0, "bookings": 0, "first_seen": o.created_at, "last_seen": o.created_at}
+        )
+        person["name"] = o.name or person["name"]
+        person["email"] = o.email
+        person["phone"] = o.phone or person["phone"]
+        person["orders"] = person.get("orders", 0) + 1
+        person["spent"] = str(Decimal(person.get("spent", "0")) + o.total)
+        person["first_seen"] = min(person["first_seen"], o.created_at)
+        person["last_seen"] = max(person["last_seen"], o.created_at)
+    for person in people.values():
+        person.setdefault("orders", 0)
+        person.setdefault("spent", "0.00")
     out = sorted(people.values(), key=lambda p: p["last_seen"], reverse=True)
     for p in out:
         p["first_seen"] = p["first_seen"].isoformat()
@@ -1833,3 +1849,181 @@ def api_customer_site_blog_post(request, site_slug, post_id):
         post.published = bool(_json_body(request).get("published", post.published))
         post.save(update_fields=["published"])
     return JsonResponse(_blog_state(site))
+
+
+def _serialize_product(p):
+    return {
+        "id": p.id, "name": p.name, "slug": p.slug, "description": p.description, "price": str(p.price),
+        "image_url": p.image_url, "stock": p.stock, "active": p.active,
+    }
+
+
+def _serialize_order(o):
+    return {
+        "id": o.id, "reference": o.reference, "name": o.name, "email": o.email, "phone": o.phone, "address": o.address,
+        "items": o.items, "total": str(o.total), "owner_share": str(o.owner_share), "status": o.status,
+        "notes": o.notes, "tracking": o.tracking, "created_at": o.created_at.isoformat(),
+        "paid_at": o.paid_at.isoformat() if o.paid_at else None,
+    }
+
+
+def _store_state(site, include_owner_settings):
+    from django.conf import settings as dj_settings
+
+    state = {
+        "available": site.business_os_available,
+        "products": [_serialize_product(p) for p in site.products.all()] if site.business_os_available else [],
+        "owner_share_percent": dj_settings.STORE_OWNER_SHARE_PERCENT,
+        "payouts_connected": bool(site.store_payfast_merchant_id),
+    }
+    if include_owner_settings:
+        state["payfast_merchant_id"] = site.store_payfast_merchant_id
+    return state
+
+
+def _product_fields(site, body, product=None):
+    from .services import store
+
+    name = " ".join(str(body.get("name", product.name if product else "")).split())[:120]
+    if not name:
+        raise ValueError("Give the product a name.")
+    try:
+        price = Decimal(str(body.get("price", product.price if product else ""))).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        raise ValueError("Enter a price, like 199.99.")
+    if price < Decimal("5.00") or price > Decimal("1000000"):
+        raise ValueError("Prices must be between R5 and R1,000,000.")
+    stock = body.get("stock", product.stock if product else None)
+    if stock in ("", None):
+        stock = None
+    else:
+        try:
+            stock = max(int(stock), 0)
+        except (TypeError, ValueError):
+            raise ValueError("Stock must be a whole number, or empty for unlimited.")
+    fields = {
+        "name": name,
+        "price": price,
+        "stock": stock,
+        "description": str(body.get("description", product.description if product else ""))[:5000],
+        "active": bool(body.get("active", product.active if product else True)),
+    }
+    if product is None:
+        base = slugify(name)[:100] or "item"
+        if base in store.RESERVED_PRODUCT_SLUGS:
+            base = f"{base}-item"
+        slug, n = base, 2
+        while site.products.filter(slug=slug).exists():
+            slug, n = f"{base}-{n}", n + 1
+        fields["slug"] = slug
+    return fields
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "POST", "PATCH"])
+def api_customer_site_store(request, site_slug):
+    """Business OS store. GET products + settings; POST {name, price, …}
+    adds a product; PATCH {payfast_merchant_id} (owner only) sets where the
+    owner's share of each sale is paid."""
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    is_owner = site.owner_id == request.customer_user.id
+    if request.method == "GET":
+        return JsonResponse(_store_state(site, is_owner))
+    if not site.business_os_available:
+        return JsonResponse({"error": "The online store comes with Business OS."}, status=403)
+    body = _json_body(request)
+    if request.method == "PATCH":
+        if not is_owner:
+            return JsonResponse({"error": "Only the site owner can change payout details."}, status=403)
+        merchant_id = str(body.get("payfast_merchant_id", "")).strip()
+        if merchant_id and not re.fullmatch(r"\d{5,12}", merchant_id):
+            return JsonResponse({"error": "A PayFast merchant ID is a number, like 10012345."}, status=400)
+        site.store_payfast_merchant_id = merchant_id
+        site.save(update_fields=["store_payfast_merchant_id"])
+        return JsonResponse(_store_state(site, is_owner))
+    if site.products.count() >= 500:
+        return JsonResponse({"error": "A store can have up to 500 products."}, status=400)
+    try:
+        product = Product.objects.create(site=site, order=site.products.count(), **_product_fields(site, body))
+    except ValueError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    return JsonResponse({**_store_state(site, is_owner), "product": _serialize_product(product)}, status=201)
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["PATCH", "DELETE", "POST"])
+def api_customer_site_product(request, site_slug, product_id):
+    """PATCH edits a product, DELETE removes it, POST (multipart file)
+    uploads its photo."""
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    product = site.products.filter(id=product_id).first()
+    if product is None:
+        return JsonResponse({"error": "Not found."}, status=404)
+    is_owner = site.owner_id == request.customer_user.id
+    if request.method == "DELETE":
+        product.delete()
+        return JsonResponse(_store_state(site, is_owner))
+    if not site.business_os_available:
+        return JsonResponse({"error": "The online store comes with Business OS."}, status=403)
+    if request.method == "POST":
+        uploaded = request.FILES.get("file")
+        if uploaded is None:
+            return JsonResponse({"error": "Choose an image to upload."}, status=400)
+        try:
+            name, content = site_images.process_upload(uploaded, site.slug)
+        except ImageUploadError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+        from django.core.files.storage import default_storage
+
+        product.image_url = default_storage.url(default_storage.save(f"product_images/{name}", content))
+        product.save(update_fields=["image_url"])
+        return JsonResponse(_store_state(site, is_owner))
+    try:
+        for key, value in _product_fields(site, _json_body(request), product).items():
+            setattr(product, key, value)
+    except ValueError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    product.save()
+    return JsonResponse(_store_state(site, is_owner))
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET"])
+def api_customer_site_orders(request, site_slug):
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    orders = site.orders.exclude(status=Order.STATUS_PENDING)[:300] if site.business_os_available else []
+    return JsonResponse({"available": site.business_os_available, "orders": [_serialize_order(o) for o in orders]})
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["PATCH"])
+def api_customer_site_order(request, site_slug, order_id):
+    """PATCH {status?, notes?, tracking?} — e.g. mark shipped with a tracking number."""
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    order = site.orders.filter(id=order_id).first()
+    if order is None:
+        return JsonResponse({"error": "Not found."}, status=404)
+    body = _json_body(request)
+    if "status" in body:
+        allowed = {Order.STATUS_PAID, Order.STATUS_SHIPPED, Order.STATUS_DONE, Order.STATUS_CANCELLED}
+        if body["status"] not in allowed:
+            return JsonResponse({"error": "Unknown status."}, status=400)
+        order.status = body["status"]
+    if "notes" in body:
+        order.notes = str(body["notes"])[:5000]
+    if "tracking" in body:
+        order.tracking = str(body["tracking"])[:200]
+    order.save(update_fields=["status", "notes", "tracking"])
+    return JsonResponse({"order": _serialize_order(order)})

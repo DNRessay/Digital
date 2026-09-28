@@ -10,6 +10,12 @@ urlpatterns = [
     path("contact/", views.custom_domain_contact, name="custom-domain-contact"),
     path("ai-chat/", views.custom_domain_ai_chat, name="custom-domain-ai-chat"),
     path("blog/<slug:post_slug>/", views.custom_domain_blog_post, name="custom-domain-blog-post"),
+    path("shop/", views.custom_domain_shop, name="custom-domain-shop"),
+    path("shop/cart/", views.custom_domain_shop, {"view": "cart"}),
+    path("shop/checkout/", views.custom_domain_shop, {"view": "checkout"}),
+    path("shop/data/", views.custom_domain_shop, {"view": "data"}),
+    path("shop/thanks/", views.custom_domain_shop, {"view": "thanks"}),
+    path("shop/<slug:product_slug>/", views.custom_domain_shop, {"view": "product"}),
     path("<slug:page_slug>/", views.custom_domain_page, name="custom-domain-page"),
     path("", views.custom_domain_home, name="custom-domain-home"),
 ]

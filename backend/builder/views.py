@@ -22,7 +22,8 @@ from .forms import TemplateUploadForm
 from .branding_assets import LOGO_WHITE_DATA_URI
 from .models import Site, SitePage, SiteSlotValue, SiteVisit, Template, TemplatePage
 from .services.ai_assistant import AiAssistantError, ask_assistant
-from .services import enquiries, site_blog, site_links, site_menu, site_pages
+from .services import enquiries, site_blog, site_links, site_menu, site_pages, store
+from .services.payfast import build_store_order_payload
 from .services.site_images import apply_overrides, logo_scale_css, logo_urls
 from .services.slot_extractor import slot_tag
 from .services.template_ingest import IngestError, ingest_converted_zip
@@ -545,6 +546,8 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None
         nav_items = [(f"{base_path}{p.slug}/", p.title) for p in nav_pages]
         if site.growth_features_available and site.posts.filter(published=True).exists():
             nav_items.append((f"{base_path}blog/", "Blog"))
+        if site.business_os_available and site.products.filter(active=True).exists():
+            nav_items.append((f"{base_path}shop/", "Shop"))
         html = site_pages.inject_nav(html, nav_items)
     html = site_menu.add_mobile_menu(html)
     overrides = {}
@@ -654,6 +657,62 @@ def _blog_page(site, post_slug, base_path):
     if post is None:
         raise Http404("No such post.")
     return starter, (post.title, site_blog.post_html(site, post, base_path))
+
+
+def _shop_response(request, site, base_path, chat_url, view, arg=None):
+    """Every /shop/ route, for both slug and custom-domain URLs."""
+    if not store.available(site):
+        raise Http404("No shop.")
+    if view == "data":
+        products = site.products.filter(active=True)
+        return JsonResponse(
+            {"products": [{"id": p.id, "name": p.name, "price": float(p.price), "in_stock": p.in_stock} for p in products]}
+        )
+    if view == "checkout":
+        if request.method != "POST":
+            return HttpResponse(status=405)
+        try:
+            body = json.loads(request.body or b"{}")
+            order = store.create_order(site, body)
+        except (json.JSONDecodeError, store.StoreError) as exc:
+            return JsonResponse({"error": str(exc) if isinstance(exc, store.StoreError) else "Invalid request."}, status=400)
+        origin = f"https://{site.custom_domain}" if base_path == "/" and site.custom_domain else request.build_absolute_uri("/").rstrip("/")
+        process_url, fields = build_store_order_payload(
+            order,
+            site.store_payfast_merchant_id,
+            f"{origin}{base_path}shop/thanks/?ref={order.reference}",
+            f"{origin}{base_path}shop/cart/",
+            f"https://{settings.PLATFORM_ORIGIN_HOST}/api/payfast/notify/",
+        )
+        return JsonResponse({"process_url": process_url, "fields": fields})
+    starter = site_pages.starter_page(site.template)
+    if starter is None:
+        raise Http404("No shop.")
+    if view == "list":
+        title, inner = "Shop", store.list_html(site, base_path)
+    elif view == "cart":
+        title, inner = "Cart", store.cart_html(site, base_path)
+    elif view == "thanks":
+        order = site.orders.filter(reference=request.GET.get("ref", "")).first()
+        title, inner = "Thank you", store.thanks_html(site, order, base_path)
+    else:
+        product = site.products.filter(slug=arg, active=True).first()
+        if product is None:
+            raise Http404("No such product.")
+        title, inner = product.name, store.product_html(site, product, base_path)
+    inner += store.store_script(site, base_path)
+    return _track_visit(request, site, _render_site_page(site, starter, chat_url=chat_url, base_path=base_path, blog_page=(title, inner)))
+
+
+@csrf_exempt  # the shop's own injected JS posts checkout without a CSRF token
+def site_shop(request, slug, view="list", product_slug=None):
+    site = get_object_or_404(Site, slug=slug, is_published=True)
+    return _shop_response(request, site, f"/{slug}/", reverse("builder:site-ai-chat", args=[slug]), view, product_slug)
+
+
+@csrf_exempt
+def custom_domain_shop(request, view="list", product_slug=None):
+    return _shop_response(request, request.custom_domain_site, "/", reverse("custom-domain-ai-chat"), view, product_slug)
 
 
 def site_blog_post(request, slug, post_slug):

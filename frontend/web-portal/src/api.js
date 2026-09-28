@@ -365,3 +365,37 @@ export function updateSitePost(siteSlug, postId, fields) {
 export function deleteSitePost(siteSlug, postId) {
   return apiFetch(`/api/customer/sites/${siteSlug}/blog/${postId}/`, { method: 'DELETE' })
 }
+
+export function getStore(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/store/`)
+}
+
+export function addProduct(siteSlug, fields) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/store/`, { method: 'POST', body: fields })
+}
+
+export function setStorePayouts(siteSlug, merchantId) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/store/`, { method: 'PATCH', body: { payfast_merchant_id: merchantId } })
+}
+
+export function updateProduct(siteSlug, productId, fields) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/store/${productId}/`, { method: 'PATCH', body: fields })
+}
+
+export function deleteProduct(siteSlug, productId) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/store/${productId}/`, { method: 'DELETE' })
+}
+
+export function uploadProductImage(siteSlug, productId, file) {
+  const form = new FormData()
+  form.append('file', file)
+  return apiFetch(`/api/customer/sites/${siteSlug}/store/${productId}/`, { method: 'POST', body: form })
+}
+
+export function getOrders(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/orders/`)
+}
+
+export function updateOrder(siteSlug, orderId, fields) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/orders/${orderId}/`, { method: 'PATCH', body: fields })
+}

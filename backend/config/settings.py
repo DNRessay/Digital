@@ -151,6 +151,10 @@ PAYFAST_MERCHANT_ID = os.environ.get("PAYFAST_MERCHANT_ID", "10000100")
 PAYFAST_MERCHANT_KEY = os.environ.get("PAYFAST_MERCHANT_KEY", "46f0cd694581a")
 PAYFAST_PASSPHRASE = os.environ.get("PAYFAST_PASSPHRASE", "")
 PAYFAST_SANDBOX = os.environ.get("PAYFAST_SANDBOX", "true").lower() == "true"
+# Business OS stores: shoppers pay Vicinic's PayFast account and PayFast
+# Split Payments sends this share to the store owner's own PayFast account
+# (Split Payments must be enabled on Vicinic's merchant account).
+STORE_OWNER_SHARE_PERCENT = int(os.environ.get("STORE_OWNER_SHARE_PERCENT", "95"))
 
 # Cloudflare (builder/services/cloudflare.py) — connecting a customer's own
 # domain and Email Routing on it for the "Deploy" tab. CLOUDFLARE_API_TOKEN
