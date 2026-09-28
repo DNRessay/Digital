@@ -1,11 +1,36 @@
 const PROJECTS = [
   {
-    image: '/assets/img/portfolio/portfolio-2.webp',
-    category: 'Django',
-    title: 'LSuite (Ledger Suite)',
-    text: 'Django-based financial management system that parses South African bank statements (Capitec, TymeBank) from PDFs and Gmail, auto-categorizes transactions, and syncs with ERPNext.',
-    tags: ['Django', 'MySQL', 'ERPNext'],
+    image: '/assets/img/portfolio/editor.webp',
+    category: 'Website Builder',
+    title: 'Vicinic Site Editor',
+    text: 'Pick a template and edit it live: text, images, logo, links and the menu. Add your own pages, connect a free .co.za domain and email forwarding, then publish in one tap.',
+    tags: ['Django', 'React', 'AWS Lambda', 'Cloudflare'],
     delay: 100,
+    featured: true,
+  },
+  {
+    image: '/assets/img/portfolio/assistant.webp',
+    category: 'AI Assistant',
+    title: 'Website AI Chat & WhatsApp Bot',
+    text: 'An AI assistant on every paid Vicinic site that answers visitors from your own content, plus a WhatsApp bot on your business number for Growth Hub and Business OS.',
+    tags: ['Groq', 'WhatsApp Cloud API', 'Python'],
+    delay: 200,
+  },
+  {
+    image: '/assets/img/portfolio/templify.webp',
+    category: 'Developer Tool',
+    title: 'Templify',
+    text: 'Turns a static multi-page HTML template into a working Django app: shared base layout, static files, page links and contact forms rewired automatically. It\'s how new templates reach the Vicinic editor.',
+    tags: ['Python', 'Django', 'AWS Lambda'],
+    delay: 300,
+  },
+  {
+    image: '/assets/img/portfolio/bloggify.webp',
+    category: 'AI Content',
+    title: 'Bloggify',
+    text: 'An AI research blog that pulls fresh papers and news (arXiv, NASA, Google News and more), digests them with Groq and drafts cited posts three times a week for review.',
+    tags: ['Python', 'Groq', 'SerpAPI', 'NASA API'],
+    delay: 400,
   },
   {
     image: '/assets/img/portfolio/portfolio-4.webp',
@@ -13,24 +38,15 @@ const PROJECTS = [
     title: 'BHKA Bot',
     text: 'WhatsApp AI chatbot for a South African credit rehabilitation company, powered by Groq (Llama 3) and the Meta WhatsApp Cloud API.',
     tags: ['Python', 'Groq', 'WhatsApp Cloud API'],
-    delay: 200,
-    featured: true,
+    delay: 500,
   },
   {
     image: '/assets/img/portfolio/portfolio-8.webp',
     category: 'AI Assistant',
     title: 'Semblance',
-    text: 'A Jarvis-inspired personal AI assistant with an animated React interface and a Claude-powered backend.',
-    tags: ['React', 'Claude API'],
-    delay: 300,
-  },
-  {
-    image: '/assets/img/portfolio/portfolio-1.webp',
-    category: 'Data',
-    title: 'News-Forex Dataset',
-    text: 'A US economic calendar dataset (2001–2026) enriched with technical indicators (RSI, MACD, Bollinger Bands) built for automated market analysis.',
-    tags: ['Python', 'GitHub Actions', 'yfinance'],
-    delay: 400,
+    text: 'A Jarvis-inspired multi-agent personal AI assistant with semantic memory, an animated React interface and open-weight models via Groq.',
+    tags: ['React', 'Groq', 'AWS'],
+    delay: 600,
   },
 ]
 
@@ -41,7 +57,7 @@ export default function Portfolio({ standalone = false }) {
       <div className="container section-title" data-aos="fade-up">
         {standalone && <h1 className="visually-hidden">Portfolio</h1>}
         <h2>Portfolio</h2>
-        <p>A few of the systems we've designed and shipped</p>
+        <p>Systems we've designed and shipped — including the tools behind Vicinic</p>
       </div>
 
       <div className="container" data-aos="fade-up" data-aos-delay="100">

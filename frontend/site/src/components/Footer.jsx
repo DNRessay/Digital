@@ -1,3 +1,4 @@
+import { SIGNUP_URL } from '../lib/signup.js'
 import { Link } from 'react-router-dom'
 
 export default function Footer() {
@@ -41,8 +42,8 @@ export default function Footer() {
           <div className="col-lg-3 col-md-6">
             <div className="footer-newsletter">
               <h4>Ready to start?</h4>
-              <p>Tell us about your business and we'll recommend the right package.</p>
-              <Link to="/contact" className="btn-pricing">Get a Quote</Link>
+              <p>Create your account free, pick a template and edit your site live — upgrade when you're ready.</p>
+              <a href={SIGNUP_URL} className="btn-pricing">Sign up free</a>
             </div>
           </div>
         </div>
@@ -54,12 +55,6 @@ export default function Footer() {
             <div className="copyright">
               <p>© <span>Copyright</span> <strong className="sitename">Vicinic</strong>. All Rights Reserved.</p>
               <p className="registration-status">VICINIC (Pty Ltd) — registered with the CIPC (South Africa), Enterprise Number 2026/760598/07.</p>
-            </div>
-            <div className="credits">
-              {/* All the links in the footer should remain intact. */}
-              {/* You can delete the links only if you've purchased the pro version. */}
-              {/* Licensing information: https://bootstrapmade.com/license/ */}
-              Designed by <a href="https://bootstrapmade.com/">BootstrapMade</a> | <a href="https://bootstrapmade.com/tools/">DevTools</a>
             </div>
           </div>
           <div className="col-md-6 order-1 order-md-2">

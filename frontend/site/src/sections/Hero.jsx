@@ -1,3 +1,4 @@
+import { SIGNUP_URL } from '../lib/signup.js'
 import SectionLink from '../components/SectionLink.jsx'
 
 export default function Hero() {
@@ -20,13 +21,13 @@ export default function Hero() {
               <p className="hero-text" data-aos="fade-up" data-aos-delay="350">A professional website plus a WhatsApp line your customers already trust — built, hosted, and supported by us. No hardware, no in-house developer needed.</p>
 
               <div className="hero-cta" data-aos="fade-up" data-aos-delay="400">
-                <SectionLink to="pricing" className="cta-button">
-                  <span>See Packages</span>
+                <a href={SIGNUP_URL} className="cta-button">
+                  <span>Sign up free</span>
                   <i className="bi bi-arrow-right"></i>
-                </SectionLink>
-                <SectionLink to="contact" className="cta-link">
-                  <i className="bi bi-chat-dots"></i>
-                  <span>Get a Quote</span>
+                </a>
+                <SectionLink to="pricing" className="cta-link">
+                  <i className="bi bi-tag"></i>
+                  <span>See plans</span>
                 </SectionLink>
               </div>
             </div>
