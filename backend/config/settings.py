@@ -250,6 +250,6 @@ WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")
 # https://huggingface.co/models?inference=warm&pipeline_tag=text-generation
 HUGGINGFACE_API_TOKEN = os.environ.get("HUGGINGFACE_API_TOKEN", "")
 HUGGINGFACE_MODEL = os.environ.get("HUGGINGFACE_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
-AI_CHAT_MODEL = os.environ.get("AI_CHAT_MODEL", "llama-3.1-8b-instant")
+AI_CHAT_MODEL = os.environ.get("AI_CHAT_MODEL", "openai/gpt-oss-20b")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
