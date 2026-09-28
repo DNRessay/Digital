@@ -5,20 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ SITENAME }}{% endblock title %}</title>
   <meta name="description" content="{% block description %}{{ SITESUBTITLE }}{% endblock %}">
-  <link rel="icon" href="{{ SITEURL }}/theme/img/favicon.png">
+  <link rel="icon" href="/theme/img/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@600;700;800&family=Roboto:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ SITEURL }}/theme/css/style.css">
+  <link rel="stylesheet" href="/theme/css/style.css">
   {% if FEED_ALL_ATOM %}<link href="{{ FEED_DOMAIN }}/{{ FEED_ALL_ATOM }}" type="application/atom+xml" rel="alternate" title="{{ SITENAME }}">{% endif %}
   {% block head %}{% endblock head %}
 </head>
 <body>
   <header class="site-header">
     <div class="wrap header-inner">
-      <a class="brand" href="{{ SITEURL }}/"><img src="{{ SITEURL }}/theme/img/logo-white.png" alt="Vicinic"><span>Blog</span></a>
+      <a class="brand" href="/"><img src="/theme/img/logo-white.png" alt="Vicinic"><span>Blog</span></a>
       <nav>
-        <a href="{{ SITEURL }}/">Articles</a>
+        <a href="/">Articles</a>
         <a href="{{ MAIN_SITE_URL }}">Vicinic.co.za</a>
         <a class="btn" href="{{ PORTAL_URL }}">Create your site</a>
       </nav>
