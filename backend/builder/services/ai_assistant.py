@@ -1,5 +1,5 @@
 """AI chat widget for a Site's rendered pages (builder.views's
-_inject_ai_chat_widget) — answers a visitor's simple question using the
+_inject_floating_buttons) — answers a visitor's simple question using the
 site owner's own Site.ai_assistant_description as context.
 
 Uses Groq (GROQ_API_KEYS, shared with the blog research pipeline; keys are

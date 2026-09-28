@@ -52,32 +52,70 @@ def _inject_branding_badge(html):
     return html[:idx] + BRANDING_BADGE_HTML + html[idx:]
 
 
-# A floating chat bubble (bottom-left, so it never overlaps
-# BRANDING_BADGE_HTML's bottom-right placement) that POSTs a visitor's
-# question to `chat_url` and shows the AI's reply inline — plus a WhatsApp
-# deep link when the site has a whatsapp_number, for handing a
-# conversation off to a real person. Vanilla JS/CSS, no build step, since
-# it's injected into arbitrary customer-uploaded template HTML the same
-# way BRANDING_BADGE_HTML and EDITOR_BRIDGE_HTML are.
-def _ai_chat_widget_html(site, chat_url):
-    whatsapp_link_html = ""
-    if site.whatsapp_number:
-        wa_text = quote(f"Hi {site.name}, ")
-        whatsapp_link_html = (
-            f'<a href="https://wa.me/{escape(site.whatsapp_number)}?text={wa_text}" '
-            'target="_blank" rel="noopener" id="vicinic-chat-whatsapp">Chat on WhatsApp instead</a>'
-        )
+WHATSAPP_ICON = (
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 '
+    "10 0 1 0 12 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7"
+    "-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.8-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-"
+    '.4-.6-.4h-.5c-.2 0-.4.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2'
+    '.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"/></svg>'
+)
+CHAT_ICON = (
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H8l-5 4'
+    'V5a2 2 0 0 1 2-2zm3 7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm5 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm5 0a1.5 1.5 0 1 0 0'
+    ' 3 1.5 1.5 0 0 0 0-3z"/></svg>'
+)
+
+
+# Floating buttons stacked bottom-right, directly above the template's own
+# back-to-top button and matching its width, right edge and corner radius
+# (measured in the browser; a sensible default when the template has none):
+# the AI chat bubble — which POSTs a visitor's question to `chat_url` and
+# shows the reply inline — and, above it, a WhatsApp button when the site
+# has a number. Vanilla JS/CSS, no build step, since it's injected into
+# arbitrary customer-uploaded template HTML the same way BRANDING_BADGE_HTML
+# and EDITOR_BRIDGE_HTML are.
+def _floating_buttons_html(site, chat_url):
     business_name = escape(site.name)
+    whatsapp_html = ""
+    if site.whatsapp_number:
+        number = re.sub(r"\D", "", site.whatsapp_number)
+        wa_text = quote(f"Hi {site.name}, ")
+        whatsapp_html = (
+            f'<a class="vicinic-fab" id="vicinic-whatsapp" href="https://wa.me/{number}?text={wa_text}" target="_blank" '
+            f'rel="noopener" aria-label="WhatsApp {business_name}">{WHATSAPP_ICON}</a>'
+        )
+    chat_toggle_html = (
+        f'<button class="vicinic-fab" id="vicinic-chat-toggle" aria-label="Chat with {business_name}">{CHAT_ICON}</button>'
+        if chat_url
+        else ""
+    )
+    chat_panel_html = (
+        f"""<div id="vicinic-chat-panel">
+  <div id="vicinic-chat-header">Ask {business_name}</div>
+  <div id="vicinic-chat-log"><p>Ask a quick question — an AI assistant will do its best to help.</p></div>
+  <form id="vicinic-chat-form">
+    <input id="vicinic-chat-input" type="text" placeholder="Type a question…" maxlength="500" autocomplete="off">
+    <button type="submit">Send</button>
+  </form>
+</div>"""
+        if chat_url
+        else ""
+    )
     return f"""
 <style>
-  #vicinic-chat-toggle {{
-    position: fixed; bottom: 12px; left: 12px; z-index: 2147483646;
-    width: 52px; height: 52px; border-radius: 50%; border: none;
-    background: #111; color: #fff; font-size: 22px; cursor: pointer;
-    box-shadow: 0 2px 10px rgba(0,0,0,.35);
+  #vicinic-fab-stack {{
+    position: fixed; right: 15px; bottom: 15px; z-index: 2147483646;
+    display: flex; flex-direction: column-reverse; gap: 10px;
   }}
+  .vicinic-fab {{
+    width: 44px; height: 44px; border-radius: 50%; border: none; padding: 0;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    background: #111; color: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.3); text-decoration: none;
+  }}
+  .vicinic-fab svg {{ width: 55%; height: 55%; }}
+  #vicinic-whatsapp {{ background: #25d366; }}
   #vicinic-chat-panel {{
-    position: fixed; bottom: 76px; left: 12px; z-index: 2147483646;
+    position: fixed; bottom: 76px; right: 15px; z-index: 2147483646;
     width: min(320px, calc(100vw - 24px)); max-height: 420px; display: none;
     flex-direction: column; background: #fff; border-radius: 12px;
     box-shadow: 0 8px 30px rgba(0,0,0,.25); overflow: hidden;
@@ -92,25 +130,46 @@ def _ai_chat_widget_html(site, chat_url):
   #vicinic-chat-input {{ flex: 1; border: none; padding: 10px; font: inherit; }}
   #vicinic-chat-input:focus {{ outline: none; }}
   #vicinic-chat-form button {{ border: none; background: #111; color: #fff; padding: 0 14px; cursor: pointer; }}
-  #vicinic-chat-whatsapp {{
-    display: block; text-align: center; padding: 8px; font-size: 13px;
-    color: #075e54; text-decoration: none; border-top: 1px solid #eee;
-  }}
 </style>
-<button id="vicinic-chat-toggle" aria-label="Chat with {business_name}">&#128172;</button>
-<div id="vicinic-chat-panel">
-  <div id="vicinic-chat-header">Ask {business_name}</div>
-  <div id="vicinic-chat-log"><p>Ask a quick question — an AI assistant will do its best to help.</p></div>
-  <form id="vicinic-chat-form">
-    <input id="vicinic-chat-input" type="text" placeholder="Type a question…" maxlength="500" autocomplete="off">
-    <button type="submit">Send</button>
-  </form>
-  {whatsapp_link_html}
-</div>
+<div id="vicinic-fab-stack">{chat_toggle_html}{whatsapp_html}</div>
+{chat_panel_html}
 <script>
 (function () {{
-  var toggle = document.getElementById('vicinic-chat-toggle');
+  var stack = document.getElementById('vicinic-fab-stack');
   var panel = document.getElementById('vicinic-chat-panel');
+
+  // Sit directly above the template's back-to-top button, same width,
+  // right edge and corner shape. Many templates park it off-screen
+  // (e.g. bottom:-15px) until the visitor scrolls, so a negative offset
+  // counts as its resting 15px.
+  function place() {{
+    var ref = document.querySelector('#scroll-top, .scroll-top, #back-to-top, .back-to-top, #scrollTop, .scrolltop, #return-to-top');
+    var size = 44, right = 15, bottom = 15, radius = '50%';
+    if (ref) {{
+      var cs = getComputedStyle(ref);
+      if (ref.offsetWidth >= 30 && ref.offsetWidth <= 80) size = ref.offsetWidth;
+      right = Math.max(parseFloat(cs.right) || 15, 0);
+      bottom = Math.max(parseFloat(cs.bottom) || 15, 15) + (ref.offsetHeight || size) + 10;
+      radius = cs.borderRadius || radius;
+    }}
+    stack.style.right = right + 'px';
+    stack.style.bottom = bottom + 'px';
+    Array.prototype.forEach.call(stack.children, function (b) {{
+      b.style.width = size + 'px';
+      b.style.height = size + 'px';
+      b.style.borderRadius = radius;
+    }});
+    if (panel) {{
+      panel.style.right = right + 'px';
+      panel.style.bottom = (bottom + stack.offsetHeight + 10) + 'px';
+    }}
+  }}
+  place();
+  window.addEventListener('load', place);
+  window.addEventListener('resize', place);
+
+  if (!panel) return;
+  var toggle = document.getElementById('vicinic-chat-toggle');
   var log = document.getElementById('vicinic-chat-log');
   var form = document.getElementById('vicinic-chat-form');
   var input = document.getElementById('vicinic-chat-input');
@@ -155,10 +214,10 @@ def _ai_chat_widget_html(site, chat_url):
 """
 
 
-def _inject_ai_chat_widget(html, site, chat_url):
+def _inject_floating_buttons(html, site, chat_url):
     lower = html.lower()
     idx = lower.rfind("</body>")
-    widget_html = _ai_chat_widget_html(site, chat_url)
+    widget_html = _floating_buttons_html(site, chat_url)
     if idx == -1:
         return html + widget_html
     return html[:idx] + widget_html + html[idx:]
@@ -409,8 +468,9 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None
     else:
         if site.is_branded:
             html = _inject_branding_badge(html)
-        if site.ai_assistant_active and chat_url:
-            html = _inject_ai_chat_widget(html, site, chat_url)
+        chat = chat_url if site.ai_assistant_active else None
+        if chat or (site.whatsapp_number and site.has_paid_plan):
+            html = _inject_floating_buttons(html, site, chat)
     response = HttpResponse(html)
     if edit_mode:
         # web-portal (a different origin) embeds this in an iframe for the
