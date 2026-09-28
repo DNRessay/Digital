@@ -1,19 +1,22 @@
-"""Free-tier AI chat widget for a Site's rendered pages (builder.views's
+"""AI chat widget for a Site's rendered pages (builder.views's
 _inject_ai_chat_widget) — answers a visitor's simple question using the
-site owner's own Site.ai_assistant_description as context, via Hugging
-Face's Inference Providers router (an OpenAI-compatible /chat/completions
-endpoint that fans out to whichever provider currently hosts the model —
-this is the current, actively-maintained way to call a free-tier model,
-replacing the older per-model api-inference.huggingface.co URLs).
+site owner's own Site.ai_assistant_description as context.
 
-HUGGINGFACE_MODEL is a setting rather than hardcoded because Hugging
-Face's free-tier hosted models rotate over time; if the configured one
-stops responding, this raises AiAssistantError with the reason rather
-than crashing a Site's rendered page.
+Uses Groq (GROQ_API_KEYS, shared with the blog research pipeline; keys are
+rotated on rate limits) and falls back to Hugging Face's Inference
+Providers router when no Groq key is set. Both are OpenAI-compatible
+/chat/completions endpoints. Failures raise AiAssistantError with the
+reason (logged) rather than crashing a Site's rendered page.
 """
+import logging
+import os
+
 import requests
 from django.conf import settings
 
+log = logging.getLogger(__name__)
+
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 HF_ROUTER_URL = "https://router.huggingface.co/v1/chat/completions"
 REQUEST_TIMEOUT = 20
 MAX_QUESTION_LENGTH = 500
@@ -36,41 +39,42 @@ def system_prompt(site):
     )
 
 
+def _providers():
+    groq_keys = [k.strip() for k in os.environ.get("GROQ_API_KEYS", "").split(",") if k.strip()]
+    for key in groq_keys:
+        yield GROQ_URL, key, settings.AI_CHAT_MODEL
+    if settings.HUGGINGFACE_API_TOKEN:
+        yield HF_ROUTER_URL, settings.HUGGINGFACE_API_TOKEN, settings.HUGGINGFACE_MODEL
+
+
 def ask_assistant(site, question):
     """Returns the assistant's reply text, or raises AiAssistantError."""
-    if not settings.HUGGINGFACE_API_TOKEN:
-        raise AiAssistantError("The AI assistant isn't configured yet — no Hugging Face API token is set.")
-
     question = question.strip()[:MAX_QUESTION_LENGTH]
     if not question:
         raise AiAssistantError("Ask a question first.")
 
-    try:
-        response = requests.post(
-            HF_ROUTER_URL,
-            headers={"Authorization": f"Bearer {settings.HUGGINGFACE_API_TOKEN}"},
-            json={
-                "model": settings.HUGGINGFACE_MODEL,
-                "messages": [
-                    {"role": "system", "content": system_prompt(site)},
-                    {"role": "user", "content": question},
-                ],
-                "max_tokens": MAX_ANSWER_TOKENS,
-            },
-            timeout=REQUEST_TIMEOUT,
-        )
-    except requests.RequestException as exc:
-        raise AiAssistantError(f"Couldn't reach the AI service: {exc}") from exc
-
-    if response.status_code >= 300:
+    messages = [{"role": "system", "content": system_prompt(site)}, {"role": "user", "content": question}]
+    tried = False
+    for url, key, model in _providers():
+        tried = True
         try:
-            detail = response.json().get("error", response.text)
-        except ValueError:
-            detail = response.text
-        raise AiAssistantError(f"AI service returned HTTP {response.status_code}: {detail}")
-
-    data = response.json()
-    try:
-        return data["choices"][0]["message"]["content"].strip()
-    except (KeyError, IndexError, TypeError) as exc:
-        raise AiAssistantError("AI service returned an unexpected response shape.") from exc
+            response = requests.post(
+                url,
+                headers={"Authorization": f"Bearer {key}"},
+                json={"model": model, "messages": messages, "max_tokens": MAX_ANSWER_TOKENS},
+                timeout=REQUEST_TIMEOUT,
+            )
+        except requests.RequestException as exc:
+            log.warning("AI chat: %s unreachable: %s", url, exc)
+            continue
+        if response.status_code >= 300:
+            # Rate limited or model gone: try the next key / provider.
+            log.warning("AI chat: %s returned %s: %s", url, response.status_code, response.text[:300])
+            continue
+        try:
+            return response.json()["choices"][0]["message"]["content"].strip()
+        except (ValueError, KeyError, IndexError, TypeError):
+            log.warning("AI chat: unexpected response from %s", url)
+    if not tried:
+        raise AiAssistantError("The AI assistant isn't set up yet.")
+    raise AiAssistantError("The assistant is busy right now — please try again in a moment, or contact us directly.")

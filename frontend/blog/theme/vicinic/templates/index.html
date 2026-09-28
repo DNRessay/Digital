@@ -4,6 +4,9 @@
 <section class="intro">
   <h1>{{ SITENAME }}</h1>
   <p>{{ SITESUBTITLE }}</p>
+  <form class="search-form" action="/search/" role="search">
+    <input type="search" name="q" placeholder="Search articles…" aria-label="Search articles">
+  </form>
 </section>
 {% endif %}
 <div class="grid">
@@ -18,7 +21,7 @@
 </div>
 {% if articles_page and articles_page.has_other_pages() %}
 <nav class="pager">
-  {% if articles_page.has_previous() %}<a href="/{{ articles_previous_page.url }}">&larr; Newer</a>{% endif %}
+  {% if articles_page.has_previous() %}<a href="/{{ articles_previous_page.url | replace('index.html', '') }}">&larr; Newer</a>{% endif %}
   <span>Page {{ articles_page.number }} of {{ articles_paginator.num_pages }}</span>
   {% if articles_page.has_next() %}<a href="/{{ articles_next_page.url }}">Older &rarr;</a>{% endif %}
 </nav>

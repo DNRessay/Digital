@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Search · {{ SITENAME }}{% endblock %}
+{% block content %}
+<section class="intro">
+  <h1>Search</h1>
+  <form class="search-form" action="/search/" role="search">
+    <input id="q" type="search" name="q" placeholder="Search articles…" aria-label="Search articles" autofocus>
+  </form>
+</section>
+<p id="search-status" class="muted"></p>
+<div id="results" class="grid"></div>
+<script id="search-data" type="application/json">
+[{% for article in articles %}{{ {
+  "title": article.title | striptags,
+  "url": "/" ~ article.url,
+  "category": article.category.name,
+  "category_url": "/" ~ article.category.url,
+  "date": article.locale_date,
+  "tags": article.tags | map(attribute="name") | join(" "),
+  "summary": article.summary | striptags | truncate(180),
+  "text": article.content | striptags
+} | tojson }}{% if not loop.last %},{% endif %}{% endfor %}]
+</script>
+<script>
+(function () {
+  var posts = JSON.parse(document.getElementById('search-data').textContent);
+  var input = document.getElementById('q');
+  var results = document.getElementById('results');
+  var status = document.getElementById('search-status');
+
+  function esc(s) {
+    return s.replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function render(q) {
+    var words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) {
+      results.innerHTML = '';
+      status.textContent = posts.length + ' articles — type to search.';
+      return;
+    }
+    var hits = posts.map(function (p) {
+      var title = p.title.toLowerCase();
+      var meta = (p.category + ' ' + p.tags + ' ' + p.summary).toLowerCase();
+      var body = p.text.toLowerCase();
+      var score = 0;
+      for (var i = 0; i < words.length; i++) {
+        var w = words[i];
+        if (title.indexOf(w) >= 0) score += 5;
+        else if (meta.indexOf(w) >= 0) score += 2;
+        else if (body.indexOf(w) >= 0) score += 1;
+        else return null;
+      }
+      return { post: p, score: score };
+    }).filter(Boolean).sort(function (a, b) { return b.score - a.score; });
+
+    status.textContent = hits.length ? hits.length + ' result' + (hits.length === 1 ? '' : 's') : 'No articles match “' + q + '”.';
+    results.innerHTML = hits.map(function (h) {
+      var p = h.post;
+      return '<article class="card"><p class="meta"><a href="' + esc(p.category_url) + '">' + esc(p.category) +
+        '</a> &middot; ' + esc(p.date) + '</p><h2><a href="' + esc(p.url) + '">' + esc(p.title) + '</a></h2><p>' +
+        esc(p.summary) + '</p><a class="more" href="' + esc(p.url) + '">Read more &rarr;</a></article>';
+    }).join('');
+  }
+
+  var initial = new URLSearchParams(location.search).get('q') || '';
+  input.value = initial;
+  render(initial);
+  input.addEventListener('input', function () {
+    render(input.value);
+    history.replaceState(null, '', input.value ? '?q=' + encodeURIComponent(input.value) : location.pathname);
+  });
+  input.form.addEventListener('submit', function (e) { e.preventDefault(); });
+})();
+</script>
+{% endblock %}

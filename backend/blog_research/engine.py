@@ -110,7 +110,9 @@ def generate(request, seen=frozenset()):
     if not picked:
         if not keys:
             raise ValueError("Pick a category, some news items or a link.")
-        picked = browse(keys, seen, limit=n + 2 if post_type == "pulse" else n)
+        pool = browse(keys, seen)
+        keywords = [kw for k in keys for kw in cats[k]["keywords"]]
+        picked = rank.top(pool, keywords, n=n + 2 if post_type == "pulse" else n, prefer_papers=post_type == "deep")
     if not picked:
         raise ValueError("Nothing new to write about in that category right now.")
 
