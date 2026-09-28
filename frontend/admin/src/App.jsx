@@ -188,7 +188,7 @@ function Sites() {
 const BLOG_STATUS_LABELS = {
   generating: 'Researching & writing…',
   failed: 'Failed',
-  draft: 'Draft', approved: 'Approved — goes live within the hour',
+  draft: 'Draft', approved: 'Approved — publishing to the blog',
   published: 'Live',
   rejected: 'Rejected',
 }
@@ -522,8 +522,8 @@ function Blog() {
       <div className="card">
         <h2>Posts</h2>
         <p className="muted">
-          AI drafts also arrive on their own Mon, Wed and Fri. Anything you don't approve, hold or reject goes live
-          after {data.review_hours} hours.
+          AI drafts also arrive on their own Mon, Wed and Fri. Approved posts go live in a few minutes; anything you
+          don't approve, hold or reject goes live after {data.review_hours} hours.
         </p>
         {data.posts.length === 0 ? (
           <p>No posts yet.</p>

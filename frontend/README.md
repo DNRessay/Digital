@@ -159,13 +159,17 @@ runs as a background self-invoke of the backend Lambda.
 
 Then tap **Write draft**. It takes a few minutes. Every draft (yours and the
 Mon/Wed/Fri ones from the `Blog` workflow) waits for review. Approve, edit,
-hold or reject it; anything left alone goes live after `BLOG_REVIEW_HOURS`
-(48). Every hour the workflow commits approved posts to `blog/content/posts`,
-which rebuilds the blog. You can run it by hand from Actions → Blog → Run
+hold or reject it; anything left alone is approved after `BLOG_REVIEW_HOURS`
+(48). Tapping **Approve** starts the workflow's publish job straight away.
+That job commits the post to `blog/content/posts`, which rebuilds the blog.
+A once-a-day run (06:23 SA time) catches auto-approved drafts; opening the
+Blog tab publishes them too. You can run it by hand from Actions → Blog → Run
 workflow (`job` = `draft` or `publish`).
 
 Repo secrets: `GROQ_API_KEYS` (comma-separated, rotated on rate limits),
-plus optional `SERPAPI_KEY` (Google News) and `NASA_API_KEY` (APOD). They
+plus optional `SERPAPI_KEY` (Google News), `NASA_API_KEY` (APOD) and
+`BLOG_DISPATCH_TOKEN`: a fine-grained GitHub token for this repo with
+*Actions: Read and write*, which lets Approve publish at once. They
 reach the Lambda through the backend deploy, so run a backend deploy after
 changing them. The workflow authenticates with a token derived from
 `DJANGO_SECRET_KEY`.

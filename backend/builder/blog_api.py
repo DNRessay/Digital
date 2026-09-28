@@ -153,7 +153,8 @@ def pipeline_published(request):
 @admin_token_required
 @require_http_methods(["GET"])
 def admin_blog_posts(request):
-    approve_overdue()
+    if approve_overdue():
+        blog_jobs.trigger_publish()
     from blog_research import engine
 
     order = [
@@ -280,6 +281,7 @@ def admin_blog_action(request, post_id, action):
         return JsonResponse({"post": _serialize(post, full=True)})
     if post.status in (BlogPost.STATUS_GENERATING, BlogPost.STATUS_FAILED) and action != "reject":
         return JsonResponse({"error": "This post hasn't been written yet."}, status=409)
+    publishing = False
     if action == "approve":
         post.status, post.approved_at = BlogPost.STATUS_APPROVED, now
     elif action == "reject":
@@ -291,4 +293,6 @@ def admin_blog_action(request, post_id, action):
     else:
         return JsonResponse({"error": "Unknown action."}, status=400)
     post.save()
-    return JsonResponse({"post": _serialize(post, full=True)})
+    if action == "approve":
+        publishing = blog_jobs.trigger_publish()
+    return JsonResponse({"post": _serialize(post, full=True), "publishing": publishing})
