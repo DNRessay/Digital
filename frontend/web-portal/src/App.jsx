@@ -1670,7 +1670,8 @@ function ImagesPanel({ site, page, selectedSrc, refreshKey, onChanged, onPending
     : null
 
   useEffect(() => {
-    if (selected) tileRefs.current[selected.original]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // After PanelCard has opened, so the tile is visible to scroll to.
+    if (selected) setTimeout(() => tileRefs.current[selected.original]?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
   }, [selected])
 
   async function run(image, action) {
@@ -1719,8 +1720,7 @@ function ImagesPanel({ site, page, selectedSrc, refreshKey, onChanged, onPending
   )
 
   return (
-    <div className="card">
-      <h2>Images</h2>
+    <PanelCard title="Images" count={images ? images.length : null} openSignal={selectedSrc}>
       {state.available ? (
         <p className="field-hint images-hint">
           Tap an image on the preview, or pick one below. Changes show in the preview and go live when you tap Publish changes.
@@ -1765,7 +1765,25 @@ function ImagesPanel({ site, page, selectedSrc, refreshKey, onChanged, onPending
           )}
         </fieldset>
       )}
-    </div>
+    </PanelCard>
+  )
+}
+
+// A long editor card that folds away; `openSignal` changing (e.g. a tap in
+// the preview picked something inside it) opens it again.
+function PanelCard({ title, count, openSignal, children }) {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (openSignal) setOpen(true)
+  }, [openSignal])
+  return (
+    <details className="card panel-card" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>
+        <h2>{title}</h2>
+        {count != null && <span className="panel-count">{count}</span>}
+      </summary>
+      {children}
+    </details>
   )
 }
 
@@ -2014,8 +2032,7 @@ function MenuPanel({ site, refreshKey, onChanged, onPendingChange }) {
   if (!data || !items) return null
 
   return (
-    <div className="card">
-      <h2>Menu</h2>
+    <PanelCard title="Menu" count={items.length}>
       {data.available ? (
         <p className="field-hint images-hint">
           The links across the top of your site. Rename, reorder, add or remove them — a page, a section, or any web
@@ -2062,7 +2079,7 @@ function MenuPanel({ site, refreshKey, onChanged, onPendingChange }) {
         </div>
         {data.menu_pending && !dirty && <p className="field-hint">Saved — tap Publish changes to put it live.</p>}
       </fieldset>
-    </div>
+    </PanelCard>
   )
 }
 
@@ -2091,7 +2108,8 @@ function LinksPanel({ site, page, selectedKey, refreshKey, onChanged, onPendingC
   }, [site.slug, page, refreshKey])
 
   useEffect(() => {
-    if (selectedKey) rowRefs.current[selectedKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // After PanelCard has opened, so the row is visible to scroll to.
+    if (selectedKey) setTimeout(() => rowRefs.current[selectedKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
   }, [selectedKey])
 
   async function handleSave(key, href) {
@@ -2112,8 +2130,7 @@ function LinksPanel({ site, page, selectedKey, refreshKey, onChanged, onPendingC
   if (links && links.length === 0) return null
 
   return (
-    <div className="card">
-      <h2>Buttons &amp; links</h2>
+    <PanelCard title="Buttons & links" count={links ? links.length : null} openSignal={selectedKey}>
       {available ? (
         <p className="field-hint images-hint">
           Tap a button on the preview, or pick one below, to change where it goes — a page, a section, a web address,
@@ -2142,7 +2159,7 @@ function LinksPanel({ site, page, selectedKey, refreshKey, onChanged, onPendingC
           </ul>
         </fieldset>
       )}
-    </div>
+    </PanelCard>
   )
 }
 
