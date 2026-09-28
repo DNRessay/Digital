@@ -17,10 +17,14 @@ from django.conf import settings
 log = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models"
+# Tried in order when AI_CHAT_MODEL has been retired; Groq rotates models.
+GROQ_FALLBACK_MODELS = ["openai/gpt-oss-20b", "openai/gpt-oss-120b", "llama-3.3-70b-versatile", "qwen/qwen3-32b"]
+_groq_model = None
 HF_ROUTER_URL = "https://router.huggingface.co/v1/chat/completions"
 REQUEST_TIMEOUT = 20
 MAX_QUESTION_LENGTH = 500
-MAX_ANSWER_TOKENS = 200
+MAX_ANSWER_TOKENS = 700
 
 
 class AiAssistantError(Exception):
@@ -39,12 +43,34 @@ def system_prompt(site):
     )
 
 
-def _providers():
-    groq_keys = [k.strip() for k in os.environ.get("GROQ_API_KEYS", "").split(",") if k.strip()]
-    for key in groq_keys:
-        yield GROQ_URL, key, settings.AI_CHAT_MODEL
-    if settings.HUGGINGFACE_API_TOKEN:
-        yield HF_ROUTER_URL, settings.HUGGINGFACE_API_TOKEN, settings.HUGGINGFACE_MODEL
+def _live_groq_model(key):
+    """A chat model Groq still serves, remembered for the Lambda's lifetime."""
+    global _groq_model
+    try:
+        r = requests.get(GROQ_MODELS_URL, headers={"Authorization": f"Bearer {key}"}, timeout=REQUEST_TIMEOUT)
+        live = {m["id"] for m in r.json().get("data", []) if m.get("active", True)}
+    except (requests.RequestException, ValueError, KeyError):
+        return None
+    for model in [settings.AI_CHAT_MODEL, *GROQ_FALLBACK_MODELS]:
+        if model in live:
+            _groq_model = model
+            return model
+    return None
+
+
+def _post(url, key, model, messages):
+    body = {"model": model, "messages": messages, "max_tokens": MAX_ANSWER_TOKENS}
+    if model.startswith("openai/gpt-oss"):
+        body["reasoning_effort"] = "low"
+    return requests.post(url, headers={"Authorization": f"Bearer {key}"}, json=body, timeout=REQUEST_TIMEOUT)
+
+
+def _answer(response):
+    try:
+        text = response.json()["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        return None
+    return text.strip() if text else None
 
 
 def ask_assistant(site, question):
@@ -54,27 +80,34 @@ def ask_assistant(site, question):
         raise AiAssistantError("Ask a question first.")
 
     messages = [{"role": "system", "content": system_prompt(site)}, {"role": "user", "content": question}]
-    tried = False
-    for url, key, model in _providers():
-        tried = True
+    groq_keys = [k.strip() for k in os.environ.get("GROQ_API_KEYS", "").split(",") if k.strip()]
+    for key in groq_keys:
+        model = _groq_model or settings.AI_CHAT_MODEL
         try:
-            response = requests.post(
-                url,
-                headers={"Authorization": f"Bearer {key}"},
-                json={"model": model, "messages": messages, "max_tokens": MAX_ANSWER_TOKENS},
-                timeout=REQUEST_TIMEOUT,
-            )
+            response = _post(GROQ_URL, key, model, messages)
+            if response.status_code == 404:
+                model = _live_groq_model(key)
+                if not model:
+                    log.warning("AI chat: no usable Groq chat model found")
+                    continue
+                response = _post(GROQ_URL, key, model, messages)
         except requests.RequestException as exc:
-            log.warning("AI chat: %s unreachable: %s", url, exc)
+            log.warning("AI chat: Groq unreachable: %s", exc)
             continue
-        if response.status_code >= 300:
-            # Rate limited or model gone: try the next key / provider.
-            log.warning("AI chat: %s returned %s: %s", url, response.status_code, response.text[:300])
-            continue
+        answer = _answer(response) if response.status_code < 300 else None
+        if answer:
+            return answer
+        log.warning("AI chat: Groq %s returned %s: %s", model, response.status_code, response.text[:300])
+
+    if settings.HUGGINGFACE_API_TOKEN:
         try:
-            return response.json()["choices"][0]["message"]["content"].strip()
-        except (ValueError, KeyError, IndexError, TypeError):
-            log.warning("AI chat: unexpected response from %s", url)
-    if not tried:
+            response = _post(HF_ROUTER_URL, settings.HUGGINGFACE_API_TOKEN, settings.HUGGINGFACE_MODEL, messages)
+            answer = _answer(response) if response.status_code < 300 else None
+            if answer:
+                return answer
+            log.warning("AI chat: Hugging Face returned %s: %s", response.status_code, response.text[:300])
+        except requests.RequestException as exc:
+            log.warning("AI chat: Hugging Face unreachable: %s", exc)
+    elif not groq_keys:
         raise AiAssistantError("The AI assistant isn't set up yet.")
     raise AiAssistantError("The assistant is busy right now — please try again in a moment, or contact us directly.")
