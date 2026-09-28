@@ -1,5 +1,5 @@
 Title: Why every small business in South Africa needs its own website
-Date: 2026-09-28 09:00
+Date: 2026-09-20 09:00
 Category: Getting started
 Tags: websites, small business
 Slug: why-your-business-needs-a-website
