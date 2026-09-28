@@ -16,12 +16,14 @@ this same argument, first hit (and fixed the same way) on web-portal.
 """
 import functools
 import json
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.db import IntegrityError
-from django.db.models import Count, ProtectedError
+from django.db.models import Count, ProtectedError, Q
 from django.http import JsonResponse
+from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -296,3 +298,46 @@ def api_admin_domain_attach(request):
         return JsonResponse({"error": f"{domain} is already connected to another site."}, status=409)
 
     return JsonResponse({"site": _serialize_site(site)})
+
+
+@admin_token_required
+@require_http_methods(["GET"])
+def api_admin_sites(request):
+    """Every customer site for the admin's Sites tab — paid plans first,
+    then newest first within each group."""
+    since = timezone.now().date() - timedelta(days=30)
+    sites = (
+        Site.objects.select_related("template", "owner")
+        .annotate(
+            visitors_30d=Count("visits", filter=Q(visits__day__gte=since), distinct=True),
+            custom_page_count=Count("custom_pages", distinct=True),
+        )
+        .order_by("-created_at")
+    )
+    rows = []
+    for site in sites:
+        owner = site.owner
+        rows.append(
+            {
+                "slug": site.slug,
+                "name": site.name,
+                "template": site.template.name,
+                "package": site.package or "",
+                "subscription_status": site.subscription_status,
+                "has_paid_plan": site.has_paid_plan,
+                "is_published": site.is_published,
+                "custom_domain": site.custom_domain or "",
+                "domain_status": site.domain_status,
+                "owner": owner.username if owner else "",
+                "owner_email": owner.email if owner else "",
+                "email": site.email,
+                "phone": site.phone,
+                "ai_assistant_enabled": site.ai_assistant_enabled,
+                "whatsapp_connected": bool(site.whatsapp_waba_id and site.whatsapp_phone_number_id),
+                "visitors_30d": site.visitors_30d,
+                "custom_pages": site.custom_page_count,
+                "created_at": site.created_at.isoformat(),
+            }
+        )
+    rows.sort(key=lambda r: not r["has_paid_plan"])
+    return JsonResponse({"sites": rows})

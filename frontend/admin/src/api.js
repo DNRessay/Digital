@@ -85,3 +85,23 @@ export function deleteTemplate(id) {
 export function getAnalytics() {
   return apiFetch('/api/admin/analytics/')
 }
+
+export function listSites() {
+  return apiFetch('/api/admin/sites/')
+}
+
+export function listBlogPosts() {
+  return apiFetch('/api/admin/blog/')
+}
+
+export function getBlogPost(id) {
+  return apiFetch(`/api/admin/blog/${id}/`)
+}
+
+export function updateBlogPost(id, fields) {
+  return apiFetch(`/api/admin/blog/${id}/`, { method: 'PATCH', body: fields })
+}
+
+export function blogPostAction(id, action) {
+  return apiFetch(`/api/admin/blog/${id}/${action}/`, { method: 'POST' })
+}

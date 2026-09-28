@@ -1,0 +1,51 @@
+# What the blog researches. The blog.yml cron runs Mon, Wed and Fri; each
+# run follows schedule[<weekday>]. Source types are the keys of FETCHERS in
+# sources/__init__.py.
+llm:
+  model: openai/gpt-oss-120b  # falls back to the best live Groq model if unavailable
+  max_items: 5
+
+schedule:
+  mon: {type: deep, weights: {websites: 30, marketing: 30, ai_business: 20}}
+  wed: {type: pulse, name: SA Small Business Pulse, categories: [sa_business]}
+  fri: {type: deep, weights: {marketing: 25, ai_business: 25, websites: 20, ecommerce: 20}}
+
+categories:
+  websites:
+    name: Websites & Domains
+    keywords: [website, web design, domain, hosting, landing page, seo, page speed, mobile, google business profile, ssl]
+    sources:
+      - {type: rss, url: "https://developers.google.com/search/blog/feeds/atom.xml", max: 10}
+      - {type: rss, url: "https://www.smashingmagazine.com/feed/", max: 10}
+      - {type: serpapi_news, query: "small business website domain", gl: za, max: 10}
+
+  marketing:
+    name: Marketing & Growth
+    keywords: [marketing, seo, social media, whatsapp, google ads, facebook, instagram, customers, reviews, leads]
+    sources:
+      - {type: reddit, sub: marketing, max: 15}
+      - {type: reddit, sub: smallbusiness, max: 15}
+      - {type: serpapi_news, query: "small business marketing South Africa", gl: za, max: 10}
+
+  ai_business:
+    name: AI for Small Business
+    keywords: [ai, chatgpt, chatbot, automation, whatsapp bot, assistant, small business, tool, productivity, llm]
+    sources:
+      - {type: hn, query: "AI small business", max: 15}
+      - {type: rss, url: "https://huggingface.co/blog/feed.xml", max: 10}
+      - {type: serpapi_news, query: "AI tools small business", gl: za, max: 10}
+
+  ecommerce:
+    name: Selling Online
+    keywords: [ecommerce, online store, payments, payfast, yoco, delivery, checkout, conversion, shopify, marketplace]
+    sources:
+      - {type: rss, url: "https://techcabal.com/feed/", max: 15}
+      - {type: serpapi_news, query: "South Africa ecommerce online shopping", gl: za, max: 10}
+
+  sa_business:
+    name: SA Business News
+    keywords: [south africa, sme, small business, startup, fintech, load shedding, rand, sars, tax, funding]
+    sources:
+      - {type: rss, url: "https://businesstech.co.za/news/feed/", max: 15}
+      - {type: rss, url: "https://techcabal.com/feed/", max: 15}
+      - {type: serpapi_news, query: "South Africa small business SME", gl: za, max: 15}

@@ -43,15 +43,16 @@ def image_urls(document):
 
 
 def logo_urls(document):
-    """Best guess at a page's logo image(s): an <img> whose own attributes
-    (src/alt/class/id) or a wrapping element's class/id use the word "logo"
+    """Best guess at a page's logo image(s): an <img> whose src/class/id or a
+    wrapping element's class/id use the word "logo" (not alt text, which
+    describes the picture: a portfolio shot titled "Logo Collection")
     — the near-universal template convention — else the first image in the
     site's own <header>/<nav> (not one belonging to a post or card)."""
     soup = BeautifulSoup(document, "html.parser")
     found = []
     for img in soup.find_all("img", src=True):
         haystack = " ".join(
-            [img.get("src", ""), img.get("alt", ""), " ".join(img.get("class", [])), img.get("id") or ""]
+            [img.get("src", ""), " ".join(img.get("class", [])), img.get("id") or ""]
             + [" ".join(p.get("class", [])) + " " + (p.get("id") or "") for p in img.parents if p.name][:3]
         ).lower()
         if LOGO_WORD_RE.search(haystack) and img["src"] not in found:
