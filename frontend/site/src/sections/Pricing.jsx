@@ -7,11 +7,13 @@ const PLANS = [
     onceOff: true,
     delay: 100,
     features: [
-      'Professional static website (home, about, services, contact)',
-      '1 admin login to manage content',
-      'Contact form — enquiries land in your inbox',
-      'Hosting, SSL security & support included',
-      'One-time payment — yours to keep, no monthly bill',
+      'Free .co.za domain included (1 per site)',
+      'Pick a template and edit text, images, logo & links live',
+      'Easy menu editor, plus up to 3 extra pages',
+      'AI chat assistant that answers your visitors',
+      'Email forwarding — you@yourbusiness.co.za to your inbox',
+      'Hosting, SSL & support — no "Powered by" credit',
+      'One-time payment — no monthly bill',
     ],
   },
   {
@@ -23,10 +25,12 @@ const PLANS = [
     badge: { icon: 'bi-star-fill', text: 'Best fit for most businesses' },
     features: [
       'Everything in Starter Site',
+      'Free .co.za domain included',
+      'Up to 10 extra pages',
+      'WhatsApp AI bot on your own business number',
       'Online bookings or enquiry form with customer database',
-      'Staff logins with secure Google Sign-In',
-      'Basic analytics on visitor activity',
-      'Access to premium templates — contact us to pick one',
+      'Staff logins and visitor analytics',
+      'Premium templates, including private custom templates',
     ],
   },
   {
@@ -37,9 +41,11 @@ const PLANS = [
     badge: { icon: 'bi-award', text: 'Full package' },
     features: [
       'Everything in Growth Hub',
+      'Free .co.za domain included',
+      'Unlimited pages',
       'Online payments and order/booking management',
       'Customer profiles and purchase/service history',
-      'Premium templates, or a fully custom design — contact us',
+      'A fully custom design, private to your business',
     ],
   },
 ]
@@ -51,7 +57,7 @@ export default function Pricing({ standalone = false }) {
       <div className="container section-title" data-aos="fade-up">
         {standalone && <h1 className="visually-hidden">Pricing</h1>}
         <h2>Pricing</h2>
-        <p>Three packages, for any type of business. Every plan includes hosting, security, and ongoing support.</p>
+        <p>Three packages, for any type of business. Every plan includes a free .co.za domain, hosting, security and ongoing support.</p>
       </div>
 
       <div className="container" data-aos="fade-up" data-aos-delay="100">
