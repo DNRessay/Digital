@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CONSENT_EVENT, getConsent, setConsent } from '../lib/consent.js'
+import '../styles/legal.css'
 
 export default function CookieBanner() {
   const [open, setOpen] = useState(() => !getConsent())
@@ -11,10 +12,20 @@ export default function CookieBanner() {
     return () => window.removeEventListener(CONSENT_EVENT, onChange)
   }, [])
 
+  useEffect(() => {
+    // Hold the page still until a choice is made.
+    document.body.style.overflow = open ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [open])
+
   if (!open) return null
 
   return (
-    <div className="cookie-banner" role="dialog" aria-live="polite" aria-label="Cookie consent">
+    <>
+    <div className="cookie-backdrop" />
+    <div className="cookie-banner" role="dialog" aria-modal="true" aria-label="Cookie consent">
       <div className="cookie-banner-text">
         <strong>We use cookies</strong>
         <p>
@@ -25,12 +36,13 @@ export default function CookieBanner() {
       </div>
       <div className="cookie-banner-actions">
         <button type="button" className="cookie-btn cookie-btn-secondary" onClick={() => setConsent('essential')}>
-          Essential only
+          Accept necessary
         </button>
         <button type="button" className="cookie-btn" onClick={() => setConsent('all')}>
           Accept all
         </button>
       </div>
     </div>
+    </>
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import '../../styles/legal.css'
 
 export const COMPANY = {
   name: 'VICINIC (Pty) Ltd',
