@@ -1,5 +1,5 @@
 Title: .co.za domains explained: what they are and how to get yours
-Date: 2026-09-28 10:00
+Date: 2026-09-21 10:00
 Category: Domains
 Tags: domains, co.za
 Slug: co-za-domains-explained
