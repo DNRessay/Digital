@@ -35,7 +35,7 @@ django_engine = engines["django"]
 # </body> rather than relying on any of the template's own markup/classes,
 # since a Template's document structure is arbitrary customer-uploaded HTML.
 BRANDING_BADGE_HTML = (
-    '<a href="https://vicinic.com" target="_blank" rel="noopener" aria-label="Powered by Vicinic" '
+    '<a href="https://vicinic.co.za" target="_blank" rel="noopener" aria-label="Powered by Vicinic" '
     'style="position:fixed;bottom:12px;right:12px;z-index:2147483647;display:flex;align-items:center;gap:6px;'
     "background:#111;color:#d4af37;font:600 12px/1 system-ui,-apple-system,sans-serif;"
     "padding:7px 12px;border-radius:6px;text-decoration:none;"
