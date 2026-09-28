@@ -1,4 +1,6 @@
 import os
+import random
+import time
 from datetime import datetime, timezone
 
 from . import Item, HEADERS, TIMEOUT
@@ -13,7 +15,13 @@ def fetch(query, max=20):
     headers = dict(HEADERS)
     if os.getenv("S2_API_KEY"):
         headers["x-api-key"] = os.environ["S2_API_KEY"]
-    r = requests.get(API, params={"query": query, "limit": max, "fields": FIELDS}, headers=headers, timeout=TIMEOUT)
+    # Without S2_API_KEY requests share a public pool that often answers 429:
+    # back off and retry rather than lose the papers.
+    for attempt in range(4):
+        r = requests.get(API, params={"query": query, "limit": max, "fields": FIELDS}, headers=headers, timeout=TIMEOUT)
+        if r.status_code != 429:
+            break
+        time.sleep(1.5 * (attempt + 1) + random.random() * 2)
     r.raise_for_status()
     items = []
     for p in r.json().get("data", []):
