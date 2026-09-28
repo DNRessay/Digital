@@ -544,11 +544,15 @@ class BlogPost(models.Model):
     auto_publish_at. The blog workflow then commits approved posts into
     frontend/blog/content/posts, which rebuilds blog.vicinic.co.za."""
 
+    STATUS_GENERATING = "generating"
+    STATUS_FAILED = "failed"
     STATUS_DRAFT = "draft"
     STATUS_APPROVED = "approved"
     STATUS_PUBLISHED = "published"
     STATUS_REJECTED = "rejected"
     STATUS_CHOICES = [
+        (STATUS_GENERATING, "Generating"),
+        (STATUS_FAILED, "Failed"),
         (STATUS_DRAFT, "Draft"),
         (STATUS_APPROVED, "Approved"),
         (STATUS_PUBLISHED, "Published"),
@@ -561,8 +565,13 @@ class BlogPost(models.Model):
     category = models.CharField(max_length=80)
     tags = models.CharField(max_length=300, blank=True)
     post_type = models.CharField(max_length=20, default="deep")
-    body = models.TextField(help_text="Markdown, including the Sources list.")
+    body = models.TextField(blank=True, help_text="Markdown, including the Sources list.")
     source_ids = models.JSONField(default=list, blank=True)
+    request = models.JSONField(
+        default=dict, blank=True,
+        help_text="What was asked of the research pipeline: categories, picked items, links, instructions.",
+    )
+    error = models.TextField(blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_DRAFT)
     auto_publish_at = models.DateTimeField(null=True, blank=True, help_text="Empty = never auto-publish.")
     created_at = models.DateTimeField(auto_now_add=True)

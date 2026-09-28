@@ -361,3 +361,68 @@ button.secondary {
 button.danger {
   background: #b42318;
 }
+
+select,
+.card textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #d3d8e2;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font: inherit;
+  font-size: 14px;
+  background: #fff;
+}
+
+.news-list,
+.idea-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 16px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.news-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-weight: 400;
+  padding: 8px 0;
+  border-bottom: 1px solid #eceef3;
+  cursor: pointer;
+}
+
+.news-item input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.news-item > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.news-title {
+  font-size: 14px;
+}
+
+.idea-list li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  border: 1px solid #e4e7ee;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.list-heading {
+  font-size: 14px;
+  margin: 16px 0 0;
+}

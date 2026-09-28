@@ -1,18 +1,21 @@
 """The Vicinic blog's AI drafts.
 
 Two callers:
-- The research pipeline (frontend/blog/research, on the blog.yml GitHub
-  Actions cron) posts drafts and later collects approved posts to commit
-  into frontend/blog/content/posts. It authenticates with PIPELINE_TOKEN,
-  derived from SECRET_KEY, so the workflow reuses the AWS_DJANGO_SECRET_KEY
-  secret it already has instead of needing a new one.
-- Staff in the admin app review, edit, approve, reject or hold drafts.
+- The Blog GitHub Actions workflow (.github/workflows/blog.yml) asks for the
+  scheduled draft Mon/Wed/Fri and hourly collects approved posts to commit
+  into frontend/blog/content/posts. It authenticates with pipeline_token(),
+  derived from SECRET_KEY, so it reuses the DJANGO_SECRET_KEY repo secret.
+- Staff in the admin's Blog tab browse a category's news, get post ideas,
+  commission drafts (picked items, pasted links, instructions) and review,
+  edit, approve, reject or hold them.
 
-A draft nobody acts on is approved at auto_publish_at.
+Research runs in the background (services/blog_jobs.py). A draft nobody acts
+on is approved at auto_publish_at.
 """
 import hashlib
 import hmac
 import json
+import uuid
 from datetime import timedelta
 
 import markdown
@@ -25,6 +28,7 @@ from django.views.decorators.http import require_http_methods
 
 from .api_views import admin_token_required
 from .models import BlogPost
+from .services import blog_jobs
 
 
 def pipeline_token():
@@ -47,12 +51,21 @@ def _json(request):
         return {}
 
 
-def _unique_slug(title):
+def unique_slug(title, exclude=None):
     base = slugify(title)[:100] or "post"
     slug, n = base, 2
-    while BlogPost.objects.filter(slug=slug).exists():
+    while BlogPost.objects.filter(slug=slug).exclude(id=exclude).exists():
         slug, n = f"{base}-{n}", n + 1
     return slug
+
+
+def _start(request_data, label):
+    post = BlogPost.objects.create(
+        title=label[:200], slug=f"generating-{uuid.uuid4().hex[:12]}", category="—",
+        status=BlogPost.STATUS_GENERATING, request=request_data,
+    )
+    blog_jobs.enqueue(post)
+    return post
 
 
 def _serialize(post, full=False):
@@ -68,6 +81,8 @@ def _serialize(post, full=False):
         "auto_publish_at": post.auto_publish_at.isoformat() if post.auto_publish_at else None,
         "created_at": post.created_at.isoformat(),
         "published_at": post.published_at.isoformat() if post.published_at else None,
+        "error": post.error,
+        "instructions": (post.request or {}).get("instructions", ""),
     }
     if full:
         data["body"] = post.body
@@ -96,36 +111,21 @@ def approve_overdue():
     )
 
 
-@require_http_methods(["GET"])
-@pipeline_required
-def pipeline_seen(request):
-    ids = set()
-    for source_ids in BlogPost.objects.values_list("source_ids", flat=True):
-        ids.update(source_ids or [])
-    return JsonResponse({"ids": sorted(ids)})
-
-
 @csrf_exempt
 @require_http_methods(["POST"])
 @pipeline_required
-def pipeline_draft(request):
+def pipeline_auto(request):
+    """The cron's scheduled draft (see blog_research/topics.yaml)."""
+    from blog_research import engine
+
     body = _json(request)
-    title = str(body.get("title", "")).strip()[:200]
-    text = str(body.get("body", "")).strip()
-    if not title or not text:
-        return JsonResponse({"error": "title and body are required."}, status=400)
-    post = BlogPost.objects.create(
-        title=title,
-        slug=_unique_slug(title),
-        summary=str(body.get("summary", "")).strip()[:400],
-        category=str(body.get("category", "General")).strip()[:80] or "General",
-        tags=", ".join(str(t).strip().lower() for t in body.get("tags", []) if str(t).strip())[:300],
-        post_type=str(body.get("post_type", "deep"))[:20],
-        body=text,
-        source_ids=[str(i) for i in body.get("source_ids", [])],
-        auto_publish_at=timezone.now() + timedelta(hours=settings.BLOG_REVIEW_HOURS),
-    )
-    return JsonResponse({"post": _serialize(post)}, status=201)
+    if body.get("category"):
+        plan = {"post_type": body.get("post_type", "deep"), "categories": [body["category"]]}
+    else:
+        plan = engine.scheduled_request()
+    if plan is None:
+        return JsonResponse({"post": None, "detail": "No post scheduled today."})
+    return JsonResponse({"post": _serialize(_start(plan, "Scheduled post"))}, status=202)
 
 
 @require_http_methods(["GET"])
@@ -151,9 +151,86 @@ def pipeline_published(request):
 @require_http_methods(["GET"])
 def admin_blog_posts(request):
     approve_overdue()
-    order = {BlogPost.STATUS_DRAFT: 0, BlogPost.STATUS_APPROVED: 1, BlogPost.STATUS_PUBLISHED: 2, BlogPost.STATUS_REJECTED: 3}
-    posts = sorted(BlogPost.objects.all()[:100], key=lambda p: order[p.status])
-    return JsonResponse({"posts": [_serialize(p) for p in posts], "review_hours": settings.BLOG_REVIEW_HOURS})
+    from blog_research import engine
+
+    order = [
+        BlogPost.STATUS_GENERATING, BlogPost.STATUS_FAILED, BlogPost.STATUS_DRAFT,
+        BlogPost.STATUS_APPROVED, BlogPost.STATUS_PUBLISHED, BlogPost.STATUS_REJECTED,
+    ]
+    posts = sorted(BlogPost.objects.all()[:100], key=lambda p: order.index(p.status))
+    return JsonResponse(
+        {
+            "posts": [_serialize(p) for p in posts],
+            "review_hours": settings.BLOG_REVIEW_HOURS,
+            "categories": engine.categories(),
+        }
+    )
+
+
+def _category_keys(raw):
+    from blog_research import engine
+
+    valid = {c["key"] for c in engine.categories()}
+    return [k for k in (raw if isinstance(raw, list) else [raw]) if k in valid]
+
+
+@admin_token_required
+@require_http_methods(["GET"])
+def admin_blog_browse(request):
+    """Fresh news and papers for a category, best first; ones already used
+    in a post are left out."""
+    from blog_research import engine
+
+    keys = _category_keys(request.GET.get("category", ""))
+    if not keys:
+        return JsonResponse({"error": "Pick a category."}, status=400)
+    items = engine.browse(keys, seen=blog_jobs.seen_ids())
+    return JsonResponse({"items": [i.to_dict() for i in items]})
+
+
+@csrf_exempt
+@admin_token_required
+@require_http_methods(["POST"])
+def admin_blog_suggest(request):
+    """Post ideas from the category's news, research papers and evergreen
+    topics. Uses the items the admin already loaded, else fetches them."""
+    from blog_research import engine
+
+    body = _json(request)
+    keys = _category_keys(body.get("category", ""))
+    if not keys:
+        return JsonResponse({"error": "Pick a category."}, status=400)
+    items = [engine.item_from_dict(d) for d in body.get("items", [])[:40] if d.get("title") and d.get("url")]
+    if not items:
+        items = engine.browse(keys, seen=blog_jobs.seen_ids())
+    try:
+        ideas = engine.suggest(keys, items, str(body.get("instructions", ""))[:2000])
+    except RuntimeError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
+    return JsonResponse({"ideas": ideas, "items": [i.to_dict() for i in items]})
+
+
+@csrf_exempt
+@admin_token_required
+@require_http_methods(["POST"])
+def admin_blog_generate(request):
+    """Commissions a draft from any mix of: a category (the pipeline picks the
+    news itself), items picked from Browse, pasted links, and instructions."""
+    body = _json(request)
+    keys = _category_keys(body.get("category", ""))
+    items = [d for d in body.get("items", [])[:8] if isinstance(d, dict) and d.get("title") and d.get("url")]
+    urls = [str(u).strip() for u in body.get("urls", [])[:5] if str(u).strip().startswith(("http://", "https://"))]
+    if not keys and not items and not urls:
+        return JsonResponse({"error": "Pick a category, some news or paste a link."}, status=400)
+    plan = {
+        "post_type": "pulse" if body.get("post_type") == "pulse" else "deep",
+        "categories": keys,
+        "items": items,
+        "urls": urls,
+        "instructions": str(body.get("instructions", "")).strip()[:4000],
+    }
+    label = items[0]["title"] if items else (urls[0] if urls else "New post")
+    return JsonResponse({"post": _serialize(_start(plan, label))}, status=202)
 
 
 @csrf_exempt
@@ -164,6 +241,8 @@ def admin_blog_post(request, post_id):
     if post is None:
         return JsonResponse({"error": "Post not found."}, status=404)
     if request.method == "PATCH":
+        if post.status in (BlogPost.STATUS_GENERATING, BlogPost.STATUS_FAILED):
+            return JsonResponse({"error": "This post hasn't been written yet."}, status=409)
         if post.status == BlogPost.STATUS_PUBLISHED:
             return JsonResponse({"error": "This post is already live — edit it in frontend/blog/content/posts."}, status=409)
         body = _json(request)
@@ -188,6 +267,15 @@ def admin_blog_action(request, post_id, action):
     if post.status == BlogPost.STATUS_PUBLISHED:
         return JsonResponse({"error": "This post is already live."}, status=409)
     now = timezone.now()
+    if action == "retry":
+        if post.status != BlogPost.STATUS_FAILED:
+            return JsonResponse({"error": "Only a failed post can be retried."}, status=400)
+        post.status, post.error = BlogPost.STATUS_GENERATING, ""
+        post.save(update_fields=["status", "error"])
+        blog_jobs.enqueue(post)
+        return JsonResponse({"post": _serialize(post, full=True)})
+    if post.status in (BlogPost.STATUS_GENERATING, BlogPost.STATUS_FAILED) and action != "reject":
+        return JsonResponse({"error": "This post hasn't been written yet."}, status=409)
     if action == "approve":
         post.status, post.approved_at = BlogPost.STATUS_APPROVED, now
     elif action == "reject":

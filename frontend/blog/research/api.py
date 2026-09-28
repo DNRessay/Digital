@@ -1,9 +1,11 @@
 """Talks to the Vicinic backend (backend/builder/blog_api.py). The token is
 derived from the backend's SECRET_KEY, so the workflow only needs the
-AWS_DJANGO_SECRET_KEY secret it already has."""
+DJANGO_SECRET_KEY secret the deploy already uses. The research itself runs
+in the backend (backend/blog_research)."""
 import hashlib
 import hmac
 import os
+import sys
 
 import requests
 
@@ -21,12 +23,8 @@ def _call(method, path, **kw):
     return r.json()
 
 
-def seen_ids():
-    return set(_call("GET", "seen")["ids"])
-
-
-def submit_draft(post):
-    return _call("POST", "drafts", json=post)["post"]
+def start_scheduled(category="", post_type="deep"):
+    return _call("POST", "auto", json={"category": category, "post_type": post_type} if category else {})
 
 
 def due_posts():
@@ -35,3 +33,9 @@ def due_posts():
 
 def mark_published(slugs):
     return _call("POST", "published", json={"slugs": slugs})
+
+
+if __name__ == "__main__":
+    # python -m research.api [category] [deep|pulse]: ask the backend for a draft.
+    result = start_scheduled(*sys.argv[1:3])
+    print(result.get("detail") or f"Researching: draft #{result['post']['id']} will appear in the admin's Blog tab.")

@@ -105,3 +105,15 @@ export function updateBlogPost(id, fields) {
 export function blogPostAction(id, action) {
   return apiFetch(`/api/admin/blog/${id}/${action}/`, { method: 'POST' })
 }
+
+export function browseBlogNews(category) {
+  return apiFetch(`/api/admin/blog/browse/?category=${encodeURIComponent(category)}`)
+}
+
+export function suggestBlogIdeas(category, items, instructions) {
+  return apiFetch('/api/admin/blog/suggest/', { method: 'POST', body: { category, items, instructions } })
+}
+
+export function generateBlogPost(request) {
+  return apiFetch('/api/admin/blog/generate/', { method: 'POST', body: request })
+}

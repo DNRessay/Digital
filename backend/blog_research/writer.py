@@ -20,9 +20,11 @@ BRIEFS = {
 WORDS = {"deep": "800-1200", "pulse": "700-1000"}
 
 
-def write_post(llm, notes, post_type, category_name, extra_tags=()):
+def write_post(llm, notes, post_type, category_name, extra_tags=(), instructions=""):
     sources = "\n".join(f"[{n}] {x['title']} ({x['source']}) {x['url']}" for n, x in enumerate(notes, 1))
     brief = BRIEFS[post_type].format(words=WORDS[post_type])
+    if instructions:
+        brief += f"\nThe editor asked for this — follow it as long as the notes support it:\n{instructions}"
     out = llm.chat(
         STYLE,
         f"Category: {category_name}\n{brief}\n\nSources:\n{sources}\n\nNotes:\n{json.dumps(notes, ensure_ascii=False)}",
@@ -33,9 +35,7 @@ def write_post(llm, notes, post_type, category_name, extra_tags=()):
     return {
         "title": out["title"].strip(),
         "summary": out.get("summary", "").strip(),
-        "category": category_name,
         "tags": tags,
-        "post_type": post_type,
         "body": f"{out['body'].strip()}\n\n## Sources\n\n{src}\n\n"
                 "*Researched and drafted with AI, then reviewed by the Vicinic team.*",
     }
