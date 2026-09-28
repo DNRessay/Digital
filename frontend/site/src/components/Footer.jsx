@@ -56,12 +56,6 @@ export default function Footer() {
               <p>© <span>Copyright</span> <strong className="sitename">Vicinic</strong>. All Rights Reserved.</p>
               <p className="registration-status">VICINIC (Pty Ltd) — registered with the CIPC (South Africa), Enterprise Number 2026/760598/07.</p>
             </div>
-            <div className="credits">
-              {/* All the links in the footer should remain intact. */}
-              {/* You can delete the links only if you've purchased the pro version. */}
-              {/* Licensing information: https://bootstrapmade.com/license/ */}
-              Designed by <a href="https://bootstrapmade.com/">BootstrapMade</a> | <a href="https://bootstrapmade.com/tools/">DevTools</a>
-            </div>
           </div>
           <div className="col-md-6 order-1 order-md-2">
             <div className="legal-links">
