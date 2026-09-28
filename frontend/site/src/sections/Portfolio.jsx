@@ -1,8 +1,11 @@
+const BLOG_URL = 'https://blog.vicinic.co.za'
+
 const PROJECTS = [
   {
     image: '/assets/img/portfolio/editor.webp',
     category: 'Website Builder',
     title: 'Vicinic Site Editor',
+    link: `${BLOG_URL}/project-vicinic-site-editor/`,
     text: 'Pick a template and edit it live: text, images, logo, links and the menu. Add your own pages, connect a free .co.za domain and email forwarding, then publish in one tap.',
     tags: ['Django', 'React', 'AWS Lambda', 'Cloudflare'],
     delay: 100,
@@ -12,6 +15,7 @@ const PROJECTS = [
     image: '/assets/img/portfolio/assistant.webp',
     category: 'AI Assistant',
     title: 'Website AI Chat & WhatsApp Bot',
+    link: `${BLOG_URL}/project-website-ai-chat-whatsapp-bot/`,
     text: 'An AI assistant on every paid Vicinic site that answers visitors from your own content, plus a WhatsApp bot on your business number for Growth Hub and Business OS.',
     tags: ['Groq', 'WhatsApp Cloud API', 'Python'],
     delay: 200,
@@ -20,6 +24,7 @@ const PROJECTS = [
     image: '/assets/img/portfolio/templify.webp',
     category: 'Developer Tool',
     title: 'Templify',
+    link: `${BLOG_URL}/project-templify/`,
     text: 'Turns a static multi-page HTML template into a working Django app: shared base layout, static files, page links and contact forms rewired automatically. It\'s how new templates reach the Vicinic editor.',
     tags: ['Python', 'Django', 'AWS Lambda'],
     delay: 300,
@@ -28,22 +33,25 @@ const PROJECTS = [
     image: '/assets/img/portfolio/bloggify.webp',
     category: 'AI Content',
     title: 'Bloggify',
+    link: `${BLOG_URL}/project-bloggify/`,
     text: 'An AI research blog that pulls fresh papers and news (arXiv, NASA, Google News and more), digests them with Groq and drafts cited posts three times a week for review.',
     tags: ['Python', 'Groq', 'SerpAPI', 'NASA API'],
     delay: 400,
   },
   {
-    image: '/assets/img/portfolio/portfolio-4.webp',
+    image: '/assets/img/portfolio/bhka.webp',
     category: 'WhatsApp AI',
     title: 'BHKA Bot',
+    link: `${BLOG_URL}/project-bhka-bot/`,
     text: 'WhatsApp AI chatbot for a South African credit rehabilitation company, powered by Groq (Llama 3) and the Meta WhatsApp Cloud API.',
     tags: ['Python', 'Groq', 'WhatsApp Cloud API'],
     delay: 500,
   },
   {
-    image: '/assets/img/portfolio/portfolio-8.webp',
+    image: '/assets/img/portfolio/semblance.webp',
     category: 'AI Assistant',
     title: 'Semblance',
+    link: `${BLOG_URL}/project-semblance/`,
     text: 'A Jarvis-inspired multi-agent personal AI assistant with semantic memory, an animated React interface and open-weight models via Groq.',
     tags: ['React', 'Groq', 'AWS'],
     delay: 600,
@@ -70,17 +78,18 @@ export default function Portfolio({ standalone = false }) {
                   <img src={project.image} alt="Project preview" className="img-fluid" loading="lazy" />
                   <div className="hover-overlay">
                     <div className="overlay-actions">
-                      <a href={project.image} className="glightbox action-btn" data-gallery="portfolio">
-                        <i className="bi bi-eye"></i>
+                      <a href={project.link} className="action-btn" aria-label={`Read about ${project.title}`}>
+                        <i className="bi bi-arrow-up-right"></i>
                       </a>
                     </div>
                   </div>
                   <span className="category-badge">{project.category}</span>
                 </div>
                 <div className="project-info">
-                  <h3>{project.title}</h3>
+                  <h3><a href={project.link}>{project.title}</a></h3>
                   <p>{project.text}</p>
                   <div className="project-meta">
+                    <a href={project.link} className="project-link">Read the story <i className="bi bi-arrow-right"></i></a>
                     <div className="tech-tags">
                       {project.tags.map((tag) => (
                         <span key={tag}>{tag}</span>
