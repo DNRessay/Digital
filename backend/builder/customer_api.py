@@ -157,6 +157,7 @@ def _serialize_site(site):
         "managed_deploy": site.template.managed_deploy,
         "free_domain_available": site.free_domain_available,
         "has_paid_plan": site.has_paid_plan,
+        "whatsapp_bot_available": site.whatsapp_bot_available,
     }
 
 
@@ -832,8 +833,11 @@ def api_customer_site_whatsapp(request, site_slug):
     if (locked := _managed_deploy_error(site)) is not None:
         return locked
 
-    if request.method == "POST" and not site.ai_assistant_available:
-        return JsonResponse({"error": "The WhatsApp AI bot comes with every paid plan — upgrade to connect your number."}, status=403)
+    if request.method == "POST" and not site.whatsapp_bot_available:
+        return JsonResponse(
+            {"error": "The WhatsApp AI bot comes with Growth Hub and Business OS — upgrade to connect your number."},
+            status=403,
+        )
 
     if request.method == "DELETE":
         site.whatsapp_waba_id = ""

@@ -308,6 +308,10 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.locked-card > :not(.notice) {
+  opacity: 0.55;
+}
+
 .visitors-headline {
   display: flex;
   align-items: baseline;

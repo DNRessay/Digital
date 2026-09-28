@@ -17,6 +17,7 @@ urlpatterns = [
     path("api/templates/", api_views.api_templates, name="api-templates"),
     path("api/templates/<int:template_id>/", api_views.api_template_delete, name="api-template-delete"),
     path("api/admin/sites/", api_views.api_admin_sites, name="api-admin-sites"),
+    path("api/admin/sites/<slug:site_slug>/plan/", api_views.api_admin_site_plan, name="api-admin-site-plan"),
     path("api/admin/blog/", blog_api.admin_blog_posts, name="api-admin-blog"),
     path("api/admin/blog/browse/", blog_api.admin_blog_browse, name="api-admin-blog-browse"),
     path("api/admin/blog/suggest/", blog_api.admin_blog_suggest, name="api-admin-blog-suggest"),

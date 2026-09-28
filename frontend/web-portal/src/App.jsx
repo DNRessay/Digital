@@ -1129,15 +1129,15 @@ function WhatsAppConnectSection({ site, onSiteUpdated }) {
   }
 
   return (
-    <div className="card">
+    <div className={`card${!site.whatsapp_bot_available && !site.whatsapp_connected ? ' locked-card' : ''}`}>
       <h2>Connect your own WhatsApp number</h2>
       <p>
         The AI assistant above answers on your site and via a wa.me link. Connecting your own number here goes
         further — a real WhatsApp Business number that replies automatically using the same description, in
         WhatsApp itself.
       </p>
-      {!site.ai_assistant_available && !site.whatsapp_connected && (
-        <div className="notice">The WhatsApp AI bot comes with every paid plan — upgrade above to connect your number.</div>
+      {!site.whatsapp_bot_available && !site.whatsapp_connected && (
+        <div className="notice">The WhatsApp AI bot comes with Growth Hub and Business OS — upgrade above to connect your number.</div>
       )}
       {error && <div className="error">{error}</div>}
       {site.whatsapp_connected ? (
@@ -1148,7 +1148,7 @@ function WhatsAppConnectSection({ site, onSiteUpdated }) {
           </button>
         </>
       ) : (
-        <button type="button" onClick={handleConnect} disabled={state === 'connecting' || !site.ai_assistant_available}>
+        <button type="button" onClick={handleConnect} disabled={state === 'connecting' || !site.whatsapp_bot_available}>
           {state === 'connecting' ? 'Connecting…' : 'Connect your WhatsApp number'}
         </button>
       )}
