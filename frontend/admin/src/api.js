@@ -78,6 +78,10 @@ export function uploadTemplate(name, zipFile) {
   return apiFetch('/api/templates/', { method: 'POST', body: formData })
 }
 
+export function updateTemplateAccess(id, isPrivate, allowedUsers) {
+  return apiFetch(`/api/templates/${id}/`, { method: 'PATCH', body: { private: isPrivate, allowed_users: allowedUsers } })
+}
+
 export function deleteTemplate(id) {
   return apiFetch(`/api/templates/${id}/`, { method: 'DELETE' })
 }
