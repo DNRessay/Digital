@@ -257,8 +257,13 @@ def api_customer_logout(request):
 @require_http_methods(["GET"])
 def api_customer_templates(request):
     """Public — the "create your site" form needs this to offer a picker
-    before the user necessarily has one yet."""
-    templates = Template.objects.filter(is_active=True).order_by("name")
+    before the user necessarily has one yet. A signed-in customer also sees
+    the private (custom) templates they've been given."""
+    token = _token_from_header(request)
+    if token is not None:
+        templates = Template.available_to(token.user).order_by("name")
+    else:
+        templates = Template.objects.filter(is_active=True, private=False).order_by("name")
     return JsonResponse({"templates": [{"slug": t.slug, "name": t.name} for t in templates]})
 
 
@@ -320,7 +325,7 @@ def api_customer_sites(request):
     if not site_name or not template_slug:
         return JsonResponse({"error": "Site name and template are both required."}, status=400)
 
-    template = Template.objects.filter(slug=template_slug, is_active=True).first()
+    template = Template.available_to(request.customer_user).filter(slug=template_slug).first()
     if template is None:
         return JsonResponse({"error": "That template isn't available."}, status=400)
 
@@ -916,6 +921,7 @@ def api_customer_site_email_destinations(request, site_slug):
                 return JsonResponse({"error": f"Couldn't add {email}: {exc}"}, status=400)
         return JsonResponse({"destination": _serialize_destination(destination)}, status=201 if created else 200)
 
+    _adopt_forwarding_inboxes(site)
     destinations = list(site.email_destinations.order_by("id"))
     pending = [d for d in destinations if not d.verified]
     if pending:
@@ -928,6 +934,24 @@ def api_customer_site_email_destinations(request, site_slug):
                 d.verified = True
                 d.save(update_fields=["verified"])
     return JsonResponse({"destinations": [_serialize_destination(d) for d in destinations]})
+
+
+def _adopt_forwarding_inboxes(site):
+    """Inboxes this site's domain already forwards to (its own rules, or ones
+    set up straight in Cloudflare) that Cloudflare has verified become the
+    site's inboxes, so the owner can pick them instead of re-adding them."""
+    if not (site.cloudflare_zone_id and site.domain_status == Site.DOMAIN_ACTIVE):
+        return
+    known = set(site.email_destinations.values_list("email", flat=True))
+    used = {r.to_address.lower() for r in site.email_routes.all()}
+    try:
+        for rule in cloudflare.list_routing_rules(site.cloudflare_zone_id):
+            used.update(a.strip().lower() for a in rule["to_address"].split(","))
+        new = sorted((used - known) & cloudflare.verified_destinations())
+    except CloudflareError:
+        return
+    for email in new[: max(0, 10 - len(known))]:
+        EmailDestination.objects.get_or_create(site=site, email=email, defaults={"verified": True})
 
 
 @csrf_exempt

@@ -22,6 +22,14 @@ class Template(models.Model):
         help_text="Domain, email routing and the rest of the Deploy tab are managed by Vicinic for sites on this "
         "template — web-portal shows them read-only and the API refuses changes.",
     )
+    private = models.BooleanField(
+        default=False,
+        help_text="A custom design: only the accounts in allowed_users see it in the template picker or can build on it.",
+    )
+    allowed_users = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, blank=True, related_name="private_templates",
+        help_text="Who may use a private template.",
+    )
     default_primary_color = models.CharField(
         max_length=7, blank=True, validators=[HEX_COLOR_VALIDATOR],
         help_text="This template's own dominant accent color, auto-detected at ingest "
@@ -30,6 +38,12 @@ class Template(models.Model):
         "so a Site's own primary_color override has nothing to hook into.",
     )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @classmethod
+    def available_to(cls, user):
+        """Active templates this user may pick: every public one, plus the
+        private ones they've been given."""
+        return cls.objects.filter(is_active=True).filter(models.Q(private=False) | models.Q(allowed_users=user)).distinct()
 
     def __str__(self):
         return self.name

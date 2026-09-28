@@ -12,7 +12,7 @@ import re
 from bs4 import BeautifulSoup
 from django.utils.text import slugify
 
-from . import site_sections
+from . import section_styles, site_sections
 
 SECTIONS_MARKER = "<!--vicinic-sections-->"
 STARTER_SLUGS = ("starter-page", "starter", "blank-page", "blank")
@@ -76,7 +76,11 @@ def fill(rendered_html, custom_page, site_name, edit_mode):
             '<section class="py-5"><div class="container text-center text-muted">'
             "<p>This page is empty — add a section from the editor below.</p></div></section>"
         )
-    out = rendered_html.replace(SECTIONS_MARKER, "".join(body), 1)
+    out = rendered_html.replace(SECTIONS_MARKER, f'<div class="vicinic-sections">{"".join(body)}</div>', 1)
+    if section_styles.needs_styles(out):
+        style = f"<style>{section_styles.CSS}</style>"
+        idx = out.lower().find("</head>")
+        out = out[:idx] + style + out[idx:] if idx != -1 else style + out
     return TITLE_RE.sub(lambda m: f"{m.group(1)}{title} | {html_lib.escape(site_name)}{m.group(3)}", out, count=1)
 
 

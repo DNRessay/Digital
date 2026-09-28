@@ -12,6 +12,7 @@ import {
   listSites,
   listTemplates,
   setSitePlan,
+  updateTemplateAccess,
   login,
   logout,
   updateBlogPost,
@@ -632,7 +633,7 @@ function UploadForm({ onUploaded }) {
   )
 }
 
-function TemplateList({ templates, onDelete, deletingId, deleteError }) {
+function TemplateList({ templates, onDelete, onAccess, deletingId, deleteError }) {
   return (
     <div className="card">
       <h2>Existing templates</h2>
@@ -647,6 +648,7 @@ function TemplateList({ templates, onDelete, deletingId, deleteError }) {
               <th>Slug</th>
               <th>Pages</th>
               <th>Slots</th>
+              <th>Access</th>
               <th>Added</th>
               <th></th>
             </tr>
@@ -658,6 +660,12 @@ function TemplateList({ templates, onDelete, deletingId, deleteError }) {
                 <td>{t.slug}</td>
                 <td>{t.pages}</td>
                 <td>{t.slots}</td>
+                <td>
+                  {t.private ? `Custom · ${t.allowed_users.join(', ') || 'nobody'}` : 'Public'}{' '}
+                  <button type="button" className="link-button" onClick={() => onAccess(t)}>
+                    Edit
+                  </button>
+                </td>
                 <td>{new Date(t.created_at).toLocaleString()}</td>
                 <td>
                   <button
@@ -697,6 +705,22 @@ function Templates() {
     refresh()
   }, [])
 
+  async function handleAccess(template) {
+    const answer = window.prompt(
+      `Who may use "${template.name}"? Usernames, comma-separated. Leave empty to make it public for everyone.`,
+      template.allowed_users.join(', ')
+    )
+    if (answer === null) return
+    const users = answer.split(',').map((u) => u.trim()).filter(Boolean)
+    setDeleteError(null)
+    try {
+      await updateTemplateAccess(template.id, users.length > 0, users)
+      await refresh()
+    } catch (err) {
+      setDeleteError(err.message)
+    }
+  }
+
   async function handleDelete(template) {
     if (!window.confirm(`Delete "${template.name}"? This can't be undone.`)) return
     setDeletingId(template.id)
@@ -715,7 +739,13 @@ function Templates() {
     <>
       {loadError && <div className="card error">Could not load templates: {loadError}</div>}
       <UploadForm onUploaded={refresh} />
-      <TemplateList templates={templates} onDelete={handleDelete} deletingId={deletingId} deleteError={deleteError} />
+      <TemplateList
+        templates={templates}
+        onDelete={handleDelete}
+        onAccess={handleAccess}
+        deletingId={deletingId}
+        deleteError={deleteError}
+      />
     </>
   )
 }

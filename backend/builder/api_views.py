@@ -20,6 +20,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import authenticate
+from django.contrib.auth.models import User
 from django.db import IntegrityError
 from django.db.models import Count, ProtectedError, Q
 from django.http import JsonResponse
@@ -73,6 +74,8 @@ def _serialize_template(template):
         "name": template.name,
         "slug": template.slug,
         "is_active": template.is_active,
+        "private": template.private,
+        "allowed_users": sorted(template.allowed_users.values_list("username", flat=True)),
         "pages": template.pages.count(),
         "slots": template.slots.count(),
         "created_at": template.created_at.isoformat(),
@@ -136,11 +139,26 @@ def api_templates(request):
 
 @csrf_exempt
 @admin_token_required
-@require_http_methods(["DELETE"])
+@require_http_methods(["DELETE", "PATCH"])
 def api_template_delete(request, template_id):
+    """DELETE removes a template; PATCH {private, allowed_users: [username]}
+    makes it a custom design only those accounts can see and use."""
     template = Template.objects.filter(id=template_id).first()
     if template is None:
         return JsonResponse({"error": "Template not found."}, status=404)
+    if request.method == "PATCH":
+        body = _json_body(request)
+        if "private" in body:
+            template.private = bool(body["private"])
+            template.save(update_fields=["private"])
+        if "allowed_users" in body:
+            names = [str(n).strip() for n in body["allowed_users"] if str(n).strip()]
+            users = list(User.objects.filter(username__in=names))
+            missing = sorted(set(names) - {u.username for u in users})
+            if missing:
+                return JsonResponse({"error": f"No account with username: {', '.join(missing)}."}, status=400)
+            template.allowed_users.set(users)
+        return JsonResponse({"template": _serialize_template(template)})
     try:
         template.delete()
     except ProtectedError:

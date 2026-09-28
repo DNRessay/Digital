@@ -510,7 +510,7 @@ def template_preview(request, template_slug):
     """Public, read-only render of a template's home page with its own
     default text — what web-portal's "Create your site" carousel embeds
     (in an iframe) so customers can see a template before picking it."""
-    template = get_object_or_404(Template, slug=template_slug, is_active=True)
+    template = get_object_or_404(Template, slug=template_slug, is_active=True, private=False)
     page = get_object_or_404(TemplatePage, template=template, slug="")
     preview_site = Site(name=template.name, slug="preview", template=template)
     context = {"site": preview_site}

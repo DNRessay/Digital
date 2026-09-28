@@ -2353,7 +2353,7 @@ function AddPageButton({ site, pagesState, onCreated }) {
 
   if (!open) {
     return (
-      <button type="button" className="link-button add-page-button" disabled={!pagesState.can_add} onClick={() => setOpen(true)}>
+      <button type="button" className="add-page-button" disabled={!pagesState.can_add} onClick={() => setOpen(true)}>
         + Add a page{limitText}
       </button>
     )
@@ -2519,7 +2519,10 @@ function VisualEditor({ site }) {
   if (loadError) return <div className="card error">Could not load this site's text: {loadError}</div>
   if (!groups || activePage === null) return null
 
-  const pages = groups.filter((g) => g.page !== null)
+  // Templates whose text is all shared (header/footer slots) have no page
+  // groups at all — the home page still exists, so always offer it.
+  const pageGroups = groups.filter((g) => g.page !== null)
+  const pages = pageGroups.some((g) => g.page === '') ? pageGroups : [{ page: '', label: 'Home' }, ...pageGroups]
   const isFreeTier = site.subscription_status !== 'active'
   const isDirty = Object.keys(drafts).length > 0 || imagesPending
   const previewUrl = `${API_BASE}/${site.slug}/${activePage ? `${activePage}/` : ''}?vicinic_edit=1&v=${previewNonce}`
