@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import Header from '../components/Header.jsx'
 import Footer from '../components/Footer.jsx'
+import CookieBanner from '../components/CookieBanner.jsx'
 import useOrbitChrome from '../hooks/useOrbitChrome.js'
 
 export default function Layout() {
@@ -13,6 +14,7 @@ export default function Layout() {
         <Outlet />
       </main>
       <Footer />
+      <CookieBanner />
       <a href="#" id="scroll-top" className="scroll-top d-flex align-items-center justify-content-center" onClick={(e) => e.preventDefault()}>
         <i className="bi bi-arrow-up-short"></i>
       </a>

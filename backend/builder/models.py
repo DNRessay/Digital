@@ -451,6 +451,9 @@ class CustomerProfile(models.Model):
     state = models.CharField(max_length=100, blank=True)
     postal_code = models.CharField(max_length=20, blank=True)
     country_code = models.CharField(max_length=2, default="ZA")
+    terms_accepted_at = models.DateTimeField(
+        null=True, blank=True, help_text="When the customer accepted the Terms of Service and Privacy Policy at sign-up."
+    )
 
     REQUIRED_FIELDS = ("legal_name", "phone", "street", "city", "postal_code", "country_code")
 

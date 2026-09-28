@@ -280,6 +280,8 @@ def api_customer_register(request):
 
     if not name or not username or not email or not password:
         return JsonResponse({"error": "Name, username, email and password are all required."}, status=400)
+    if body.get("accept_terms") is not True:
+        return JsonResponse({"error": "Please accept the Terms of Service and Privacy Policy to sign up."}, status=400)
 
     try:
         validate_email(email)
@@ -306,6 +308,7 @@ def api_customer_register(request):
     except IntegrityError:
         return JsonResponse({"error": "That username was just taken — try again."}, status=409)
 
+    CustomerProfile.objects.create(user=user, legal_name=name[:200], terms_accepted_at=timezone.now())
     token = CustomerAuthToken.objects.create(user=user)
     return JsonResponse({"authenticated": True, "token": token.key, **_serialize_user(user)}, status=201)
 

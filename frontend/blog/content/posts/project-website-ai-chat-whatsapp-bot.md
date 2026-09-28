@@ -18,8 +18,6 @@ A chat bubble sits in the corner of your site. The assistant answers from your o
 
 On Growth Hub and Business OS you can connect your own WhatsApp Business number. The same assistant then replies to customers on WhatsApp, the app most South Africans already use every day.
 
-## How it's built
+## Built on trusted platforms
 
-Replies are generated with Groq's fast open-weight models, and the system switches models automatically if one is unavailable. WhatsApp runs on Meta's official WhatsApp Cloud API, connected through Meta's embedded sign-up, so you never have to hand us a password.
-
-[Sign up free](https://console.vicinic.co.za/?signup) to try the website chat on your own site.
+Replies come from fast, modern AI models, and WhatsApp runs on Meta's official WhatsApp Business platform. Connecting your number uses Meta's own secure sign-up, so you never have to share a password with us.

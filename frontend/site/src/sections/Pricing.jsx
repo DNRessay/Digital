@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { SIGNUP_URL } from '../lib/signup.js'
 import SectionLink from '../components/SectionLink.jsx'
 
@@ -8,7 +9,7 @@ const PLANS = [
     onceOff: true,
     delay: 100,
     features: [
-      'Free .co.za domain included (1 per site)',
+      'Free .co.za domain (1 per purchase, if the name is available)',
       'Pick a template and edit text, images, logo & links live',
       'Easy menu editor, plus up to 3 extra pages',
       'AI chat assistant that answers your visitors',
@@ -132,7 +133,7 @@ export default function Pricing({ standalone = false }) {
       <div className="container section-title" data-aos="fade-up">
         {standalone && <h1 className="visually-hidden">Pricing</h1>}
         <h2>Pricing</h2>
-        <p>Sign up free, build your site in the editor, then pick a plan when you're ready to go live. Every paid plan includes a free .co.za domain, hosting, security and ongoing support.</p>
+        <p>Sign up free, build your site in the editor, then pick a plan when you're ready to go live. Every paid plan includes a free .co.za domain (while the name is available — see our <Link to="/terms">terms</Link>), hosting, security and ongoing support.</p>
       </div>
 
       <div className="container" data-aos="fade-up" data-aos-delay="100">
