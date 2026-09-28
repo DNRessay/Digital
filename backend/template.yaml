@@ -62,7 +62,7 @@ Parameters:
     Description: Free-tier Hugging Face Inference API token for the AI chat widget — see builder/services/ai_assistant.py
   HuggingFaceModel:
     Type: String
-    Default: "HuggingFaceH4/zephyr-7b-beta"
+    Default: "meta-llama/Llama-3.1-8B-Instruct"
   HostAfricaApiEmail:
     Type: String
     Default: ""

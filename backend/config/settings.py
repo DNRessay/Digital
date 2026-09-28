@@ -240,14 +240,16 @@ WHATSAPP_APP_ID = os.environ.get("WHATSAPP_APP_ID", "")
 WHATSAPP_CONFIG_ID = os.environ.get("WHATSAPP_CONFIG_ID", "")
 WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")
 
-# AI chat widget (builder/services/ai_assistant.py) — a free-tier Hugging
-# Face model answers simple visitor questions on a Site's rendered pages,
-# using Site.ai_assistant_description as context. HUGGINGFACE_MODEL is a
+# AI chat widget (builder/services/ai_assistant.py) — answers simple visitor
+# questions on a Site's rendered pages, using Site.ai_assistant_description
+# as context. Groq (GROQ_API_KEYS) with AI_CHAT_MODEL first; the Hugging Face
+# model below is the fallback when no Groq key is set. HUGGINGFACE_MODEL is a
 # setting rather than hardcoded because Hugging Face's free-tier hosted
 # models rotate over time; if the default stops responding, point this at
 # whatever small instruct model is currently free on
 # https://huggingface.co/models?inference=warm&pipeline_tag=text-generation
 HUGGINGFACE_API_TOKEN = os.environ.get("HUGGINGFACE_API_TOKEN", "")
-HUGGINGFACE_MODEL = os.environ.get("HUGGINGFACE_MODEL", "HuggingFaceH4/zephyr-7b-beta")
+HUGGINGFACE_MODEL = os.environ.get("HUGGINGFACE_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
+AI_CHAT_MODEL = os.environ.get("AI_CHAT_MODEL", "llama-3.1-8b-instant")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
