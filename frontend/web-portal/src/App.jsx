@@ -368,7 +368,8 @@ function UpgradeCard({ site }) {
     listPackages()
       .then((data) => {
         setPackages(data.packages)
-        if (data.packages.length > 0) setPackageId(data.packages[0].id)
+        const selfServe = data.packages.filter((p) => !p.sales_only)
+        if (selfServe.length > 0) setPackageId(selfServe[0].id)
       })
       .catch((err) => setPackagesError(err.message))
   }, [])
@@ -414,7 +415,7 @@ function UpgradeCard({ site }) {
       <label htmlFor="package">Package</label>
       <select id="package" value={packageId} onChange={(e) => setPackageId(e.target.value)} disabled={!packages}>
         {!packages && <option value="">Loading…</option>}
-        {packages && packages.map((p) => (
+        {packages && packages.filter((p) => !p.sales_only).map((p) => (
           <option key={p.id} value={p.id}>
             {p.once_off ? `${p.label} — R${p.setup} once-off, yours forever` : `${p.label} — R${p.monthly}/month (R${p.setup} once-off setup)`}
           </option>
@@ -424,6 +425,13 @@ function UpgradeCard({ site }) {
       <button type="submit" disabled={busy || !packageId}>
         {busy ? 'Redirecting to PayFast…' : 'Pay with PayFast'}
       </button>
+      {packages && packages.some((p) => p.sales_only) && (
+        <p className="field-hint">
+          {packages.filter((p) => p.sales_only).map((p) => p.label).join(' and ')} include features our team sets up for
+          you.{' '}
+          <a href="https://vicinic.co.za/contact" target="_blank" rel="noreferrer">Contact sales</a> to get started.
+        </p>
+      )}
     </form>
   )
 }

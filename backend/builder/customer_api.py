@@ -439,6 +439,7 @@ def api_customer_packages(request):
                     "monthly": str(p["monthly"]),
                     "setup": str(p["setup"]),
                     "once_off": p["monthly"] == 0,
+                    "sales_only": p.get("sales_only", False),
                 }
                 for pid, p in PACKAGES.items()
             ]
@@ -465,6 +466,8 @@ def api_customer_checkout(request, site_slug):
 
     if package_id not in PACKAGES:
         return JsonResponse({"error": "Unknown package."}, status=400)
+    if PACKAGES[package_id].get("sales_only"):
+        return JsonResponse({"error": f"{PACKAGES[package_id]['label']} is set up with our sales team — contact us to get started."}, status=400)
     if not _origin_allowed(return_url) or not _origin_allowed(cancel_url):
         return JsonResponse({"error": "return_url/cancel_url must be one of this site's known frontend origins."}, status=400)
 
