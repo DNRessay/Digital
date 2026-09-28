@@ -1,8 +1,8 @@
 name: Blog
 
-# Drafts a researched post Mon/Wed/Fri and sends it to the admin's Blog tab
-# for review. Every hour, posts approved there (or whose review window ran
-# out) are committed to frontend/blog/content/posts, which rebuilds
+# Mon/Wed/Fri the backend researches and drafts a post (backend/blog_research)
+# for review in the admin's Blog tab. Every hour, posts approved there (or
+# whose review window ran out) are committed to frontend/blog/content/posts, which rebuilds
 # blog.vicinic.co.za.
 
 on:
@@ -15,8 +15,8 @@ on:
         description: "draft or publish"
         default: draft
       type:
-        description: "draft only: auto, deep or pulse"
-        default: auto
+        description: "draft only, with a category: deep or pulse"
+        default: deep
       category:
         description: "draft only: deep category key (websites, marketing, ai_business, ecommerce, sa_business, space_tech)"
         default: ""
@@ -41,16 +41,10 @@ jobs:
           python-version: "3.12"
       - run: pip install -r research/requirements.txt
       - env:
-          GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
-          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
-          NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
-          DJANGO_SECRET_KEY: ${{ secrets.AWS_DJANGO_SECRET_KEY }}
-          POST_TYPE: ${{ inputs.type || 'auto' }}
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
           POST_CATEGORY: ${{ inputs.category }}
-        run: |
-          args=(--type "$POST_TYPE")
-          [ -n "$POST_CATEGORY" ] && args+=(--category "$POST_CATEGORY")
-          python -m research.run "${args[@]}"
+          POST_TYPE: ${{ inputs.type || 'deep' }}
+        run: python -m research.api "$POST_CATEGORY" "$POST_TYPE"
 
   publish:
     if: github.event.schedule == '23 * * * *' || inputs.job == 'publish'
@@ -59,13 +53,13 @@ jobs:
       run:
         working-directory: frontend/blog
     env:
-      DJANGO_SECRET_KEY: ${{ secrets.AWS_DJANGO_SECRET_KEY }}
+      DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install requests
+      - run: pip install -r research/requirements.txt
       - run: python -m research.publish
       - name: Commit new posts
         run: |

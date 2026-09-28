@@ -1,5 +1,6 @@
-# What the blog researches. The blog.yml cron runs Mon, Wed and Fri; each
-# run follows schedule[<weekday>]. Source types are the keys of FETCHERS in
+# What the blog researches. The Blog workflow asks the backend for a draft on
+# Mon, Wed and Fri; each run follows schedule[<weekday>]. The admin's Blog tab
+# browses these categories too. Source types are the keys of FETCHERS in
 # sources/__init__.py.
 llm:
   model: openai/gpt-oss-120b  # falls back to the best live Groq model if unavailable
@@ -18,6 +19,13 @@ categories:
       - {type: rss, url: "https://developers.google.com/search/blog/feeds/atom.xml", max: 10}
       - {type: rss, url: "https://www.smashingmagazine.com/feed/", max: 10}
       - {type: serpapi_news, query: "small business website domain", gl: za, max: 10}
+      - {type: semantic_scholar, query: "small business website adoption", max: 10}
+    topics:
+      - why a business needs its own website, not just social media
+      - choosing and protecting a .co.za domain
+      - what makes a small business website convert visitors
+      - Google Business Profile basics
+      - website speed and mobile-friendliness
 
   marketing:
     name: Marketing & Growth
@@ -26,6 +34,14 @@ categories:
       - {type: reddit, sub: marketing, max: 15}
       - {type: reddit, sub: smallbusiness, max: 15}
       - {type: serpapi_news, query: "small business marketing South Africa", gl: za, max: 10}
+      - {type: semantic_scholar, query: "social media marketing small business", max: 10}
+      - {type: semantic_scholar, query: "local search engine optimization", max: 8}
+    topics:
+      - getting more Google reviews
+      - WhatsApp Business for customer service
+      - local SEO for township and suburb businesses
+      - low-budget social media content
+      - turning website visitors into leads
 
   ai_business:
     name: AI for Small Business
@@ -34,6 +50,13 @@ categories:
       - {type: hn, query: "AI small business", max: 15}
       - {type: rss, url: "https://huggingface.co/blog/feed.xml", max: 10}
       - {type: serpapi_news, query: "AI tools small business", gl: za, max: 10}
+      - {type: arxiv, query: "cat:cs.AI AND (abs:business OR abs:enterprise OR abs:customer)", max: 15}
+      - {type: semantic_scholar, query: "generative AI small and medium enterprises", max: 10}
+    topics:
+      - AI chatbots that answer customers after hours
+      - using AI to write product descriptions and posts
+      - AI tools a one-person business can use today
+      - risks of AI: accuracy, privacy and customer trust
 
   ecommerce:
     name: Selling Online
@@ -41,6 +64,12 @@ categories:
     sources:
       - {type: rss, url: "https://techcabal.com/feed/", max: 15}
       - {type: serpapi_news, query: "South Africa ecommerce online shopping", gl: za, max: 10}
+      - {type: semantic_scholar, query: "e-commerce adoption SMEs Africa", max: 10}
+    topics:
+      - taking card payments online as a small business
+      - delivery options for small online shops in SA
+      - building trust so first-time customers buy
+      - selling on marketplaces vs your own site
 
   sa_business:
     name: SA Business News
@@ -49,6 +78,12 @@ categories:
       - {type: rss, url: "https://businesstech.co.za/news/feed/", max: 15}
       - {type: rss, url: "https://techcabal.com/feed/", max: 15}
       - {type: serpapi_news, query: "South Africa small business SME", gl: za, max: 15}
+      - {type: semantic_scholar, query: "South Africa small business informal sector", max: 10}
+    topics:
+      - registering a business and staying tax compliant
+      - funding and grants for SA small businesses
+      - running a business through load shedding
+      - digital skills for small business owners
 
   space_tech:
     name: Space & Tech
@@ -57,3 +92,8 @@ categories:
       - {type: nasa_apod, count: 5}
       - {type: serpapi_news, query: "space technology satellite internet South Africa", gl: za, max: 10}
       - {type: serpapi_news, query: "NASA discovery", max: 10}
+      - {type: arxiv, query: "cat:astro-ph.EP OR cat:astro-ph.IM", max: 15}
+    topics:
+      - satellite internet and connectivity for rural businesses
+      - what space science teaches about innovation
+      - South Africa's role in astronomy (SKA, SALT)

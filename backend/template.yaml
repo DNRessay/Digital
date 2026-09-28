@@ -72,6 +72,21 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: HostAfrica Domains Reseller API key (Client Area → Domains → Reseller Area → Integrations) — see builder/services/hostafrica.py
+  GroqApiKeys:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Comma-separated Groq API keys for the blog research pipeline — see blog_research/llm.py
+  SerpApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: SerpAPI key for the blog's Google News sources (optional)
+  NasaApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: NASA API key for the blog's APOD source (optional; DEMO_KEY otherwise)
   WhatsAppAccessToken:
     Type: String
     Default: ""
@@ -171,7 +186,17 @@ Resources:
           WHATSAPP_CONFIG_ID: !Ref WhatsAppConfigId
           WHATSAPP_VERIFY_TOKEN: !Ref WhatsAppVerifyToken
           ADMIN_NOTIFY_EMAIL: !Ref AdminNotifyEmail
+          GROQ_API_KEYS: !Ref GroqApiKeys
+          SERPAPI_KEY: !Ref SerpApiKey
+          NASA_API_KEY: !Ref NasaApiKey
+      # Blog research runs as an async self-invoke (builder/services/blog_jobs.py)
+      # and can take several minutes of LLM calls.
+      Timeout: 600
       Policies:
+        - Statement:
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-DjangoFunction-*"
         - S3CrudPolicy:
             BucketName: !Ref TemplateAssetsBucket
         - SESCrudPolicy:

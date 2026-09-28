@@ -145,26 +145,27 @@ Name the project `vicinic-blog` and don't give it a custom domain: the
 
 ### AI drafts (ported from Bloggify)
 
-`blog/research/` researches and drafts posts with Groq, using the sources and
-topics in `research/topics.yaml`. The `Blog` workflow (`.github/workflows/blog.yml`):
+The research engine lives in `backend/blog_research/` (sources, Groq, PDF
+reading). Categories, sources and evergreen topics are in `topics.yaml`. It
+runs as a background self-invoke of the backend Lambda.
 
-1. **Mon, Wed, Fri 04:47 UTC**: drafts one post and sends it to the backend.
-   It shows up in the admin's **Blog** tab.
-2. There you can approve, edit, hold or reject it. A draft you don't touch is
-   approved automatically after `BLOG_REVIEW_HOURS` (48 by default, a backend
-   env var).
-3. **Hourly**: approved posts are committed to `blog/content/posts`, which
-   rebuilds the blog.
+**Admin → Blog → Write a post**: pick a category. You can then:
+- tap **Show latest news** to see fresh research papers and news, and tick up
+  to 5 (the first one leads the post);
+- tap **Suggest post ideas** to get ideas built on papers, news, or the
+  category's evergreen topics, then tap **Use this idea**;
+- paste paper or article links (arXiv, PDFs, any article);
+- tell the AI what you want.
 
-The workflow needs the `GROQ_API_KEYS` repo secret (comma-separated keys,
-rotated on rate limits). `SERPAPI_KEY` (Google News searches) and `NASA_API_KEY`
-(NASA APOD, for the Space & Tech category) are optional: without them news
-searches are skipped and NASA uses its rate-limited DEMO_KEY. It authenticates to the backend with a token derived from the
-existing `AWS_DJANGO_SECRET_KEY` secret. To run it by hand: Actions → Blog →
-Run workflow (`job` = `draft` or `publish`). For a local dry run:
+Then tap **Write draft**. It takes a few minutes. Every draft (yours and the
+Mon/Wed/Fri ones from the `Blog` workflow) waits for review. Approve, edit,
+hold or reject it; anything left alone goes live after `BLOG_REVIEW_HOURS`
+(48). Every hour the workflow commits approved posts to `blog/content/posts`,
+which rebuilds the blog. You can run it by hand from Actions → Blog → Run
+workflow (`job` = `draft` or `publish`).
 
-```bash
-cd frontend/blog
-pip install -r research/requirements.txt
-GROQ_API_KEYS=... python -m research.run --type deep --category marketing --dry-run
-```
+Repo secrets: `GROQ_API_KEYS` (comma-separated, rotated on rate limits),
+plus optional `SERPAPI_KEY` (Google News) and `NASA_API_KEY` (APOD). They
+reach the Lambda through the backend deploy, so run a backend deploy after
+changing them. The workflow authenticates with a token derived from
+`DJANGO_SECRET_KEY`.

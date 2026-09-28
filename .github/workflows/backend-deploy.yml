@@ -117,6 +117,9 @@ jobs:
           AWS_WHATSAPP_APP_ID: ${{ secrets.WHATSAPP_APP_ID }}
           AWS_WHATSAPP_CONFIG_ID: ${{ secrets.WHATSAPP_CONFIG_ID }}
           AWS_WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
+          AWS_GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
+          AWS_SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          AWS_NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
         run: |
           # SAM's --parameter-overrides shorthand rejects an empty value
           # outright, so optional params (not every deploy has these
@@ -155,6 +158,9 @@ jobs:
           [ -n "${AWS_HUGGINGFACE_MODEL}" ] && OVERRIDES+=("HuggingFaceModel=${AWS_HUGGINGFACE_MODEL}")
           [ -n "${AWS_HOSTAFRICA_API_EMAIL}" ] && OVERRIDES+=("HostAfricaApiEmail=${AWS_HOSTAFRICA_API_EMAIL}")
           [ -n "${AWS_HOSTAFRICA_API_KEY}" ] && OVERRIDES+=("HostAfricaApiKey=${AWS_HOSTAFRICA_API_KEY}")
+          [ -n "${AWS_GROQ_API_KEYS}" ] && OVERRIDES+=("GroqApiKeys=${AWS_GROQ_API_KEYS}")
+          [ -n "${AWS_SERPAPI_KEY}" ] && OVERRIDES+=("SerpApiKey=${AWS_SERPAPI_KEY}")
+          [ -n "${AWS_NASA_API_KEY}" ] && OVERRIDES+=("NasaApiKey=${AWS_NASA_API_KEY}")
           [ -n "${AWS_WHATSAPP_ACCESS_TOKEN}" ] && OVERRIDES+=("WhatsAppAccessToken=${AWS_WHATSAPP_ACCESS_TOKEN}")
           [ -n "${AWS_WHATSAPP_APP_ID}" ] && OVERRIDES+=("WhatsAppAppId=${AWS_WHATSAPP_APP_ID}")
           [ -n "${AWS_WHATSAPP_CONFIG_ID}" ] && OVERRIDES+=("WhatsAppConfigId=${AWS_WHATSAPP_CONFIG_ID}")

@@ -199,6 +199,9 @@ HOSTAFRICA_API_KEY = os.environ.get("HOSTAFRICA_API_KEY", "")
 # AI blog drafts (builder/blog_api.py) go live on their own after this many
 # hours unless a staff member approves, rejects or holds them first.
 BLOG_REVIEW_HOURS = int(os.environ.get("BLOG_REVIEW_HOURS", "48"))
+# The research pipeline (blog_research/) reads GROQ_API_KEYS (comma-separated,
+# rotated on rate limits), SERPAPI_KEY and NASA_API_KEY straight from the
+# environment.
 HOSTAFRICA_MANUAL_ZA = os.environ.get("HOSTAFRICA_MANUAL_ZA", "true").lower() == "true"
 # Customer pricing (builder/services/domain_search.py): TLDs listed here sell
 # at that fixed first-year price ("co.za=150,org.za=120"); everything else is

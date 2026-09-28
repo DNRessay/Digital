@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import {
   blogPostAction,
+  browseBlogNews,
+  generateBlogPost,
+  suggestBlogIdeas,
   deleteTemplate,
   getAnalytics,
   getBlogPost,
@@ -182,7 +185,13 @@ function Sites() {
   )
 }
 
-const BLOG_STATUS_LABELS = { draft: 'Draft', approved: 'Approved — goes live within the hour', published: 'Live', rejected: 'Rejected' }
+const BLOG_STATUS_LABELS = {
+  generating: 'Researching & writing…',
+  failed: 'Failed',
+  draft: 'Draft', approved: 'Approved — goes live within the hour',
+  published: 'Live',
+  rejected: 'Rejected',
+}
 
 function timeLeft(iso) {
   const ms = new Date(iso) - Date.now()
@@ -226,6 +235,27 @@ function BlogEditor({ postId, onChanged, onClose }) {
   if (error && !post) return <div className="card error">{error}</div>
   if (!post) return <div className="card">Loading post…</div>
   const locked = post.status === 'published'
+
+  if (post.status === 'generating' || post.status === 'failed') {
+    return (
+      <div className="card blog-editor">
+        <button type="button" className="link-button" onClick={onClose}>← All posts</button>
+        <h1 className="blog-title">{post.title}</h1>
+        {post.status === 'generating' ? (
+          <p>Researching and writing — this takes a few minutes. It'll show up as a draft in the list.</p>
+        ) : (
+          <>
+            <div className="error">{post.error || 'Something went wrong.'}</div>
+            <div className="button-row">
+              <button type="button" disabled={busy} onClick={() => run(() => blogPostAction(post.id, 'retry'))}>Try again</button>
+              <button type="button" className="danger" disabled={busy} onClick={() => run(() => blogPostAction(post.id, 'reject'))}>Discard</button>
+            </div>
+          </>
+        )}
+        {post.instructions && <p className="muted">Your instructions: {post.instructions}</p>}
+      </div>
+    )
+  }
 
   return (
     <div className="card blog-editor">
@@ -285,6 +315,183 @@ function BlogEditor({ postId, onChanged, onClose }) {
   )
 }
 
+const MAX_PICKS = 5
+
+function BlogComposer({ categories, onStarted }) {
+  const [category, setCategory] = useState(categories[0]?.key || '')
+  const [postType, setPostType] = useState('deep')
+  const [news, setNews] = useState(null)
+  const [picked, setPicked] = useState([])
+  const [ideas, setIdeas] = useState(null)
+  const [links, setLinks] = useState('')
+  const [instructions, setInstructions] = useState('')
+  const [busy, setBusy] = useState(null) // news | ideas | write
+  const [error, setError] = useState(null)
+
+  async function run(kind, fn) {
+    setBusy(kind)
+    setError(null)
+    try {
+      await fn()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  function changeCategory(key) {
+    setCategory(key)
+    setNews(null)
+    setPicked([])
+    setIdeas(null)
+  }
+
+  function toggle(id) {
+    setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length < MAX_PICKS ? [...cur, id] : cur))
+  }
+
+  const loadNews = () =>
+    run('news', async () => {
+      const data = await browseBlogNews(category)
+      setNews(data.items)
+      setPicked([])
+      setIdeas(null)
+    })
+
+  const loadIdeas = () =>
+    run('ideas', async () => {
+      const data = await suggestBlogIdeas(category, news || [], instructions)
+      if (!news) setNews(data.items)
+      setIdeas({ list: data.ideas, items: data.items })
+    })
+
+  function useIdea(idea) {
+    setPicked(idea.items.slice(0, MAX_PICKS).map((n) => ideas.items[n].id))
+    setInstructions(`Write "${idea.title}". ${idea.angle}`)
+  }
+
+  const newsItem = (item) => (
+    <li key={item.id}>
+      <label className="news-item">
+        <input type="checkbox" checked={picked.includes(item.id)} onChange={() => toggle(item.id)} />
+        <span>
+          <span className="news-title">
+            {picked.includes(item.id) && <span className="pill pill-paid">{picked.indexOf(item.id) + 1}</span>} {item.title}
+          </span>
+          <span className="muted">
+            {item.source}
+            {item.published && ` · ${new Date(item.published).toLocaleDateString()}`} ·{' '}
+            <a href={item.url} target="_blank" rel="noreferrer">open</a>
+          </span>
+        </span>
+      </label>
+    </li>
+  )
+  const papers = (news || []).filter((i) => i.is_paper)
+  const stories = (news || []).filter((i) => !i.is_paper)
+
+  const write = () =>
+    run('write', async () => {
+      const items = (news || []).filter((i) => picked.includes(i.id))
+      items.sort((a, b) => picked.indexOf(a.id) - picked.indexOf(b.id))
+      const urls = links.split(/\s+/).filter((u) => /^https?:\/\//.test(u))
+      await generateBlogPost({ category, post_type: postType, items, urls, instructions })
+      setPicked([])
+      setLinks('')
+      setInstructions('')
+      setIdeas(null)
+      onStarted()
+    })
+
+  return (
+    <div className="card">
+      <h2>Write a post</h2>
+      {error && <div className="error">{error}</div>}
+      <label htmlFor="blog-category">Category</label>
+      <select id="blog-category" value={category} onChange={(e) => changeCategory(e.target.value)}>
+        {categories.map((c) => (
+          <option key={c.key} value={c.key}>{c.name}</option>
+        ))}
+      </select>
+      <label htmlFor="blog-type">Kind of post</label>
+      <select id="blog-type" value={postType} onChange={(e) => setPostType(e.target.value)}>
+        <option value="deep">Deep dive — one main story</option>
+        <option value="pulse">News digest — several stories</option>
+      </select>
+
+      <div className="button-row">
+        <button type="button" className="secondary" disabled={busy !== null} onClick={loadNews}>
+          {busy === 'news' ? 'Loading news…' : news ? 'Refresh news' : 'Show latest news'}
+        </button>
+        <button type="button" className="secondary" disabled={busy !== null} onClick={loadIdeas}>
+          {busy === 'ideas' ? 'Thinking…' : 'Suggest post ideas'}
+        </button>
+      </div>
+
+      {ideas && (
+        <ul className="idea-list">
+          {ideas.list.map((idea, n) => (
+            <li key={n}>
+              <span className="pill">{{ paper: 'From a paper', news: 'From the news', topic: 'Evergreen topic' }[idea.kind]}</span>
+              <strong>{idea.title}</strong>
+              <span className="muted">{idea.angle}</span>
+              <button type="button" className="link-button" onClick={() => useIdea(idea)}>Use this idea</button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {news && (
+        news.length === 0 ? (
+          <p className="muted">Nothing new in this category right now.</p>
+        ) : (
+          <>
+            <p className="muted">Pick up to {MAX_PICKS} — the first one you pick leads the post.</p>
+            {papers.length > 0 && (
+              <>
+                <h3 className="list-heading">Research papers</h3>
+                <ul className="news-list">{papers.map(newsItem)}</ul>
+              </>
+            )}
+            {stories.length > 0 && (
+              <>
+                <h3 className="list-heading">News</h3>
+                <ul className="news-list">{stories.map(newsItem)}</ul>
+              </>
+            )}
+          </>
+        )
+      )}
+
+      <label htmlFor="blog-links">Paper or article links (optional, one per line)</label>
+      <textarea
+        id="blog-links"
+        rows={3}
+        placeholder="https://arxiv.org/abs/… or any article URL"
+        value={links}
+        onChange={(e) => setLinks(e.target.value)}
+      />
+      <label htmlFor="blog-instructions">Tell the AI what you want (optional)</label>
+      <textarea
+        id="blog-instructions"
+        rows={4}
+        placeholder="e.g. Focus on what this means for hair salons, keep it under 800 words, end with a WhatsApp tip."
+        value={instructions}
+        onChange={(e) => setInstructions(e.target.value)}
+      />
+      <p className="muted">
+        Picked nothing? The AI picks the freshest news in the category itself.
+      </p>
+      <div className="button-row">
+        <button type="button" disabled={busy !== null} onClick={write}>
+          {busy === 'write' ? 'Starting…' : 'Write draft'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function Blog() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -298,35 +505,46 @@ function Blog() {
 
   useEffect(refresh, [])
 
+  const generating = data?.posts.some((p) => p.status === 'generating')
+  useEffect(() => {
+    if (!generating) return undefined
+    const timer = setInterval(refresh, 8000)
+    return () => clearInterval(timer)
+  }, [generating])
+
   if (openId) return <BlogEditor postId={openId} onChanged={refresh} onClose={() => setOpenId(null)} />
   if (error) return <div className="card error">Could not load posts: {error}</div>
   if (!data) return <div className="card">Loading posts…</div>
 
   return (
-    <div className="card">
-      <h2>Blog</h2>
-      <p className="muted">
-        AI drafts arrive Mon, Wed and Fri. Anything you don't approve, hold or reject goes live on its own after{' '}
-        {data.review_hours} hours.
-      </p>
-      {data.posts.length === 0 ? (
-        <p>No drafts yet.</p>
-      ) : (
-        <ul className="blog-list">
-          {data.posts.map((p) => (
-            <li key={p.id}>
-              <button type="button" className="blog-row" onClick={() => setOpenId(p.id)}>
-                <strong>{p.title}</strong>
-                <span className="muted">
-                  {p.category} · {BLOG_STATUS_LABELS[p.status]}
-                  {p.status === 'draft' && (p.auto_publish_at ? ` · auto-publishes ${timeLeft(p.auto_publish_at)}` : ' · on hold')}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <>
+      <BlogComposer categories={data.categories} onStarted={refresh} />
+      <div className="card">
+        <h2>Posts</h2>
+        <p className="muted">
+          AI drafts also arrive on their own Mon, Wed and Fri. Anything you don't approve, hold or reject goes live
+          after {data.review_hours} hours.
+        </p>
+        {data.posts.length === 0 ? (
+          <p>No posts yet.</p>
+        ) : (
+          <ul className="blog-list">
+            {data.posts.map((p) => (
+              <li key={p.id}>
+                <button type="button" className="blog-row" onClick={() => setOpenId(p.id)}>
+                  <strong>{p.title}</strong>
+                  <span className={p.status === 'failed' ? 'error' : 'muted'}>
+                    {p.status !== 'generating' && p.status !== 'failed' && `${p.category} · `}
+                    {BLOG_STATUS_LABELS[p.status]}
+                    {p.status === 'draft' && (p.auto_publish_at ? ` · auto-publishes ${timeLeft(p.auto_publish_at)}` : ' · on hold')}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
   )
 }
 
