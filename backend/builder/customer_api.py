@@ -1307,6 +1307,7 @@ def _link_choices(site, page):
     pages = [
         {"target": f"page:{p.slug}", "title": "Home" if not p.slug else p.slug.replace("-", " ").capitalize()}
         for p in site.template.pages.all()
+        if p.slug not in site_pages.STARTER_SLUGS
     ]
     pages += [{"target": f"page:{p.slug}", "title": p.title} for p in site.custom_pages.all()]
     seen, sections = set(), []

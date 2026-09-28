@@ -142,16 +142,33 @@ def _floating_buttons_html(site, chat_url):
   // right edge and corner shape. Many templates park it off-screen
   // (e.g. bottom:-15px) until the visitor scrolls, so a negative offset
   // counts as its resting 15px.
+  // A template that already has its own floating WhatsApp button keeps it;
+  // ours would only duplicate it.
+  var ownWa = Array.prototype.some.call(document.querySelectorAll('a[href*="wa.me"], a[href*="whatsapp.com"]'), function (a) {{
+    return !stack.contains(a) && getComputedStyle(a).position === 'fixed';
+  }});
+  var ourWa = document.getElementById('vicinic-whatsapp');
+  if (ownWa && ourWa) ourWa.remove();
+  if (!stack.children.length) {{ stack.remove(); return; }}
+
   function place() {{
-    var ref = document.querySelector('#scroll-top, .scroll-top, #back-to-top, .back-to-top, #scrollTop, .scrolltop, #return-to-top');
+    // Stack above the highest of the template's own corner buttons
+    // (back-to-top, a floating WhatsApp button, …).
+    var refs = Array.prototype.filter.call(
+      document.querySelectorAll('#scroll-top, .scroll-top, #back-to-top, .back-to-top, #scrollTop, .scrolltop, #return-to-top, a[href*="wa.me"], a[href*="whatsapp.com"]'),
+      function (el) {{ return !stack.contains(el) && getComputedStyle(el).position === 'fixed'; }}
+    );
     var size = 44, right = 15, bottom = 15, radius = '50%';
-    if (ref) {{
+    refs.forEach(function (ref) {{
       var cs = getComputedStyle(ref);
-      if (ref.offsetWidth >= 30 && ref.offsetWidth <= 80) size = ref.offsetWidth;
-      right = Math.max(parseFloat(cs.right) || 15, 0);
-      bottom = Math.max(parseFloat(cs.bottom) || 15, 15) + (ref.offsetHeight || size) + 10;
-      radius = cs.borderRadius || radius;
-    }}
+      var top = Math.max(parseFloat(cs.bottom) || 15, 15) + (ref.offsetHeight || size) + 10;
+      if (top > bottom) {{
+        bottom = top;
+        right = Math.max(parseFloat(cs.right) || 15, 0);
+        if (ref.offsetWidth >= 30 && ref.offsetWidth <= 80) size = ref.offsetWidth;
+        radius = cs.borderRadius || radius;
+      }}
+    }});
     stack.style.right = right + 'px';
     stack.style.bottom = bottom + 'px';
     Array.prototype.forEach.call(stack.children, function (b) {{
@@ -449,6 +466,7 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None
     else:
         nav_pages = site.custom_pages.filter(show_in_nav=True) if edit_mode else site.custom_pages.filter(show_in_nav=True, published=True)
         html = site_pages.inject_nav(html, [(f"{base_path}{p.slug}/", p.title) for p in nav_pages])
+    html = site_menu.add_mobile_menu(html)
     overrides = {}
     for image in site.images.all():
         url = image.url(draft=edit_mode)

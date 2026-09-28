@@ -14,6 +14,7 @@ import copy
 from bs4 import BeautifulSoup
 
 from . import site_links
+from .site_pages import STARTER_SLUGS
 
 MAX_ITEMS = 12
 MAX_CHILDREN = 10
@@ -36,9 +37,31 @@ def _label(a):
     return " ".join(a.get_text(" ").split())[:MAX_LABEL]
 
 
+def _flat_nav(soup):
+    """A <nav> that holds its links directly (no <ul>), e.g. <nav class="links">."""
+    nav = soup.find("nav")
+    if nav is None or nav.find("ul") is not None or not nav.find("a", recursive=False):
+        return None
+    return nav
+
+
+def _hidden_page(target):
+    """The template's starter page is only a base for new pages, never a menu entry."""
+    return target.startswith("page:") and target[5:] in STARTER_SLUGS
+
+
 def template_menu(rendered_html, base_path):
     """The menu as the template draws it."""
-    menu = _menu_list(BeautifulSoup(rendered_html, "html.parser"))
+    soup = BeautifulSoup(rendered_html, "html.parser")
+    flat = _flat_nav(soup)
+    if flat is not None:
+        items = []
+        for a in flat.find_all("a", recursive=False):
+            target = site_links.normalize(a.get("href", "#"), base_path)
+            if _label(a) and not _hidden_page(target):
+                items.append({"label": _label(a), "target": target, "children": []})
+        return items
+    menu = _menu_list(soup)
     if menu is None:
         return []
     items = []
@@ -58,7 +81,8 @@ def template_menu(rendered_html, base_path):
                 item["children"].append(
                     {"label": _label(child_a), "target": site_links.normalize(child_a.get("href", "#"), base_path)}
                 )
-        if item["label"]:
+        item["children"] = [c for c in item["children"] if not _hidden_page(c["target"])]
+        if item["label"] and not _hidden_page(item["target"]):
             items.append(item)
     return items
 
@@ -98,6 +122,23 @@ def render(rendered_html, items, base_path):
     """Replaces the page's menu with `items`, keeping the template's classes
     and dropdown toggle markup. Leaves the page alone if it has no <nav>."""
     soup = BeautifulSoup(rendered_html, "html.parser")
+    flat = _flat_nav(soup)
+    if flat is not None:
+        # A plain row of links has nowhere to put a dropdown, so its links
+        # join the row after it.
+        sample = flat.find("a", recursive=False)
+        link_class = [c for c in (sample.get("class") or []) if c != "active"]
+        flat.clear()
+        for item in items:
+            for label, target in [(item["label"], item["target"])] if not item.get("children") else [
+                (c["label"], c["target"]) for c in item["children"]
+            ]:
+                a = soup.new_tag("a", href=site_links.resolve(target, base_path))
+                if link_class:
+                    a["class"] = link_class
+                a.string = label
+                flat.append(a)
+        return str(soup)
     menu = _menu_list(soup)
     if menu is None:
         return rendered_html
@@ -152,6 +193,55 @@ def render(rendered_html, items, base_path):
                 li["class"] = item_class
             li.append(link(item["label"], item["target"]))
         menu.append(li)
+    return str(soup)
+
+
+MOBILE_TOGGLE_HINTS = (
+    "mobile-nav-toggle", "navbar-toggler", "hamburger", "burger", "menu-toggle", "nav-toggle",
+    "menu-btn", "menu-icon", "offcanvas", "vicinic-mnav",
+)
+MOBILE_MENU_CSS = """
+#vicinic-mnav-btn{display:none;background:none;border:0;color:inherit;font-size:26px;line-height:1;padding:4px 8px;cursor:pointer}
+#vicinic-mnav{display:none;position:fixed;left:12px;right:12px;top:72px;z-index:2147483645;background:#111;color:#fff;
+  border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.4);padding:8px;font:500 16px/1.3 system-ui,-apple-system,sans-serif}
+#vicinic-mnav.open{display:block}
+#vicinic-mnav a{display:block;padding:14px 16px;color:#fff;text-decoration:none;border-radius:10px}
+#vicinic-mnav a:hover{background:rgba(255,255,255,.08)}
+@media(max-width:760px){#vicinic-mnav-btn{display:inline-block}}
+"""
+
+
+def add_mobile_menu(rendered_html):
+    """Templates with no menu toggle of their own (e.g. a row of links that
+    CSS hides on phones) get a ☰ button beside their nav that opens the same
+    links, so phone visitors can still get around."""
+    lower = rendered_html.lower()
+    if any(hint in lower for hint in MOBILE_TOGGLE_HINTS):
+        return rendered_html
+    soup = BeautifulSoup(rendered_html, "html.parser")
+    nav = soup.find("nav")
+    if nav is None:
+        return rendered_html
+    links = [a for a in nav.find_all("a") if a.get("href") and a.get_text(strip=True)]
+    if not links:
+        return rendered_html
+    button = BeautifulSoup(
+        '<button type="button" id="vicinic-mnav-btn" aria-label="Menu" aria-expanded="false" '
+        "onclick=\"var m=document.getElementById('vicinic-mnav');m.classList.toggle('open');"
+        "this.setAttribute('aria-expanded',m.classList.contains('open'))\">&#9776;</button>",
+        "html.parser",
+    )
+    nav.insert_after(button)
+    panel = soup.new_tag("div", id="vicinic-mnav")
+    panel["onclick"] = "if(event.target.tagName==='A')this.classList.remove('open')"
+    for a in links:
+        item = soup.new_tag("a", href=a["href"])
+        item.string = " ".join(a.get_text(" ").split())
+        panel.append(item)
+    (soup.body or soup).append(panel)
+    style = soup.new_tag("style")
+    style.string = MOBILE_MENU_CSS
+    (soup.head or soup).append(style)
     return str(soup)
 
 
