@@ -29,9 +29,8 @@ export default function CookieBanner() {
       <div className="cookie-banner-text">
         <strong>We use cookies</strong>
         <p>
-          Essential cookies keep the site working. With your permission we also use analytics cookies to see which
-          pages are visited and what gets clicked, so we can improve Vicinic. See our{' '}
-          <Link to="/cookies">Cookie Policy</Link> and <Link to="/privacy">Privacy Policy</Link>.
+          We use cookies to give you a smooth, personalised experience and to keep improving Vicinic. Details are in our{' '}
+          <Link to="/cookies">Cookie Policy</Link>.
         </p>
       </div>
       <div className="cookie-banner-actions">
