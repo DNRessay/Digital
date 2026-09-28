@@ -185,7 +185,7 @@ def _email_routing_error(site):
 
 def _managed_deploy_error(site):
     if site.template.managed_deploy:
-        return JsonResponse({"error": "This site's domain and email are managed by Vicinic — contact us to change them."}, status=403)
+        return JsonResponse({"error": "This site's domain is managed by Vicinic — contact us to change it."}, status=403)
     return None
 
 
@@ -588,8 +588,6 @@ def api_customer_site_email_routes(request, site_slug):
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
-    if request.method == "POST" and (locked := _managed_deploy_error(site)) is not None:
-        return locked
 
     if request.method == "POST":
         if (blocked := _email_routing_error(site)) is not None:
@@ -659,8 +657,6 @@ def api_customer_site_email_route_delete(request, site_slug, route_id):
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
-    if (locked := _managed_deploy_error(site)) is not None:
-        return locked
     route = site.email_routes.filter(id=route_id).first()
     if route is None:
         return JsonResponse({"error": "Route not found."}, status=404)
@@ -830,8 +826,6 @@ def api_customer_site_whatsapp(request, site_slug):
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
-    if (locked := _managed_deploy_error(site)) is not None:
-        return locked
 
     if request.method == "POST" and not site.whatsapp_bot_available:
         return JsonResponse(
@@ -903,7 +897,7 @@ def api_customer_site_email_destinations(request, site_slug):
         return JsonResponse({"error": "Site not found."}, status=404)
 
     if request.method == "POST":
-        if (locked := _managed_deploy_error(site) or _email_routing_error(site)) is not None:
+        if (locked := _email_routing_error(site)) is not None:
             return locked
         email = str(_json_body(request).get("email", "")).strip().lower()
         try:
@@ -943,8 +937,6 @@ def api_customer_site_email_destination_delete(request, site_slug, destination_i
     site = _get_owned_site_or_none(request.customer_user, site_slug)
     if site is None:
         return JsonResponse({"error": "Site not found."}, status=404)
-    if (locked := _managed_deploy_error(site)) is not None:
-        return locked
     destination = site.email_destinations.filter(id=destination_id).first()
     if destination is None:
         return JsonResponse({"error": "Inbox not found."}, status=404)

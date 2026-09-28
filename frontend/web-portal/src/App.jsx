@@ -1162,14 +1162,25 @@ function DeployTab({ site, onSiteUpdated, onGoToProfile }) {
   // site regardless of plan (that gating was deliberately dropped
   // earlier and hasn't been asked back) — this card is just the "remove
   // branding" upsell, now with a finalized once-off first tier.
-  const sections = (
+  const domain = <DomainSection site={site} onSiteUpdated={onSiteUpdated} onGoToProfile={onGoToProfile} onOpenSearch={() => setShowSearch(true)} />
+  return (
     <>
       <UpgradeCard site={site} />
       <AiAssistantSection site={site} onSiteUpdated={onSiteUpdated} />
       <WhatsAppConnectSection site={site} onSiteUpdated={onSiteUpdated} />
-      <DomainSection site={site} onSiteUpdated={onSiteUpdated} onGoToProfile={onGoToProfile} onOpenSearch={() => setShowSearch(true)} />
+      {site.managed_deploy ? (
+        <>
+          {/* Only the domain is managed for these sites; everything else follows the plan. */}
+          <div className="card notice">Your domain is managed by Vicinic. Contact us if it needs to change.</div>
+          <fieldset className="locked-section" disabled>
+            {domain}
+          </fieldset>
+        </>
+      ) : (
+        domain
+      )}
       <EmailRoutingSection site={site} onOpenSearch={() => setShowSearch(true)} />
-      {showSearch && (
+      {showSearch && !site.managed_deploy && (
         <DomainSearchSheet
           site={site}
           onSiteUpdated={onSiteUpdated}
@@ -1177,17 +1188,6 @@ function DeployTab({ site, onSiteUpdated, onGoToProfile }) {
           onClose={() => setShowSearch(false)}
         />
       )}
-    </>
-  )
-  if (!site.managed_deploy) return sections
-  return (
-    <>
-      <div className="card notice">
-        Your domain, email forwarding and deployment are managed by Vicinic. Contact us if anything here needs to change.
-      </div>
-      <fieldset className="locked-section" disabled>
-        {sections}
-      </fieldset>
     </>
   )
 }
