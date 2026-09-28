@@ -204,6 +204,7 @@ function Register({ onRegistered, onSwitchToLogin }) {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [acceptTerms, setAcceptTerms] = useState(false)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
 
@@ -212,7 +213,7 @@ function Register({ onRegistered, onSwitchToLogin }) {
     setBusy(true)
     setError(null)
     try {
-      await register(name, username, email, password)
+      await register(name, username, email, password, acceptTerms)
       onRegistered()
     } catch (err) {
       setError(err.message)
@@ -236,7 +237,15 @@ function Register({ onRegistered, onSwitchToLogin }) {
         <input id="register-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
         <label htmlFor="register-password">Password</label>
         <input id="register-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password" />
-        <button type="submit" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</button>
+        <label className="terms-check">
+          <input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} required />
+          <span>
+            I agree to the <a href="https://vicinic.co.za/terms" target="_blank" rel="noreferrer">Terms of Service</a> and{' '}
+            <a href="https://vicinic.co.za/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>, including how
+            Vicinic processes my personal information under POPIA.
+          </span>
+        </label>
+        <button type="submit" disabled={busy || !acceptTerms}>{busy ? 'Creating account…' : 'Create account'}</button>
         <p className="switch-auth-mode">
           Already have an account? <button type="button" className="link-button" onClick={onSwitchToLogin}>Sign in</button>
         </p>

@@ -7,6 +7,9 @@ import PricingPage from './pages/PricingPage.jsx'
 import PortfolioPage from './pages/PortfolioPage.jsx'
 import ContactPage from './pages/ContactPage.jsx'
 import NotFound from './pages/NotFound.jsx'
+import TermsPage from './pages/legal/TermsPage.jsx'
+import PrivacyPage from './pages/legal/PrivacyPage.jsx'
+import CookiesPage from './pages/legal/CookiesPage.jsx'
 
 export default function App() {
   return (
@@ -18,6 +21,9 @@ export default function App() {
         <Route path="pricing" element={<PricingPage />} />
         <Route path="portfolio" element={<PortfolioPage />} />
         <Route path="contact" element={<ContactPage />} />
+        <Route path="terms" element={<TermsPage />} />
+        <Route path="privacy" element={<PrivacyPage />} />
+        <Route path="cookies" element={<CookiesPage />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

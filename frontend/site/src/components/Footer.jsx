@@ -34,8 +34,9 @@ export default function Footer() {
             <h4>Get In Touch</h4>
             <ul>
               <li><Link to="/contact">Contact</Link></li>
-              <li><a href="/privacy">Privacy Policy</a></li>
-              <li><a href="/terms">Terms of Service</a></li>
+              <li><Link to="/privacy">Privacy Policy</Link></li>
+              <li><Link to="/terms">Terms of Service</Link></li>
+              <li><Link to="/cookies">Cookie Policy</Link></li>
             </ul>
           </div>
 
@@ -59,8 +60,9 @@ export default function Footer() {
           </div>
           <div className="col-md-6 order-1 order-md-2">
             <div className="legal-links">
-              <a href="/terms">Terms of Service</a>
-              <a href="/privacy">Privacy Policy</a>
+              <Link to="/terms">Terms of Service</Link>
+              <Link to="/privacy">Privacy Policy</Link>
+              <Link to="/cookies">Cookie Policy</Link>
             </div>
           </div>
         </div>

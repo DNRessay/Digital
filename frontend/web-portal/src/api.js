@@ -64,8 +64,11 @@ export function listPublicTemplates() {
   return apiFetch('/api/customer/templates/')
 }
 
-export async function register(name, username, email, password) {
-  const data = await apiFetch('/api/customer/register/', { method: 'POST', body: { name, username, email, password } })
+export async function register(name, username, email, password, acceptTerms) {
+  const data = await apiFetch('/api/customer/register/', {
+    method: 'POST',
+    body: { name, username, email, password, accept_terms: acceptTerms },
+  })
   setToken(data.token)
   return data
 }

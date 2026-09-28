@@ -18,9 +18,9 @@ Most small businesses don't need a web designer. They need a good-looking site t
 - **Your own domain.** Every paid plan includes one free .co.za domain, and you can connect a domain you already own from the Deploy tab.
 - **Email forwarding.** Forward hello@yourbusiness.co.za to the Gmail or Outlook inbox you already use.
 
-## How it's built
+## Why it's affordable
 
-The backend is Django running on AWS Lambda, with a Neon Postgres database. Templates are stored in S3 and rendered per request. The customer editor and our admin console are React apps on Cloudflare Pages, and domains and email routing go through Cloudflare. Hosting a site costs us almost nothing, which is why a Starter site can be a R250 once-off payment.
+Vicinic runs on modern cloud infrastructure that scales with demand, so a quiet small-business site costs very little to host. We pass that on: a Starter site is a R250 once-off payment, with hosting, security and support included.
 
 ## Try it
 

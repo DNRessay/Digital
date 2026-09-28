@@ -12,11 +12,7 @@ Keeping a blog going is hard for a small team. Bloggify does the research and fi
 
 ## How it works
 
-1. **Fetch.** Crawlers pull new items for each topic from sources like arXiv, Semantic Scholar, NASA, Hacker News, Google News (via SerpAPI), GDELT and RSS feeds.
-2. **Rank.** Items we haven't covered yet are scored on relevance, recency and popularity.
-3. **Digest.** Groq's models turn each item into structured notes. For deep dives the lead paper is read in full, in chunks.
-4. **Write.** A draft post is written with numbered citations, and a sources list is added automatically.
-5. **Review.** The draft waits for approval. Approve it and it's published; reject it and it's discarded.
+It gathers fresh, reputable sources on each topic, picks what's new and relevant, and drafts a readable post with numbered citations and a sources list. A person reviews every draft before it's published.
 
 ## On this blog
 

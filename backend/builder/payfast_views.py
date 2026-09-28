@@ -233,8 +233,9 @@ def payfast_notify(request):
         if token:
             site.payfast_token = token
         fields = ["subscription_status", "package", "payfast_token"]
-        if first_activation and not site.custom_domain:
-            # R50 of the plan price is reserved for one included .co.za.
+        if first_activation:
+            # Each new purchase (not a monthly renewal) includes one .co.za,
+            # claimable if the name is available; R50 of the plan is reserved for it.
             site.free_domain_available = True
             fields.append("free_domain_available")
         site.save(update_fields=fields)

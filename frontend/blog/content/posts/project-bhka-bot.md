@@ -16,8 +16,6 @@ BHK Invest helps South Africans rehabilitate their credit. Most of their enquiri
 - Asks the right first questions (for example, whether someone is behind on accounts or blacklisted) so the team starts every conversation already knowing the situation.
 - Points interested customers to a free consultation with the team.
 
-## How it's built
+## The result
 
-The bot is written in Python on the Meta WhatsApp Cloud API, with Groq's Llama models for replies. It rotates between several API keys so rate limits don't stall conversations, and it's hosted on Render.
-
-The same idea now powers the WhatsApp bot available on Vicinic's Growth Hub and Business OS plans.
+BHK Invest's customers get an instant, helpful reply at any hour, and the team spends its time on people who are ready to talk. The same idea now powers the WhatsApp bot on Vicinic's Growth Hub and Business OS plans.
