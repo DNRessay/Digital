@@ -52,6 +52,9 @@ import {
   pageSectionAction,
   updateSitePage,
   uploadSectionImage,
+  getEnquiries,
+  updateEnquiry,
+  deleteEnquiry,
 } from './api.js'
 
 const WHATSAPP_APP_ID = import.meta.env.VITE_WHATSAPP_APP_ID || ''
@@ -1545,6 +1548,17 @@ const TABS = [
     ),
   },
   {
+    key: 'customers',
+    label: 'Customers',
+    icon: (
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="9" cy="8" r="3.2" />
+        <path d="M3 20a6 6 0 0 1 12 0" strokeLinecap="round" />
+        <path d="M16 4.5a3.2 3.2 0 0 1 0 6.4M18 14.5a6 6 0 0 1 3 5.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     key: 'deploy',
     label: 'Deploy',
     icon: (
@@ -1565,6 +1579,206 @@ const TABS = [
     ),
   },
 ]
+
+const ENQUIRY_STATUSES = [
+  { key: 'new', label: 'New' },
+  { key: 'confirmed', label: 'Confirmed' },
+  { key: 'done', label: 'Done' },
+  { key: 'declined', label: 'Declined' },
+]
+
+function formatWhen(iso) {
+  return new Date(iso).toLocaleString('en-ZA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function EnquiryCard({ site, enquiry, onChanged, onDeleted }) {
+  const [open, setOpen] = useState(enquiry.status === 'new')
+  const [notes, setNotes] = useState(enquiry.notes)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function save(fields) {
+    setBusy(true)
+    setError(null)
+    try {
+      const data = await updateEnquiry(site.slug, enquiry.id, fields)
+      onChanged(data.enquiry)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove() {
+    if (!window.confirm('Delete this message for good?')) return
+    setBusy(true)
+    try {
+      await deleteEnquiry(site.slug, enquiry.id)
+      onDeleted(enquiry.id)
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+    }
+  }
+
+  const isBooking = enquiry.kind === 'booking'
+  return (
+    <li className={`enquiry enquiry-${enquiry.status}`}>
+      <button type="button" className="enquiry-head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <span className={`enquiry-kind${isBooking ? ' booking' : ''}`}>{isBooking ? 'Booking' : 'Enquiry'}</span>
+        <strong>{enquiry.name || enquiry.email || enquiry.phone}</strong>
+        <span className="enquiry-when">{formatWhen(enquiry.created_at)}</span>
+        <span className={`enquiry-status status-${enquiry.status}`}>{enquiry.status}</span>
+      </button>
+      {open && (
+        <div className="enquiry-body">
+          {error && <div className="error">{error}</div>}
+          {isBooking && enquiry.preferred_date && (
+            <p className="enquiry-slot">
+              Wants: <strong>{new Date(`${enquiry.preferred_date}T00:00`).toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short' })}</strong>
+              {enquiry.preferred_time && <> at <strong>{enquiry.preferred_time}</strong></>}
+            </p>
+          )}
+          {enquiry.subject && <p><strong>{enquiry.subject}</strong></p>}
+          {enquiry.message && <p className="enquiry-message">{enquiry.message}</p>}
+          <p className="enquiry-contact">
+            {enquiry.email && <a href={`mailto:${enquiry.email}`}>{enquiry.email}</a>}
+            {enquiry.phone && <a href={`tel:${enquiry.phone}`}>{enquiry.phone}</a>}
+            {enquiry.phone && (
+              <a href={`https://wa.me/${enquiry.phone.replace(/\D/g, '').replace(/^0/, '27')}`} target="_blank" rel="noreferrer">WhatsApp</a>
+            )}
+          </p>
+          <div className="enquiry-actions">
+            {ENQUIRY_STATUSES.filter((s) => s.key !== enquiry.status).map((s) => (
+              <button key={s.key} type="button" className="secondary" disabled={busy} onClick={() => save({ status: s.key })}>
+                Mark {s.label.toLowerCase()}
+              </button>
+            ))}
+          </div>
+          <label>Private notes</label>
+          <textarea rows="2" value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== enquiry.notes && save({ notes })} />
+          <button type="button" className="link-button danger" disabled={busy} onClick={remove}>Delete</button>
+        </div>
+      )}
+    </li>
+  )
+}
+
+function CustomersTab({ site, onSiteUpdated }) {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState(null)
+  const [filter, setFilter] = useState('')
+  const [view, setView] = useState('inbox')
+
+  useEffect(() => {
+    let cancelled = false
+    setData(null)
+    getEnquiries(site.slug)
+      .then((d) => !cancelled && setData(d))
+      .catch((err) => !cancelled && setError(err.message))
+    return () => {
+      cancelled = true
+    }
+  }, [site.slug])
+
+  async function toggleBookings() {
+    try {
+      const updated = await updateSite(site.slug, { bookings_enabled: !site.bookings_enabled })
+      onSiteUpdated(updated)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  if (!site.growth_features_available) {
+    return (
+      <div className="card locked-card">
+        <h2>Customers &amp; bookings</h2>
+        <p>
+          Keep every enquiry and booking request from your site in one place, with a customer list, statuses and
+          notes. Visitors get a <strong>Book</strong> button on your site.
+        </p>
+        <p className="field-hint">
+          Included with Growth Hub and Business OS —{' '}
+          <a href="https://vicinic.co.za/pricing" target="_blank" rel="noreferrer">see plans</a>.
+        </p>
+      </div>
+    )
+  }
+
+  const enquiries = (data?.enquiries || []).filter((e) => !filter || e.status === filter)
+
+  function replace(updated) {
+    setData((d) => ({ ...d, enquiries: d.enquiries.map((e) => (e.id === updated.id ? updated : e)) }))
+  }
+  function drop(id) {
+    setData((d) => ({ ...d, enquiries: d.enquiries.filter((e) => e.id !== id) }))
+  }
+
+  return (
+    <>
+      <div className="card">
+        <h2>Customers &amp; bookings</h2>
+        <p>Messages from your contact form and booking requests from the Book button land here. We also email them to {site.email || 'your account email'}.</p>
+        <label className="toggle-row">
+          <input type="checkbox" checked={site.bookings_enabled} onChange={toggleBookings} />
+          <span>Show the <strong>Book</strong> button on my site</span>
+        </label>
+      </div>
+      <div className="card">
+        <div className="segmented">
+          <button type="button" className={view === 'inbox' ? 'active' : ''} onClick={() => setView('inbox')}>
+            Inbox{data?.new_count ? ` (${data.new_count})` : ''}
+          </button>
+          <button type="button" className={view === 'people' ? 'active' : ''} onClick={() => setView('people')}>
+            Customers{data ? ` (${data.customers.length})` : ''}
+          </button>
+        </div>
+        {error && <div className="error">{error}</div>}
+        {!data && !error && <p>Loading…</p>}
+        {data && view === 'inbox' && (
+          <>
+            <div className="filter-row">
+              <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+                <option value="">All</option>
+                {ENQUIRY_STATUSES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+              </select>
+            </div>
+            {enquiries.length === 0 ? (
+              <p className="field-hint">Nothing here yet. New enquiries and booking requests will show up as they arrive.</p>
+            ) : (
+              <ul className="enquiry-list">
+                {enquiries.map((e) => (
+                  <EnquiryCard key={e.id} site={site} enquiry={e} onChanged={replace} onDeleted={drop} />
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+        {data && view === 'people' && (
+          data.customers.length === 0 ? (
+            <p className="field-hint">Your customer list builds itself from everyone who contacts you or books.</p>
+          ) : (
+            <ul className="customer-list">
+              {data.customers.map((c, i) => (
+                <li key={`${c.email}-${c.phone}-${i}`}>
+                  <strong>{c.name || c.email || c.phone}</strong>
+                  <span className="field-hint">
+                    {[c.email, c.phone].filter(Boolean).join(' · ')}
+                  </span>
+                  <span className="field-hint">
+                    {c.bookings} booking{c.bookings === 1 ? '' : 's'} · {c.enquiries} enquir{c.enquiries === 1 ? 'y' : 'ies'} · last {formatWhen(c.last_seen)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )
+        )}
+      </div>
+    </>
+  )
+}
 
 function BottomNav({ active, onSelect, badges = {} }) {
   return (
@@ -2771,6 +2985,12 @@ export default function App() {
             />
           )}
           {selectedSite && activeTab === 'edit' && <VisualEditor site={selectedSite} />}
+          {selectedSite && activeTab === 'customers' && (
+            <CustomersTab
+              site={selectedSite}
+              onSiteUpdated={(updated) => setSites((prev) => prev.map((s) => (s.slug === updated.slug ? updated : s)))}
+            />
+          )}
           {selectedSite && activeTab === 'deploy' && (
             <DeployTab
               site={selectedSite}

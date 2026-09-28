@@ -320,3 +320,16 @@ export function uploadSectionImage(siteSlug, pageId, sectionId, field, file) {
   form.append('file', file)
   return apiFetch(`/api/customer/sites/${siteSlug}/pages/${pageId}/sections/${sectionId}/image/`, { method: 'POST', body: form })
 }
+
+export function getEnquiries(siteSlug, status) {
+  const q = status ? `?status=${encodeURIComponent(status)}` : ''
+  return apiFetch(`/api/customer/sites/${siteSlug}/enquiries/${q}`)
+}
+
+export function updateEnquiry(siteSlug, enquiryId, fields) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/enquiries/${enquiryId}/`, { method: 'PATCH', body: fields })
+}
+
+export function deleteEnquiry(siteSlug, enquiryId) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/enquiries/${enquiryId}/`, { method: 'DELETE' })
+}

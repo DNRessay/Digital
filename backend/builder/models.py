@@ -219,6 +219,9 @@ class Site(models.Model):
         help_text="Comma-separated — what the customer needs to set at their registrar for domain_status to become active.",
     )
 
+    bookings_enabled = models.BooleanField(
+        default=True, help_text="Growth+: show the floating 'Book' button so visitors can request a booking."
+    )
     is_published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -236,6 +239,12 @@ class Site(models.Model):
     def whatsapp_bot_available(self):
         """Connecting the customer's own WhatsApp number (the WhatsApp AI bot)
         is a Growth Hub / Business OS feature — not on Starter."""
+        return self.has_paid_plan and self.package in (self.PACKAGE_GROWTH, self.PACKAGE_BUSINESS_OS)
+
+    @property
+    def growth_features_available(self):
+        """Growth Hub / Business OS extras — the enquiry & booking database,
+        staff logins and the automated blog. On as soon as the plan is paid."""
         return self.has_paid_plan and self.package in (self.PACKAGE_GROWTH, self.PACKAGE_BUSINESS_OS)
 
     @property
@@ -614,3 +623,42 @@ class BlogPost(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class SiteEnquiry(models.Model):
+    """A message or booking request from a visitor to a customer's site —
+    the Growth Hub customer database. Saved from the site's contact form and
+    the floating "Book" button; the owner manages them in the portal."""
+
+    KIND_ENQUIRY = "enquiry"
+    KIND_BOOKING = "booking"
+    KIND_CHOICES = [(KIND_ENQUIRY, "Enquiry"), (KIND_BOOKING, "Booking request")]
+    STATUS_NEW = "new"
+    STATUS_CONFIRMED = "confirmed"
+    STATUS_DECLINED = "declined"
+    STATUS_DONE = "done"
+    STATUS_CHOICES = [
+        (STATUS_NEW, "New"),
+        (STATUS_CONFIRMED, "Confirmed"),
+        (STATUS_DECLINED, "Declined"),
+        (STATUS_DONE, "Done"),
+    ]
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="enquiries")
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_ENQUIRY)
+    name = models.CharField(max_length=120, blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    subject = models.CharField(max_length=200, blank=True)
+    message = models.TextField(blank=True)
+    preferred_date = models.DateField(null=True, blank=True)
+    preferred_time = models.CharField(max_length=20, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_NEW)
+    notes = models.TextField(blank=True, help_text="The owner's private notes.")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.site.slug}: {self.kind} from {self.name or self.email}"

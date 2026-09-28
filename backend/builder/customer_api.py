@@ -36,7 +36,7 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteImage, SiteLink, SitePage, SiteSlotValue, SiteVisit, Template
+from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteEnquiry, SiteImage, SiteLink, SitePage, SiteSlotValue, SiteVisit, Template
 from .payfast_views import _start_manual_za_registration
 from .services import cloudflare, domain_search, site_images, site_links, site_menu, site_pages, site_sections, whatsapp
 from .services.site_images import ImageUploadError
@@ -158,6 +158,8 @@ def _serialize_site(site):
         "free_domain_available": site.free_domain_available,
         "has_paid_plan": site.has_paid_plan,
         "whatsapp_bot_available": site.whatsapp_bot_available,
+        "growth_features_available": site.growth_features_available,
+        "bookings_enabled": site.bookings_enabled,
     }
 
 
@@ -396,6 +398,8 @@ def api_customer_site_update(request, site_slug):
         fields["address"] = str(body["address"]).strip()[:255]
     if "ai_assistant_enabled" in body:
         fields["ai_assistant_enabled"] = bool(body["ai_assistant_enabled"])
+    if "bookings_enabled" in body:
+        fields["bookings_enabled"] = bool(body["bookings_enabled"])
     if "ai_assistant_description" in body:
         fields["ai_assistant_description"] = str(body["ai_assistant_description"]).strip()[:2000]
 
@@ -1574,3 +1578,90 @@ def api_customer_site_page_section_image(request, site_slug, page_id, section_id
     custom_page.draft_sections = sections
     custom_page.save(update_fields=["draft_sections"])
     return JsonResponse(_sections_payload(site, custom_page))
+
+
+def _serialize_enquiry(e):
+    return {
+        "id": e.id,
+        "kind": e.kind,
+        "name": e.name,
+        "email": e.email,
+        "phone": e.phone,
+        "subject": e.subject,
+        "message": e.message,
+        "preferred_date": e.preferred_date.isoformat() if e.preferred_date else None,
+        "preferred_time": e.preferred_time,
+        "status": e.status,
+        "notes": e.notes,
+        "created_at": e.created_at.isoformat(),
+    }
+
+
+def _customers(site):
+    """Everyone who has contacted the site, merged by email (or phone)."""
+    people = {}
+    for e in site.enquiries.order_by("created_at"):
+        key = (e.email or e.phone or f"#{e.id}").lower()
+        person = people.setdefault(
+            key, {"name": "", "email": "", "phone": "", "enquiries": 0, "bookings": 0, "first_seen": e.created_at, "last_seen": e.created_at}
+        )
+        person["name"] = e.name or person["name"]
+        person["email"] = e.email or person["email"]
+        person["phone"] = e.phone or person["phone"]
+        person["bookings" if e.kind == SiteEnquiry.KIND_BOOKING else "enquiries"] += 1
+        person["last_seen"] = e.created_at
+    out = sorted(people.values(), key=lambda p: p["last_seen"], reverse=True)
+    for p in out:
+        p["first_seen"] = p["first_seen"].isoformat()
+        p["last_seen"] = p["last_seen"].isoformat()
+    return out
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET"])
+def api_customer_site_enquiries(request, site_slug):
+    """Growth+: the site's enquiries and booking requests (newest first,
+    optionally ?status=) plus the merged customer list."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    available = site.growth_features_available
+    items = site.enquiries.all()
+    status = request.GET.get("status")
+    if status in dict(SiteEnquiry.STATUS_CHOICES):
+        items = items.filter(status=status)
+    return JsonResponse(
+        {
+            "available": available,
+            "bookings_enabled": site.bookings_enabled,
+            "enquiries": [_serialize_enquiry(e) for e in items[:300]] if available else [],
+            "customers": _customers(site) if available else [],
+            "new_count": site.enquiries.filter(status=SiteEnquiry.STATUS_NEW).count() if available else 0,
+        }
+    )
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["PATCH", "DELETE"])
+def api_customer_site_enquiry(request, site_slug, enquiry_id):
+    """PATCH {status?, notes?} or DELETE one enquiry/booking."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    enquiry = site.enquiries.filter(id=enquiry_id).first()
+    if enquiry is None:
+        return JsonResponse({"error": "Not found."}, status=404)
+    if request.method == "DELETE":
+        enquiry.delete()
+        return JsonResponse({"deleted": True})
+    body = _json_body(request)
+    if "status" in body:
+        if body["status"] not in dict(SiteEnquiry.STATUS_CHOICES):
+            return JsonResponse({"error": "Unknown status."}, status=400)
+        enquiry.status = body["status"]
+    if "notes" in body:
+        enquiry.notes = str(body["notes"])[:5000]
+    enquiry.save()
+    return JsonResponse({"enquiry": _serialize_enquiry(enquiry)})

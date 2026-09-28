@@ -6,7 +6,6 @@ from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.core.mail import BadHeaderError, send_mail
 from django.db import IntegrityError
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -23,7 +22,7 @@ from .forms import TemplateUploadForm
 from .branding_assets import LOGO_WHITE_DATA_URI
 from .models import Site, SitePage, SiteSlotValue, SiteVisit, Template, TemplatePage
 from .services.ai_assistant import AiAssistantError, ask_assistant
-from .services import site_links, site_menu, site_pages
+from .services import enquiries, site_links, site_menu, site_pages
 from .services.site_images import apply_overrides, logo_scale_css, logo_urls
 from .services.slot_extractor import slot_tag
 from .services.template_ingest import IngestError, ingest_converted_zip
@@ -74,8 +73,38 @@ CHAT_ICON = (
 # has a number. Vanilla JS/CSS, no build step, since it's injected into
 # arbitrary customer-uploaded template HTML the same way BRANDING_BADGE_HTML
 # and EDITOR_BRIDGE_HTML are.
-def _floating_buttons_html(site, chat_url):
+CALENDAR_ICON = (
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 2h2v2h6V2h2v2h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3V2zm12 8H5v9h14v-9zM7 12h4v4H7v-4z"/></svg>'
+)
+
+
+def _booking_html(site, booking_url):
+    """The floating Book button's panel: a small booking-request form that
+    posts to the site's contact endpoint (saved as a SiteEnquiry)."""
+    if not booking_url:
+        return "", ""
     business_name = escape(site.name)
+    toggle = f'<button class="vicinic-fab" id="vicinic-book-toggle" aria-label="Book with {business_name}">{CALENDAR_ICON}</button>'
+    panel = f"""<div id="vicinic-book-panel" class="vicinic-panel">
+  <div class="vicinic-panel-header">Book with {business_name}<button type="button" class="vicinic-panel-close" aria-label="Close">&times;</button></div>
+  <form id="vicinic-book-form" data-url="{escape(booking_url)}">
+    <input type="hidden" name="kind" value="booking">
+    <input type="text" name="website" tabindex="-1" autocomplete="off" style="display:none">
+    <input name="name" placeholder="Your name" required maxlength="120">
+    <input name="email" type="email" placeholder="Email" maxlength="254">
+    <input name="phone" type="tel" placeholder="Phone" maxlength="30">
+    <div class="vicinic-row"><input name="preferred_date" type="date" required><input name="preferred_time" type="time"></div>
+    <textarea name="message" rows="3" placeholder="What would you like to book?" maxlength="2000"></textarea>
+    <button type="submit">Request booking</button>
+    <p class="vicinic-book-note"></p>
+  </form>
+</div>"""
+    return toggle, panel
+
+
+def _floating_buttons_html(site, chat_url, booking_url=None):
+    business_name = escape(site.name)
+    book_toggle_html, book_panel_html = _booking_html(site, booking_url)
     whatsapp_html = ""
     if site.whatsapp_number:
         number = re.sub(r"\D", "", site.whatsapp_number)
@@ -130,13 +159,29 @@ def _floating_buttons_html(site, chat_url):
   #vicinic-chat-input {{ flex: 1; border: none; padding: 10px; font: inherit; }}
   #vicinic-chat-input:focus {{ outline: none; }}
   #vicinic-chat-form button {{ border: none; background: #111; color: #fff; padding: 0 14px; cursor: pointer; }}
+  #vicinic-book-panel {{
+    position: fixed; bottom: 76px; right: 15px; z-index: 2147483646;
+    width: min(320px, calc(100vw - 24px)); display: none; flex-direction: column;
+    background: #fff; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.25); overflow: hidden;
+    font: 14px/1.4 system-ui,-apple-system,sans-serif; color: #111;
+  }}
+  #vicinic-book-panel.vicinic-open {{ display: flex; }}
+  .vicinic-panel-header {{ background: #111; color: #fff; padding: 10px 14px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }}
+  .vicinic-panel-close {{ background: none; border: none; color: #fff; font-size: 20px; line-height: 1; cursor: pointer; }}
+  #vicinic-book-form {{ display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }}
+  #vicinic-book-form input, #vicinic-book-form textarea {{ border: 1px solid #ddd; border-radius: 8px; padding: 8px 10px; font: inherit; width: 100%; box-sizing: border-box; }}
+  #vicinic-book-form .vicinic-row {{ display: flex; gap: 8px; }}
+  #vicinic-book-form button[type=submit] {{ border: none; border-radius: 8px; background: #111; color: #fff; padding: 10px; font-weight: 600; cursor: pointer; }}
+  .vicinic-book-note {{ margin: 0; font-size: 13px; color: #555; }}
 </style>
-<div id="vicinic-fab-stack">{chat_toggle_html}{whatsapp_html}</div>
+<div id="vicinic-fab-stack">{chat_toggle_html}{book_toggle_html}{whatsapp_html}</div>
 {chat_panel_html}
+{book_panel_html}
 <script>
 (function () {{
   var stack = document.getElementById('vicinic-fab-stack');
   var panel = document.getElementById('vicinic-chat-panel');
+  var bookPanel = document.getElementById('vicinic-book-panel');
 
   // Sit directly above the template's back-to-top button, same width,
   // right edge and corner shape. Many templates park it off-screen
@@ -176,14 +221,42 @@ def _floating_buttons_html(site, chat_url):
       b.style.height = size + 'px';
       b.style.borderRadius = radius;
     }});
-    if (panel) {{
-      panel.style.right = right + 'px';
-      panel.style.bottom = (bottom + stack.offsetHeight + 10) + 'px';
-    }}
+    [panel, bookPanel].forEach(function (p) {{
+      if (!p) return;
+      p.style.right = right + 'px';
+      p.style.bottom = (bottom + stack.offsetHeight + 10) + 'px';
+    }});
   }}
   place();
   window.addEventListener('load', place);
   window.addEventListener('resize', place);
+
+  if (bookPanel) {{
+    var bookForm = document.getElementById('vicinic-book-form');
+    var bookNote = bookPanel.querySelector('.vicinic-book-note');
+    var dateInput = bookForm.querySelector('input[name=preferred_date]');
+    dateInput.min = new Date().toISOString().slice(0, 10);
+    document.getElementById('vicinic-book-toggle').addEventListener('click', function () {{
+      if (panel) panel.classList.remove('vicinic-open');
+      bookPanel.classList.toggle('vicinic-open');
+    }});
+    bookPanel.querySelector('.vicinic-panel-close').addEventListener('click', function () {{
+      bookPanel.classList.remove('vicinic-open');
+    }});
+    bookForm.addEventListener('submit', function (e) {{
+      e.preventDefault();
+      var data = new FormData(bookForm);
+      if (!data.get('email') && !data.get('phone')) {{ bookNote.textContent = 'Add an email or phone number so we can confirm.'; return; }}
+      var btn = bookForm.querySelector('button[type=submit]');
+      btn.disabled = true;
+      bookNote.textContent = 'Sending…';
+      fetch(bookForm.dataset.url, {{ method: 'POST', body: data }})
+        .then(function (r) {{ return r.text().then(function (t) {{ if (!r.ok) throw new Error(t); }}); }})
+        .then(function () {{ bookForm.reset(); bookNote.textContent = "Thanks! We'll be in touch to confirm your booking."; }})
+        .catch(function (err) {{ bookNote.textContent = (err && err.message) || 'Sorry, something went wrong. Please try again.'; }})
+        .finally(function () {{ btn.disabled = false; }});
+    }});
+  }}
 
   if (!panel) return;
   var toggle = document.getElementById('vicinic-chat-toggle');
@@ -192,6 +265,7 @@ def _floating_buttons_html(site, chat_url):
   var input = document.getElementById('vicinic-chat-input');
 
   toggle.addEventListener('click', function () {{
+    if (bookPanel) bookPanel.classList.remove('vicinic-open');
     panel.classList.toggle('vicinic-open');
   }});
 
@@ -231,10 +305,10 @@ def _floating_buttons_html(site, chat_url):
 """
 
 
-def _inject_floating_buttons(html, site, chat_url):
+def _inject_floating_buttons(html, site, chat_url, booking_url=None):
     lower = html.lower()
     idx = lower.rfind("</body>")
-    widget_html = _floating_buttons_html(site, chat_url)
+    widget_html = _floating_buttons_html(site, chat_url, booking_url)
     if idx == -1:
         return html + widget_html
     return html[:idx] + widget_html + html[idx:]
@@ -487,8 +561,9 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None
         if site.is_branded:
             html = _inject_branding_badge(html)
         chat = chat_url if site.ai_assistant_active else None
-        if chat or (site.whatsapp_number and site.has_paid_plan):
-            html = _inject_floating_buttons(html, site, chat)
+        booking = f"{base_path}contact/" if site.growth_features_available and site.bookings_enabled else None
+        if chat or booking or (site.whatsapp_number and site.has_paid_plan):
+            html = _inject_floating_buttons(html, site, chat, booking)
     response = HttpResponse(html)
     if edit_mode:
         # web-portal (a different origin) embeds this in an iframe for the
@@ -636,24 +711,22 @@ def site_ai_chat(request, slug):
 
 
 def _handle_contact(site, request):
-    name = request.POST.get("name", "")
-    email = request.POST.get("email", "")
-    subject = request.POST.get("subject", "")
-    message = request.POST.get("message", "")
-    recipient = site.email or settings.CONTACT_RECIPIENT_EMAIL
-
+    """The site's contact form (the template's own) and the floating Book
+    button both post here. Growth+ sites keep every message in the portal's
+    customer database; every site emails the owner."""
+    if request.POST.get("website"):  # honeypot — only bots fill it in
+        return HttpResponse("OK")
+    enquiry = enquiries.from_post(site, request.POST)
+    if not (enquiry.message or enquiry.preferred_date) or not (enquiry.email or enquiry.phone):
+        return HttpResponse("Please add your contact details and a message.", status=400)
+    if site.growth_features_available:
+        enquiry.save()
+        enquiries.notify_owner(enquiry)
+        return HttpResponse("OK")
+    recipient = enquiries.owner_email(site) or settings.CONTACT_RECIPIENT_EMAIL
     if not recipient:
         return HttpResponse("This site has no contact recipient configured.", status=500)
-
-    try:
-        send_mail(
-            subject=f"[{site.name}] {subject or 'New contact form message'}",
-            message=f"From: {name} <{email}>\n\n{message}",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[recipient],
-        )
-    except BadHeaderError:
-        return HttpResponse("Invalid header found.", status=400)
+    enquiries.notify_owner(enquiry)
     return HttpResponse("OK")
 
 

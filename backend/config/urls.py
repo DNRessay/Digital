@@ -145,6 +145,16 @@ urlpatterns = [
         name="api-customer-domain-purchase",
     ),
     path(
+        "api/customer/sites/<slug:site_slug>/enquiries/",
+        customer_api.api_customer_site_enquiries,
+        name="api-customer-site-enquiries",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/enquiries/<int:enquiry_id>/",
+        customer_api.api_customer_site_enquiry,
+        name="api-customer-site-enquiry",
+    ),
+    path(
         "api/customer/sites/<slug:site_slug>/whatsapp/",
         customer_api.api_customer_site_whatsapp,
         name="api-customer-site-whatsapp",
