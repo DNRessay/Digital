@@ -1164,3 +1164,27 @@ button.secondary {
 .blog-posts {
   margin-top: 16px;
 }
+
+.starter-nudge {
+  border: 2px solid #0b0f19;
+  border-radius: 10px;
+  padding: 16px;
+  margin: 0 0 16px;
+  background: #fffdf5;
+}
+
+.starter-nudge p {
+  font-size: 14px;
+  margin: 8px 0;
+}
+
+.starter-nudge ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+  font-size: 14px;
+}
+
+.starter-nudge button {
+  width: 100%;
+  margin-top: 4px;
+}

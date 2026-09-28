@@ -467,6 +467,48 @@ function DomainOption({ option, onBuy }) {
   )
 }
 
+// A free-plan site about to buy or connect a domain: Starter (R250 once-off)
+// includes a free .co.za plus the paid features, often for about the same.
+function StarterNudge({ site, domainPrice, compact = false }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  if (site.has_paid_plan || site.subscription_status === 'pending' || site.role === 'staff') return null
+
+  async function handleStarter() {
+    setBusy(true)
+    setError(null)
+    try {
+      const base = `${window.location.origin}${window.location.pathname}`
+      const data = await checkout(site.slug, 'starter', `${base}?checkout=success#deploy`, `${base}?checkout=cancelled#deploy`)
+      redirectToPayFast(data.process_url, data.fields)
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="starter-nudge">
+      <strong>Better deal: Starter Site — R250 once-off</strong>
+      <p>
+        Includes a <strong>free .co.za domain</strong>
+        {domainPrice ? ` (instead of R${domainPrice} for this domain on its own)` : ''}, and your site gets:
+      </p>
+      {!compact && (
+        <ul>
+          <li>No "Powered by Vicinic" credit</li>
+          <li>AI chat assistant for your visitors</li>
+          <li>Up to 3 extra pages, plus image and logo editing</li>
+          <li>Email forwarding — you@yourbusiness.co.za</li>
+        </ul>
+      )}
+      <p className="field-hint">No monthly bill. Pay once, then claim your free .co.za.</p>
+      {error && <div className="error">{error}</div>}
+      <button type="button" onClick={handleStarter} disabled={busy}>{busy ? 'Redirecting to PayFast…' : 'Get Starter — R250'}</button>
+    </div>
+  )
+}
+
 function DomainSearchSheet({ site, onClose, onSiteUpdated, onGoToProfile }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState(null)
@@ -621,6 +663,9 @@ function DomainSearchSheet({ site, onClose, onSiteUpdated, onGoToProfile }) {
                 <strong>{selected.domain}</strong> —{' '}
                 {selected.included ? 'included with your plan.' : `R${selected.price_zar} for the first year.`}
               </p>
+              {!selected.included && selected.domain.endsWith('.co.za') && (
+                <StarterNudge site={site} domainPrice={selected.price_zar} compact />
+              )}
               {selected.manual && (
                 <p className="field-hint">
                   Our team registers this one by hand, usually within one business day of payment. Your site switches over
@@ -711,6 +756,8 @@ function DomainSection({ site, onSiteUpdated, onGoToProfile, onOpenSearch }) {
           {site.free_domain_available && (
             <div className="notice">Your plan includes a free .co.za domain. Claim it below.</div>
           )}
+          <StarterNudge site={site} />
+          {!site.has_paid_plan && <p className="field-hint domain-or">or, on the free plan:</p>}
           <button type="button" className="buy-domain-button" onClick={onOpenSearch}>
             {site.free_domain_available ? 'Claim your free .co.za' : 'Buy a new domain'}
           </button>
