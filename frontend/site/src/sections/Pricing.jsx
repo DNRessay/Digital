@@ -45,6 +45,7 @@ const PLANS = [
       'Everything in Growth Hub',
       'Free .co.za domain included',
       'Unlimited pages',
+      'Free online merch store for your products',
       'Online payments and order/booking management',
       'Customer profiles and purchase/service history',
       'A fully custom design, private to your business',
