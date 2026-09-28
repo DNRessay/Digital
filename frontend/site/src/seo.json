@@ -1,0 +1,38 @@
+{
+  "/": {
+    "title": "Vicinic — Websites & WhatsApp Systems for Small Businesses in South Africa",
+    "description": "Build your business website free with Vicinic: pick a template, edit it live, add an AI chat assistant and WhatsApp bot. Free .co.za domain on paid plans. Hosted, secured and supported in South Africa."
+  },
+  "/about": {
+    "title": "About Vicinic — South African Website Builder",
+    "description": "Vicinic is a registered South African digital studio helping small businesses and schools get online affordably, with hosting, security and support included."
+  },
+  "/services": {
+    "title": "Services — Websites, WhatsApp Bots & AI Chat | Vicinic",
+    "description": "Professional websites, an AI chat assistant, WhatsApp business bots, domains and email forwarding for South African small businesses and schools."
+  },
+  "/pricing": {
+    "title": "Pricing — Websites from R250 once-off | Vicinic",
+    "description": "Starter Site R250 once-off, Growth Hub R349/month, Business OS R699/month. Free .co.za domain on paid plans. School packages from R2,500. Sign up free."
+  },
+  "/portfolio": {
+    "title": "Portfolio — Projects Built by Vicinic",
+    "description": "The Vicinic Site Editor, website AI chat and WhatsApp bots, Templify, Bloggify, BHKA Bot and Semblance — systems we've designed and shipped."
+  },
+  "/contact": {
+    "title": "Contact Vicinic — Get Your Business Online",
+    "description": "Questions about a website, WhatsApp bot or school platform? Contact Vicinic in Tshwane, South Africa."
+  },
+  "/terms": {
+    "title": "Terms of Service — Vicinic",
+    "description": "The terms for using Vicinic's website builder, hosting, domains and related services."
+  },
+  "/privacy": {
+    "title": "Privacy Policy (POPIA) — Vicinic",
+    "description": "How Vicinic collects, uses and protects personal information under South Africa's POPIA."
+  },
+  "/cookies": {
+    "title": "Cookie Policy — Vicinic",
+    "description": "Which cookies Vicinic uses and how to manage your choice."
+  }
+}

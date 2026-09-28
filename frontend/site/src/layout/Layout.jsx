@@ -4,6 +4,7 @@ import Header from '../components/Header.jsx'
 import Footer from '../components/Footer.jsx'
 import CookieBanner from '../components/CookieBanner.jsx'
 import useOrbitChrome from '../hooks/useOrbitChrome.js'
+import SEO from '../seo.json'
 
 export default function Layout() {
   useOrbitChrome()
@@ -11,9 +12,18 @@ export default function Layout() {
 
   // Each page is its own canonical URL on vicinic.co.za (the SPA ships one index.html).
   useEffect(() => {
-    const href = `https://vicinic.co.za${pathname}`
-    document.querySelector('link[rel="canonical"]')?.setAttribute('href', href)
-    document.querySelector('meta[property="og:url"]')?.setAttribute('content', href)
+    const path = pathname.replace(/\/+$/, '') || '/'
+    const href = `https://vicinic.co.za${path}`
+    const meta = SEO[path]
+    const set = (sel, attr, value) => document.querySelector(sel)?.setAttribute(attr, value)
+    set('link[rel="canonical"]', 'href', href)
+    set('meta[property="og:url"]', 'content', href)
+    if (meta) {
+      document.title = meta.title
+      set('meta[name="description"]', 'content', meta.description)
+      set('meta[property="og:title"]', 'content', meta.title)
+      set('meta[property="og:description"]', 'content', meta.description)
+    }
   }, [pathname])
 
   return (

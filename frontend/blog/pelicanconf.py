@@ -3,11 +3,14 @@ SITENAME = "Vicinic Blog"
 SITESUBTITLE = "Websites, domains and growing a small business online — from the Vicinic team."
 SITEURL = ""
 MAIN_SITE_URL = "https://vicinic.co.za"
+# Absolute origin for canonical URLs and the sitemap, whatever SITEURL is.
+BLOG_URL = "https://blog.vicinic.co.za"
 PORTAL_URL = "https://console.vicinic.co.za"
 
 PATH = "content"
 ARTICLE_PATHS = ["posts"]
-STATIC_PATHS = ["images"]
+STATIC_PATHS = ["images", "extra/robots.txt"]
+EXTRA_PATH_METADATA = {"extra/robots.txt": {"path": "robots.txt"}}
 
 TIMEZONE = "Africa/Johannesburg"
 DEFAULT_LANG = "en"
@@ -33,7 +36,8 @@ AUTHOR_SAVE_AS = ""
 AUTHORS_SAVE_AS = ""
 ARCHIVES_SAVE_AS = "archives/index.html"
 # search.html embeds every article as JSON and filters it in the browser.
-DIRECT_TEMPLATES = ["index", "tags", "categories", "archives", "search"]
+DIRECT_TEMPLATES = ["index", "tags", "categories", "archives", "search", "sitemap"]
+SITEMAP_SAVE_AS = "sitemap.xml"
 SEARCH_SAVE_AS = "search/index.html"
 
 FEED_ALL_ATOM = None
