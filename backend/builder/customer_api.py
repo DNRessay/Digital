@@ -1193,7 +1193,7 @@ def api_customer_site_links(request, site_slug):
         items = []
         for key, href, inner in site_links.find_links(page.document, skip_nav=True):
             link = overrides.get(key)
-            default = site_links.normalize(href, f"/{site.slug}/")
+            default = _link_target(site, href)
             draft = link.current(draft=True) if link else ""
             items.append(
                 {
@@ -1235,6 +1235,21 @@ def api_customer_site_links(request, site_slug):
 
 
 SECTION_ID_RE = re.compile(r"""<(?:section|div|main|header|footer)\b[^>]*\bid\s*=\s*["']([A-Za-z][\w-]*)["']""", re.IGNORECASE)
+
+
+def _link_target(site, href):
+    """A template href as an editor target. Template tags ({% url … %}) are
+    rendered the way the page renders them, then read as a page target."""
+    base_path = f"/{site.slug}/"
+    target = site_links.normalize(href, base_path)
+    if "{" in target:
+        from django.template import engines
+
+        try:
+            target = site_links.normalize(engines["django"].from_string(href).render({"site": site}), base_path)
+        except Exception:
+            return "#"
+    return target
 
 
 def _credit_locked(site, href):
