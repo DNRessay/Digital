@@ -317,7 +317,7 @@ function BlogEditor({ postId, onChanged, onClose }) {
 
 const MAX_PICKS = 5
 
-function BlogComposer({ categories, onStarted }) {
+function BlogComposer({ categories = [], onStarted }) {
   const [category, setCategory] = useState(categories[0]?.key || '')
   const [postType, setPostType] = useState('deep')
   const [news, setNews] = useState(null)
@@ -518,7 +518,7 @@ function Blog() {
 
   return (
     <>
-      <BlogComposer categories={data.categories} onStarted={refresh} />
+      {data.categories?.length > 0 && <BlogComposer categories={data.categories} onStarted={refresh} />}
       <div className="card">
         <h2>Posts</h2>
         <p className="muted">

@@ -31,8 +31,8 @@ categories:
     name: Marketing & Growth
     keywords: [marketing, seo, social media, whatsapp, google ads, facebook, instagram, customers, reviews, leads]
     sources:
-      - {type: reddit, sub: marketing, max: 15}
-      - {type: reddit, sub: smallbusiness, max: 15}
+      - {type: rss, url: "https://www.socialmediaexaminer.com/feed/", max: 12}
+      - {type: rss, url: "https://blog.hubspot.com/marketing/rss.xml", max: 12}
       - {type: serpapi_news, query: "small business marketing South Africa", gl: za, max: 10}
       - {type: semantic_scholar, query: "social media marketing small business", max: 10}
       - {type: semantic_scholar, query: "local search engine optimization", max: 8}

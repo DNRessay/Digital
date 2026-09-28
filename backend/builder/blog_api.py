@@ -15,6 +15,7 @@ on is approved at auto_publish_at.
 import hashlib
 import hmac
 import json
+import logging
 import uuid
 from datetime import timedelta
 
@@ -29,6 +30,8 @@ from django.views.decorators.http import require_http_methods
 from .api_views import admin_token_required
 from .models import BlogPost
 from .services import blog_jobs
+
+logger = logging.getLogger(__name__)
 
 
 def pipeline_token():
@@ -205,8 +208,9 @@ def admin_blog_suggest(request):
         items = engine.browse(keys, seen=blog_jobs.seen_ids())
     try:
         ideas = engine.suggest(keys, items, str(body.get("instructions", ""))[:2000])
-    except RuntimeError as exc:
-        return JsonResponse({"error": str(exc)}, status=502)
+    except Exception as exc:
+        logger.exception("blog suggest failed")
+        return JsonResponse({"error": f"The AI couldn't suggest ideas right now ({exc.__class__.__name__}). Try again."}, status=502)
     return JsonResponse({"ideas": ideas, "items": [i.to_dict() for i in items]})
 
 
