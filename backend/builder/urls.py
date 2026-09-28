@@ -8,6 +8,7 @@ urlpatterns = [
     path("manage/templates/", views.template_manager, name="template-manager"),
     path("<slug:slug>/contact/", views.site_contact, name="site-contact"),
     path("<slug:slug>/ai-chat/", views.site_ai_chat, name="site-ai-chat"),
+    path("<slug:slug>/blog/<slug:post_slug>/", views.site_blog_post, name="site-blog-post"),
     path("<slug:slug>/<slug:page_slug>/", views.site_page, name="site-page"),
     path("<slug:slug>/", views.site_home, name="site-home"),
 ]

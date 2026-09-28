@@ -1,6 +1,7 @@
 name: Blog
 
-# Mon/Wed/Fri the backend researches and drafts a post (backend/blog_research)
+# Daily it also asks the backend to write Growth Hub customers' own site blog
+# posts (up to 20 a month each). Mon/Wed/Fri the backend researches and drafts a post (backend/blog_research)
 # for review in the admin's Blog tab. Approving a post there starts the publish
 # job at once (the backend dispatches it); a daily run also picks up drafts
 # whose review window ran out. Publishing commits posts to
@@ -61,6 +62,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r research/requirements.txt
+      - name: Queue customers' site blog posts
+        continue-on-error: true
+        run: python -c "from research.api import queue_site_posts; print('Queued:', queue_site_posts())"
       - run: python -m research.publish
       - name: Commit new posts
         run: |

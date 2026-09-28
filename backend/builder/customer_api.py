@@ -36,7 +36,7 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteEnquiry, SiteStaff, SiteImage, SiteLink, SitePage, SiteSlotValue, SiteVisit, Template
+from .models import CustomerAuthToken, CustomerProfile, DomainPurchase, EmailDestination, EmailRoute, Site, SiteEnquiry, SitePost, SiteStaff, SiteImage, SiteLink, SitePage, SiteSlotValue, SiteVisit, Template
 from .payfast_views import _start_manual_za_registration
 from .services import cloudflare, domain_search, site_images, site_links, site_menu, site_pages, site_sections, whatsapp
 from .services.site_images import ImageUploadError
@@ -1344,6 +1344,8 @@ def _link_choices(site, page):
         if p.slug not in site_pages.STARTER_SLUGS
     ]
     pages += [{"target": f"page:{p.slug}", "title": p.title} for p in site.custom_pages.all()]
+    if site.growth_features_available and not any(p["target"] == "page:blog" for p in pages):
+        pages.append({"target": "page:blog", "title": "Blog"})
     seen, sections = set(), []
     for section_id in SECTION_ID_RE.findall(page.document if page else ""):
         if section_id not in seen and section_id not in ("header", "footer", "main", "navmenu"):
@@ -1763,3 +1765,71 @@ def api_customer_site_staff_member(request, site_slug, member_id):
     if not deleted:
         return JsonResponse({"error": "Not found."}, status=404)
     return JsonResponse({"deleted": True})
+
+
+def _blog_state(site):
+    from .services import site_blog
+
+    return {
+        "available": site.growth_features_available,
+        "enabled": site.blog_enabled,
+        "topics": site.blog_topics,
+        "limit": site_blog.MONTHLY_LIMIT,
+        "this_month": site_blog.posts_this_month(site),
+        "posts": [
+            {"id": p.id, "title": p.title, "slug": p.slug, "summary": p.summary, "published": p.published, "created_at": p.created_at.isoformat()}
+            for p in site.posts.all()[:100]
+        ],
+    }
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["GET", "PATCH", "POST"])
+def api_customer_site_blog(request, site_slug):
+    """Growth+ automated blog. GET its state and posts; PATCH {enabled?,
+    topics?}; POST asks for a post now (counts toward the monthly limit)."""
+    from .services import site_blog
+
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    if request.method == "GET":
+        return JsonResponse(_blog_state(site))
+    if not site.growth_features_available:
+        return JsonResponse({"error": "The automated blog comes with Growth Hub and Business OS."}, status=403)
+    if request.method == "PATCH":
+        body = _json_body(request)
+        fields = []
+        if "enabled" in body:
+            site.blog_enabled = bool(body["enabled"])
+            fields.append("blog_enabled")
+        if "topics" in body:
+            site.blog_topics = str(body["topics"])[:1000]
+            fields.append("blog_topics")
+        if fields:
+            site.save(update_fields=fields)
+        return JsonResponse(_blog_state(site))
+    if not site_blog.can_write(site):
+        return JsonResponse({"error": f"You've had this month's {site_blog.MONTHLY_LIMIT} posts — more next month."}, status=400)
+    site_blog.enqueue(site)
+    return JsonResponse({**_blog_state(site), "queued": True}, status=202)
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["PATCH", "DELETE"])
+def api_customer_site_blog_post(request, site_slug, post_id):
+    """PATCH {published} hides/shows a post; DELETE removes it."""
+    site = _get_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    post = site.posts.filter(id=post_id).first()
+    if post is None:
+        return JsonResponse({"error": "Not found."}, status=404)
+    if request.method == "DELETE":
+        post.delete()
+    else:
+        post.published = bool(_json_body(request).get("published", post.published))
+        post.save(update_fields=["published"])
+    return JsonResponse(_blog_state(site))

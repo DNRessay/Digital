@@ -345,3 +345,23 @@ export function addStaff(siteSlug, name, email, password) {
 export function removeStaff(siteSlug, memberId) {
   return apiFetch(`/api/customer/sites/${siteSlug}/staff/${memberId}/`, { method: 'DELETE' })
 }
+
+export function getSiteBlog(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/blog/`)
+}
+
+export function updateSiteBlog(siteSlug, fields) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/blog/`, { method: 'PATCH', body: fields })
+}
+
+export function writeSitePost(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/blog/`, { method: 'POST' })
+}
+
+export function updateSitePost(siteSlug, postId, fields) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/blog/${postId}/`, { method: 'PATCH', body: fields })
+}
+
+export function deleteSitePost(siteSlug, postId) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/blog/${postId}/`, { method: 'DELETE' })
+}

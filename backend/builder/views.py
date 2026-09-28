@@ -22,7 +22,7 @@ from .forms import TemplateUploadForm
 from .branding_assets import LOGO_WHITE_DATA_URI
 from .models import Site, SitePage, SiteSlotValue, SiteVisit, Template, TemplatePage
 from .services.ai_assistant import AiAssistantError, ask_assistant
-from .services import enquiries, site_links, site_menu, site_pages
+from .services import enquiries, site_blog, site_links, site_menu, site_pages
 from .services.site_images import apply_overrides, logo_scale_css, logo_urls
 from .services.slot_extractor import slot_tag
 from .services.template_ingest import IngestError, ingest_converted_zip
@@ -517,7 +517,7 @@ def _inject_map_address(html, address):
     return GOOGLE_MAPS_IFRAME_SRC_RE.sub(lambda m: m.group(1) + new_src + m.group(3), html)
 
 
-def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None, custom_page=None):
+def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None, custom_page=None, blog_page=None):
     """`page` is the TemplatePage to render; for a customer-added page
     (`custom_page`, a SitePage) it's the template's starter page, whose
     main content gets swapped for the custom page's sections."""
@@ -528,18 +528,24 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None
         href = link.current(draft=edit_mode)
         if href:
             link_overrides[link.key] = href
-    source = site_pages.document_with_marker(page.document) if custom_page else page.document
+    source = site_pages.document_with_marker(page.document) if custom_page or blog_page else page.document
     document = site_links.apply(source, link_overrides, annotate=edit_mode, base_path=base_path)
     template = django_engine.from_string(document)
     html = template.render(context)
     if custom_page:
         html = site_pages.fill(html, custom_page, site.name, edit_mode)
+    elif blog_page:
+        title, inner = blog_page
+        html = site_blog.fill(html, site_pages.SECTIONS_MARKER, inner, title, site.name)
     menu = site_menu.current(site, edit_mode)
     if menu is not None:
         html = site_menu.render(html, menu, base_path)
     else:
         nav_pages = site.custom_pages.filter(show_in_nav=True) if edit_mode else site.custom_pages.filter(show_in_nav=True, published=True)
-        html = site_pages.inject_nav(html, [(f"{base_path}{p.slug}/", p.title) for p in nav_pages])
+        nav_items = [(f"{base_path}{p.slug}/", p.title) for p in nav_pages]
+        if site.growth_features_available and site.posts.filter(published=True).exists():
+            nav_items.append((f"{base_path}blog/", "Blog"))
+        html = site_pages.inject_nav(html, nav_items)
     html = site_menu.add_mobile_menu(html)
     overrides = {}
     for image in site.images.all():
@@ -637,9 +643,41 @@ def _page_or_custom(site, page_slug, edit_mode):
     return starter, custom
 
 
+def _blog_page(site, post_slug, base_path):
+    """(starter TemplatePage, (title, inner html)) for the site's blog, or Http404."""
+    starter = site_pages.starter_page(site.template)
+    if starter is None or not site.growth_features_available:
+        raise Http404("No blog.")
+    if post_slug is None:
+        return starter, ("Blog", site_blog.list_html(site, base_path))
+    post = site.posts.filter(slug=post_slug, published=True).first()
+    if post is None:
+        raise Http404("No such post.")
+    return starter, (post.title, site_blog.post_html(site, post, base_path))
+
+
+def site_blog_post(request, slug, post_slug):
+    site = get_object_or_404(Site, slug=slug, is_published=True)
+    page, blog = _blog_page(site, post_slug, f"/{slug}/")
+    chat_url = reverse("builder:site-ai-chat", args=[slug])
+    return _track_visit(request, site, _render_site_page(site, page, chat_url=chat_url, blog_page=blog))
+
+
+def custom_domain_blog_post(request, post_slug):
+    site = request.custom_domain_site
+    page, blog = _blog_page(site, post_slug, "/")
+    return _track_visit(
+        request, site, _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat"), base_path="/", blog_page=blog)
+    )
+
+
 def site_page(request, slug, page_slug):
     site = get_object_or_404(Site, slug=slug, is_published=True)
     edit_mode = request.GET.get("vicinic_edit") == "1"
+    if page_slug == "blog" and not SitePage.objects.filter(site=site, slug="blog").exists():
+        page, blog = _blog_page(site, None, f"/{slug}/")
+        chat_url = reverse("builder:site-ai-chat", args=[slug])
+        return _track_visit(request, site, _render_site_page(site, page, edit_mode=edit_mode, chat_url=chat_url, blog_page=blog))
     page, custom = _page_or_custom(site, page_slug, edit_mode)
     chat_url = reverse("builder:site-ai-chat", args=[slug])
     return _track_visit(
@@ -662,6 +700,11 @@ def custom_domain_home(request):
 
 def custom_domain_page(request, page_slug):
     site = request.custom_domain_site
+    if page_slug == "blog" and not SitePage.objects.filter(site=site, slug="blog").exists():
+        page, blog = _blog_page(site, None, "/")
+        return _track_visit(
+            request, site, _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat"), base_path="/", blog_page=blog)
+        )
     page, custom = _page_or_custom(site, page_slug, edit_mode=False)
     return _track_visit(
         request,

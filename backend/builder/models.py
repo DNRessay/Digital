@@ -219,6 +219,8 @@ class Site(models.Model):
         help_text="Comma-separated — what the customer needs to set at their registrar for domain_status to become active.",
     )
 
+    blog_enabled = models.BooleanField(default=True, help_text="Growth+: write blog posts automatically (up to 20 a month).")
+    blog_topics = models.TextField(blank=True, help_text="Owner's hints for what the automated blog should cover.")
     bookings_enabled = models.BooleanField(
         default=True, help_text="Growth+: show the floating 'Book' button so visitors can request a booking."
     )
@@ -678,3 +680,23 @@ class SiteStaff(models.Model):
 
     def __str__(self):
         return f"{self.user} @ {self.site.slug}"
+
+
+class SitePost(models.Model):
+    """Growth+: a post on a customer's own site blog (/<site>/blog/),
+    written automatically about the business (services.site_blog)."""
+
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="posts")
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=120)
+    summary = models.CharField(max_length=300, blank=True)
+    body = models.TextField(help_text="Markdown.")
+    published = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        unique_together = [("site", "slug")]
+
+    def __str__(self):
+        return f"{self.site.slug}: {self.title}"

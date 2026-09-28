@@ -56,6 +56,11 @@ import {
   updateEnquiry,
   deleteEnquiry,
   getStaff,
+  getSiteBlog,
+  updateSiteBlog,
+  writeSitePost,
+  updateSitePost,
+  deleteSitePost,
   addStaff,
   removeStaff,
 } from './api.js'
@@ -1655,7 +1660,7 @@ const TABS = [
   },
   {
     key: 'customers',
-    label: 'Customers',
+    label: 'Growth',
     icon: (
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="9" cy="8" r="3.2" />
@@ -1771,6 +1776,107 @@ function EnquiryCard({ site, enquiry, onChanged, onDeleted }) {
   )
 }
 
+function BlogPanel({ site }) {
+  const [state, setState] = useState(null)
+  const [error, setError] = useState(null)
+  const [notice, setNotice] = useState(null)
+  const [topics, setTopics] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  function load() {
+    return getSiteBlog(site.slug)
+      .then((d) => {
+        setState(d)
+        setTopics(d.topics)
+      })
+      .catch((err) => setError(err.message))
+  }
+
+  useEffect(() => {
+    load()
+  }, [site.slug])
+
+  async function run(action) {
+    setBusy(true)
+    setError(null)
+    try {
+      setState(await action())
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function writeNow() {
+    setBusy(true)
+    setError(null)
+    try {
+      await writeSitePost(site.slug)
+      setNotice('Writing a post now — it will appear here in about a minute.')
+      setTimeout(load, 45000)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!state) return error ? <div className="error">{error}</div> : <p>Loading…</p>
+
+  const base = liveUrl(site)
+  return (
+    <>
+      <p>
+        We write short posts about your business for your site's <a href={`${base}blog/`} target="_blank" rel="noreferrer">Blog</a>{' '}
+        — up to {state.limit} a month, spread through the month. Great for Google.
+      </p>
+      {error && <div className="error">{error}</div>}
+      {notice && <div className="notice card">{notice}</div>}
+      <label className="toggle-row">
+        <input type="checkbox" checked={state.enabled} disabled={busy} onChange={() => run(() => updateSiteBlog(site.slug, { enabled: !state.enabled }))} />
+        <span>Write posts automatically</span>
+      </label>
+      <label htmlFor="blog-topics">What should we write about? (optional)</label>
+      <textarea
+        id="blog-topics"
+        rows="2"
+        placeholder="e.g. hair care tips, our new braiding styles, winter specials"
+        value={topics}
+        onChange={(e) => setTopics(e.target.value)}
+        onBlur={() => topics !== state.topics && run(() => updateSiteBlog(site.slug, { topics }))}
+      />
+      <p className="field-hint">{state.this_month} of {state.limit} posts this month.</p>
+      <button type="button" disabled={busy || state.this_month >= state.limit} onClick={writeNow}>Write a post now</button>
+      {state.posts.length > 0 && (
+        <ul className="customer-list blog-posts">
+          {state.posts.map((p) => (
+            <li key={p.id} className="team-member">
+              <span>
+                <a href={`${base}blog/${p.slug}/`} target="_blank" rel="noreferrer"><strong>{p.title}</strong></a>
+                <span className="field-hint"> {new Date(p.created_at).toLocaleDateString('en-ZA')}{p.published ? '' : ' · hidden'}</span>
+              </span>
+              <span className="post-actions">
+                <button type="button" className="link-button" disabled={busy} onClick={() => run(() => updateSitePost(site.slug, p.id, { published: !p.published }))}>
+                  {p.published ? 'Hide' : 'Show'}
+                </button>
+                <button
+                  type="button"
+                  className="link-button danger"
+                  disabled={busy}
+                  onClick={() => window.confirm(`Delete "${p.title}"?`) && run(() => deleteSitePost(site.slug, p.id))}
+                >
+                  Delete
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
 function CustomersTab({ site, onSiteUpdated }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -1800,9 +1906,9 @@ function CustomersTab({ site, onSiteUpdated }) {
   if (!site.growth_features_available) {
     return (
       <div className="card locked-card">
-        <h2>Customers &amp; bookings</h2>
+        <h2>Grow your business</h2>
         <p>
-          Keep every enquiry and booking request from your site in one place, with a customer list, statuses and
+          An automated blog with up to 20 posts a month, and every enquiry and booking request from your site in one place, with a customer list, statuses and
           notes. Visitors get a <strong>Book</strong> button on your site.
         </p>
         <p className="field-hint">
@@ -1842,7 +1948,11 @@ function CustomersTab({ site, onSiteUpdated }) {
           <button type="button" className={view === 'people' ? 'active' : ''} onClick={() => setView('people')}>
             Customers{data ? ` (${data.customers.length})` : ''}
           </button>
+          <button type="button" className={view === 'blog' ? 'active' : ''} onClick={() => setView('blog')}>
+            Blog
+          </button>
         </div>
+        {view === 'blog' && <BlogPanel site={site} />}
         {error && <div className="error">{error}</div>}
         {!data && !error && <p>Loading…</p>}
         {data && view === 'inbox' && (

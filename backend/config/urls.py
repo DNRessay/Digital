@@ -27,6 +27,7 @@ urlpatterns = [
     path("api/blog/pipeline/auto/", blog_api.pipeline_auto, name="api-blog-auto"),
     path("api/blog/pipeline/due/", blog_api.pipeline_due, name="api-blog-due"),
     path("api/blog/pipeline/published/", blog_api.pipeline_published, name="api-blog-published"),
+    path("api/blog/pipeline/site-posts/", blog_api.pipeline_site_posts, name="api-blog-site-posts"),
     path("api/admin/analytics/", api_views.api_admin_analytics, name="api-admin-analytics"),
     path("api/admin/domain-lookup/", api_views.api_admin_domain_lookup, name="api-admin-domain-lookup"),
     path("api/admin/domain-attach/", api_views.api_admin_domain_attach, name="api-admin-domain-attach"),
@@ -153,6 +154,16 @@ urlpatterns = [
         "api/customer/sites/<slug:site_slug>/enquiries/<int:enquiry_id>/",
         customer_api.api_customer_site_enquiry,
         name="api-customer-site-enquiry",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/blog/",
+        customer_api.api_customer_site_blog,
+        name="api-customer-site-blog",
+    ),
+    path(
+        "api/customer/sites/<slug:site_slug>/blog/<int:post_id>/",
+        customer_api.api_customer_site_blog_post,
+        name="api-customer-site-blog-post",
     ),
     path(
         "api/customer/sites/<slug:site_slug>/staff/",

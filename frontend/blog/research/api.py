@@ -35,6 +35,11 @@ def mark_published(slugs):
     return _call("POST", "published", json={"slugs": slugs})
 
 
+def queue_site_posts():
+    """Customers' own site blogs (Growth Hub): the backend writes today's due posts."""
+    return _call("POST", "site-posts")["queued"]
+
+
 if __name__ == "__main__":
     # python -m research.api [category] [deep|pulse]: ask the backend for a draft.
     result = start_scheduled(*sys.argv[1:3])

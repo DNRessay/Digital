@@ -43,9 +43,10 @@ PACKAGES = {
     # below keys off of to build a plain once-off charge instead of a
     # PayFast subscription.
     "starter": {"label": "Starter Site", "monthly": Decimal("0.00"), "setup": Decimal("250.00")},
-    # Sold through the sales team (features are set up for the customer), so
-    # they can't be bought from the portal; the admin console sets the plan.
-    "growth": {"label": "Growth Hub", "monthly": Decimal("349.00"), "setup": Decimal("2500.00"), "sales_only": True},
+    # Business OS is sold through the sales team (its features are set up for
+    # the customer), so it can't be bought from the portal; the admin console
+    # sets the plan.
+    "growth": {"label": "Growth Hub", "monthly": Decimal("349.00"), "setup": Decimal("2500.00")},
     "business_os": {"label": "Business OS", "monthly": Decimal("699.00"), "setup": Decimal("5500.00"), "sales_only": True},
 }
 

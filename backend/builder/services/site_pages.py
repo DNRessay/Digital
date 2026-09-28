@@ -16,7 +16,7 @@ from . import section_styles, site_sections
 
 SECTIONS_MARKER = "<!--vicinic-sections-->"
 STARTER_SLUGS = ("starter-page", "starter", "blank-page", "blank")
-RESERVED_SLUGS = {"contact", "ai-chat", "admin", "api", "static", "media", "template-preview"}
+RESERVED_SLUGS = {"contact", "ai-chat", "admin", "api", "static", "media", "template-preview", "blog"}
 PAGE_LIMITS = {"starter": 3, "growth": 10, "business_os": None}
 MAIN_RE = re.compile(r"(<main\b[^>]*>)(.*?)(</main\s*>)", re.IGNORECASE | re.DOTALL)
 TITLE_RE = re.compile(r"(<title\b[^>]*>)(.*?)(</title\s*>)", re.IGNORECASE | re.DOTALL)
