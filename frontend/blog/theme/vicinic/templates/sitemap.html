@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>{{ BLOG_URL }}/</loc></url>
+{% for article in articles %}
+  <url><loc>{{ BLOG_URL }}/{{ article.url }}</loc><lastmod>{{ (article.modified or article.date).strftime('%Y-%m-%d') }}</lastmod></url>
+{% endfor %}
+{% for category, _ in categories %}
+  <url><loc>{{ BLOG_URL }}/{{ category.url }}</loc></url>
+{% endfor %}
+</urlset>

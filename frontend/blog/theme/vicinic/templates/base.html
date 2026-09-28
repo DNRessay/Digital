@@ -11,7 +11,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@600;700;800&family=Roboto:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/theme/css/style.css">
   {% if FEED_ALL_ATOM %}<link href="{{ FEED_DOMAIN }}/{{ FEED_ALL_ATOM }}" type="application/atom+xml" rel="alternate" title="{{ SITENAME }}">{% endif %}
-  {% block head %}{% endblock head %}
+  {% block head %}
+  <link rel="canonical" href="{{ BLOG_URL }}/{{ output_file | replace('index.html', '') if output_file else '' }}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Vicinic Blog">
+  <meta property="og:image" content="{{ MAIN_SITE_URL }}/assets/img/og-image.png">
+  {% endblock head %}
 </head>
 <body>
   <header class="site-header">

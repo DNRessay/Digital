@@ -6,7 +6,7 @@ Pages supports this via each project's own "Root directory" setting).
 
 | App          | Purpose                                                          | Stack                  | Status                |
 | ------------ | ----------------------------------------------------------------- | ---------------------- | --------------------- |
-| `site`       | Marketing site (vicinic.com)                                      | Vite + React           | Existing, live        |
+| `site`       | Marketing site (vicinic.co.za)                                      | Vite + React           | Existing, live        |
 | `admin`      | Internal dashboard — template manager (real), sites/overview (placeholder) | Vite + React | Partly functional     |
 | `web-portal` | Customer editor (edit your own site's slot text)                  | Vite + React           | Functional — real API |
 

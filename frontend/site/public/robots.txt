@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://vicinic.com/sitemap.xml
+Sitemap: https://vicinic.co.za/sitemap.xml
