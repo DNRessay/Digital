@@ -142,3 +142,29 @@ Name the project `vicinic-blog` and don't give it a custom domain: the
 `blog.vicinic.co.za` to `vicinic-blog.pages.dev`, like `portal.` and
 `console.`. `publishconf.py` builds with `SITEURL=https://blog.vicinic.co.za`
 (override with a `SITEURL` env var) and adds the RSS/Atom feeds.
+
+### AI drafts (ported from Bloggify)
+
+`blog/research/` researches and drafts posts with Groq, using the sources and
+topics in `research/topics.yaml`. The `Blog` workflow (`.github/workflows/blog.yml`):
+
+1. **Mon, Wed, Fri 04:47 UTC**: drafts one post and sends it to the backend.
+   It shows up in the admin's **Blog** tab.
+2. There you can approve, edit, hold or reject it. A draft you don't touch is
+   approved automatically after `BLOG_REVIEW_HOURS` (48 by default, a backend
+   env var).
+3. **Hourly**: approved posts are committed to `blog/content/posts`, which
+   rebuilds the blog.
+
+The workflow needs the `GROQ_API_KEYS` repo secret (comma-separated keys,
+rotated on rate limits). `SERPAPI_KEY` (Google News searches) and `NASA_API_KEY`
+(NASA APOD, for the Space & Tech category) are optional: without them news
+searches are skipped and NASA uses its rate-limited DEMO_KEY. It authenticates to the backend with a token derived from the
+existing `AWS_DJANGO_SECRET_KEY` secret. To run it by hand: Actions → Blog →
+Run workflow (`job` = `draft` or `publish`). For a local dry run:
+
+```bash
+cd frontend/blog
+pip install -r research/requirements.txt
+GROQ_API_KEYS=... python -m research.run --type deep --category marketing --dry-run
+```

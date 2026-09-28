@@ -535,3 +535,42 @@ class SitePage(models.Model):
 
     def __str__(self):
         return f"{self.site.slug}/{self.slug}"
+
+
+class BlogPost(models.Model):
+    """A Vicinic blog post drafted by the research pipeline (frontend/blog/
+    research, run on a GitHub Actions cron). Staff review drafts in the
+    admin; a draft nobody acts on is approved automatically at
+    auto_publish_at. The blog workflow then commits approved posts into
+    frontend/blog/content/posts, which rebuilds blog.vicinic.co.za."""
+
+    STATUS_DRAFT = "draft"
+    STATUS_APPROVED = "approved"
+    STATUS_PUBLISHED = "published"
+    STATUS_REJECTED = "rejected"
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, "Draft"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_PUBLISHED, "Published"),
+        (STATUS_REJECTED, "Rejected"),
+    ]
+
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=120, unique=True)
+    summary = models.CharField(max_length=400, blank=True)
+    category = models.CharField(max_length=80)
+    tags = models.CharField(max_length=300, blank=True)
+    post_type = models.CharField(max_length=20, default="deep")
+    body = models.TextField(help_text="Markdown, including the Sources list.")
+    source_ids = models.JSONField(default=list, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+    auto_publish_at = models.DateTimeField(null=True, blank=True, help_text="Empty = never auto-publish.")
+    created_at = models.DateTimeField(auto_now_add=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title

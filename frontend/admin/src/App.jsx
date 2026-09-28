@@ -1,6 +1,19 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
-import { deleteTemplate, getAnalytics, listTemplates, login, logout, uploadTemplate, whoami } from './api.js'
+import {
+  blogPostAction,
+  deleteTemplate,
+  getAnalytics,
+  getBlogPost,
+  listBlogPosts,
+  listSites,
+  listTemplates,
+  login,
+  logout,
+  updateBlogPost,
+  uploadTemplate,
+  whoami,
+} from './api.js'
 
 function Login({ onLoggedIn }) {
   const [username, setUsername] = useState('')
@@ -103,11 +116,216 @@ function Dashboard() {
   )
 }
 
+function SiteCard({ site }) {
+  const rows = [
+    ['Owner', site.owner_email ? `${site.owner} · ${site.owner_email}` : site.owner || '—'],
+    ['Template', site.template],
+    ['Subscription', SUBSCRIPTION_LABELS[site.subscription_status] || site.subscription_status],
+    ['Domain', site.custom_domain ? `${site.custom_domain} (${DOMAIN_LABELS[site.domain_status] || site.domain_status})` : 'None'],
+    ['Visitors (30 days)', site.visitors_30d],
+    ['Custom pages', site.custom_pages],
+    ['AI assistant', site.ai_assistant_enabled ? 'On' : 'Off'],
+    ['WhatsApp', site.whatsapp_connected ? 'Connected' : 'Not connected'],
+    ['Contact', [site.email, site.phone].filter(Boolean).join(' · ') || '—'],
+    ['Created', new Date(site.created_at).toLocaleDateString()],
+  ]
+  return (
+    <details className="site-card">
+      <summary>
+        <span className="site-card-name">{site.name}</span>
+        <span className={`pill ${site.has_paid_plan ? 'pill-paid' : ''}`}>
+          {site.has_paid_plan ? PACKAGE_LABELS[site.package] || 'Paid' : 'Free'}
+        </span>
+        {!site.is_published && <span className="pill">Unpublished</span>}
+      </summary>
+      <ul className="breakdown-list">
+        {rows.map(([label, value]) => (
+          <li key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
 function Sites() {
+  const [sites, setSites] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    listSites()
+      .then((data) => setSites(data.sites))
+      .catch((err) => setError(err.message))
+  }, [])
+
+  if (error) return <div className="card error">Could not load sites: {error}</div>
+  if (!sites) return <div className="card">Loading sites…</div>
+
+  const paid = sites.filter((s) => s.has_paid_plan)
+  const free = sites.filter((s) => !s.has_paid_plan)
+  return (
+    <>
+      {[
+        ['Paid plans', paid],
+        ['Free', free],
+      ].map(([title, list]) => (
+        <div className="card" key={title}>
+          <h2>
+            {title} <span className="muted">({list.length})</span>
+          </h2>
+          {list.length === 0 ? <p>None yet.</p> : list.map((site) => <SiteCard key={site.slug} site={site} />)}
+        </div>
+      ))}
+    </>
+  )
+}
+
+const BLOG_STATUS_LABELS = { draft: 'Draft', approved: 'Approved — goes live within the hour', published: 'Live', rejected: 'Rejected' }
+
+function timeLeft(iso) {
+  const ms = new Date(iso) - Date.now()
+  if (ms <= 0) return 'any minute now'
+  const hours = Math.floor(ms / 3600000)
+  return hours >= 1 ? `in ${hours}h ${Math.floor((ms % 3600000) / 60000)}m` : `in ${Math.ceil(ms / 60000)}m`
+}
+
+function BlogEditor({ postId, onChanged, onClose }) {
+  const [post, setPost] = useState(null)
+  const [form, setForm] = useState(null)
+  const [editing, setEditing] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  function load(data) {
+    setPost(data.post)
+    setForm({ title: data.post.title, summary: data.post.summary, tags: data.post.tags, body: data.post.body })
+  }
+
+  useEffect(() => {
+    getBlogPost(postId)
+      .then(load)
+      .catch((err) => setError(err.message))
+  }, [postId])
+
+  async function run(fn) {
+    setBusy(true)
+    setError(null)
+    try {
+      load(await fn())
+      setEditing(false)
+      onChanged()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (error && !post) return <div className="card error">{error}</div>
+  if (!post) return <div className="card">Loading post…</div>
+  const locked = post.status === 'published'
+
+  return (
+    <div className="card blog-editor">
+      <button type="button" className="link-button" onClick={onClose}>← All posts</button>
+      <p className="muted">
+        {post.category} · {BLOG_STATUS_LABELS[post.status]}
+        {post.status === 'draft' && (post.auto_publish_at ? ` · auto-publishes ${timeLeft(post.auto_publish_at)}` : ' · on hold')}
+      </p>
+      {error && <div className="error">{error}</div>}
+      {editing ? (
+        <>
+          {['title', 'summary', 'tags'].map((field) => (
+            <div key={field}>
+              <label htmlFor={`blog-${field}`}>{field[0].toUpperCase() + field.slice(1)}</label>
+              <input
+                id={`blog-${field}`}
+                type="text"
+                value={form[field]}
+                onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+              />
+            </div>
+          ))}
+          <label htmlFor="blog-body">Body (Markdown)</label>
+          <textarea id="blog-body" rows={22} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
+          <div className="button-row">
+            <button type="button" disabled={busy} onClick={() => run(() => updateBlogPost(post.id, form))}>
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            <button type="button" className="link-button" onClick={() => setEditing(false)}>Cancel</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <h1 className="blog-title">{post.title}</h1>
+          {post.summary && <p className="blog-summary">{post.summary}</p>}
+          <article className="blog-preview" dangerouslySetInnerHTML={{ __html: post.body_html }} />
+          {!locked && (
+            <div className="button-row">
+              {post.status !== 'approved' && (
+                <button type="button" disabled={busy} onClick={() => run(() => blogPostAction(post.id, 'approve'))}>Approve & publish</button>
+              )}
+              <button type="button" className="secondary" disabled={busy} onClick={() => setEditing(true)}>Edit</button>
+              {post.status === 'draft' && post.auto_publish_at && (
+                <button type="button" className="secondary" disabled={busy} onClick={() => run(() => blogPostAction(post.id, 'hold'))}>Hold</button>
+              )}
+              {(post.status !== 'draft' || !post.auto_publish_at) && (
+                <button type="button" className="secondary" disabled={busy} onClick={() => run(() => blogPostAction(post.id, 'resume'))}>Back to review</button>
+              )}
+              {post.status !== 'rejected' && (
+                <button type="button" className="danger" disabled={busy} onClick={() => run(() => blogPostAction(post.id, 'reject'))}>Reject</button>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function Blog() {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState(null)
+  const [openId, setOpenId] = useState(null)
+
+  function refresh() {
+    listBlogPosts()
+      .then(setData)
+      .catch((err) => setError(err.message))
+  }
+
+  useEffect(refresh, [])
+
+  if (openId) return <BlogEditor postId={openId} onChanged={refresh} onClose={() => setOpenId(null)} />
+  if (error) return <div className="card error">Could not load posts: {error}</div>
+  if (!data) return <div className="card">Loading posts…</div>
+
   return (
     <div className="card">
-      <h2>Sites</h2>
-      <p>Placeholder — list of customer sites goes here.</p>
+      <h2>Blog</h2>
+      <p className="muted">
+        AI drafts arrive Mon, Wed and Fri. Anything you don't approve, hold or reject goes live on its own after{' '}
+        {data.review_hours} hours.
+      </p>
+      {data.posts.length === 0 ? (
+        <p>No drafts yet.</p>
+      ) : (
+        <ul className="blog-list">
+          {data.posts.map((p) => (
+            <li key={p.id}>
+              <button type="button" className="blog-row" onClick={() => setOpenId(p.id)}>
+                <strong>{p.title}</strong>
+                <span className="muted">
+                  {p.category} · {BLOG_STATUS_LABELS[p.status]}
+                  {p.status === 'draft' && (p.auto_publish_at ? ` · auto-publishes ${timeLeft(p.auto_publish_at)}` : ' · on hold')}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -283,6 +501,7 @@ export default function App() {
             Dashboard
           </NavLink>
           <NavLink to="/sites">Sites</NavLink>
+          <NavLink to="/blog">Blog</NavLink>
           <NavLink to="/templates">Templates</NavLink>
         </nav>
         <button type="button" className="link-button" onClick={handleLogout}>Sign out</button>
@@ -291,6 +510,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/sites" element={<Sites />} />
+          <Route path="/blog" element={<Blog />} />
           <Route path="/templates" element={<Templates />} />
         </Routes>
       </main>

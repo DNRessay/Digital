@@ -3,7 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from builder import api_views, customer_api, payfast_views, whatsapp_views
+from builder import api_views, blog_api, customer_api, payfast_views, whatsapp_views
 from builder import views as builder_views
 
 urlpatterns = [
@@ -16,6 +16,14 @@ urlpatterns = [
     path("api/admin/logout/", api_views.api_admin_logout, name="api-admin-logout"),
     path("api/templates/", api_views.api_templates, name="api-templates"),
     path("api/templates/<int:template_id>/", api_views.api_template_delete, name="api-template-delete"),
+    path("api/admin/sites/", api_views.api_admin_sites, name="api-admin-sites"),
+    path("api/admin/blog/", blog_api.admin_blog_posts, name="api-admin-blog"),
+    path("api/admin/blog/<int:post_id>/", blog_api.admin_blog_post, name="api-admin-blog-post"),
+    path("api/admin/blog/<int:post_id>/<str:action>/", blog_api.admin_blog_action, name="api-admin-blog-action"),
+    path("api/blog/pipeline/seen/", blog_api.pipeline_seen, name="api-blog-seen"),
+    path("api/blog/pipeline/drafts/", blog_api.pipeline_draft, name="api-blog-draft"),
+    path("api/blog/pipeline/due/", blog_api.pipeline_due, name="api-blog-due"),
+    path("api/blog/pipeline/published/", blog_api.pipeline_published, name="api-blog-published"),
     path("api/admin/analytics/", api_views.api_admin_analytics, name="api-admin-analytics"),
     path("api/admin/domain-lookup/", api_views.api_admin_domain_lookup, name="api-admin-domain-lookup"),
     path("api/admin/domain-attach/", api_views.api_admin_domain_attach, name="api-admin-domain-attach"),

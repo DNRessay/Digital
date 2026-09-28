@@ -196,6 +196,9 @@ HOSTAFRICA_API_KEY = os.environ.get("HOSTAFRICA_API_KEY", "")
 # While HOSTAFRICA_MANUAL_ZA is on, HostAfrica domains are registered by hand:
 # the paid order emails ADMIN_NOTIFY_EMAIL (see payfast_views). Set it to
 # false once reseller credits are topped up for automatic registration.
+# AI blog drafts (builder/blog_api.py) go live on their own after this many
+# hours unless a staff member approves, rejects or holds them first.
+BLOG_REVIEW_HOURS = int(os.environ.get("BLOG_REVIEW_HOURS", "48"))
 HOSTAFRICA_MANUAL_ZA = os.environ.get("HOSTAFRICA_MANUAL_ZA", "true").lower() == "true"
 # Customer pricing (builder/services/domain_search.py): TLDs listed here sell
 # at that fixed first-year price ("co.za=150,org.za=120"); everything else is
