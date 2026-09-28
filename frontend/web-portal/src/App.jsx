@@ -1613,6 +1613,7 @@ function ImageTile({ img, selected, busy, tileRef, onFile, onReset }) {
       <div className="image-thumb"><img src={img.current} alt="" loading="lazy" /></div>
       <div className="image-badges">
         {img.logo && <span className="domain-badge">Logo</span>}
+        {img.favicon && !img.logo && <span className="domain-badge">Site icon</span>}
         {img.pending && <span className="pending-badge">Unpublished</span>}
       </div>
       <div className="image-actions">
@@ -1700,7 +1701,8 @@ function ImagesPanel({ site, page, selectedSrc, refreshKey, onChanged, onPending
   if (images && images.length === 0) return null
 
   const logos = images ? images.filter((img) => img.logo) : []
-  const others = images ? images.filter((img) => !img.logo) : []
+  const favicons = images ? images.filter((img) => img.favicon && !img.logo) : []
+  const others = images ? images.filter((img) => !img.logo && !img.favicon) : []
   const tile = (img) => (
     <ImageTile
       key={img.original}
@@ -1743,6 +1745,13 @@ function ImagesPanel({ site, page, selectedSrc, refreshKey, onChanged, onPending
                 value={state.logo_scale}
                 onChange={(e) => handleScale(Number(e.target.value))}
               />
+            </>
+          )}
+          {favicons.length > 0 && (
+            <>
+              <h3 className="domain-list-title">Site icon</h3>
+              <p className="field-hint">Shown on the browser tab and phone home screens — a square image works best.</p>
+              <div className="image-grid">{favicons.map(tile)}</div>
             </>
           )}
           {others.length > 0 && (

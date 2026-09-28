@@ -973,7 +973,7 @@ def api_customer_profile(request):
     return JsonResponse({"profile": _serialize_profile(profile)})
 
 
-def _serialize_site_image(original, override, logos=()):
+def _serialize_site_image(original, override, logos=(), favicons=()):
     draft_url = override.url(draft=True) if override else None
     live_url = override.url() if override else None
     return {
@@ -983,6 +983,7 @@ def _serialize_site_image(original, override, logos=()):
         "pending": bool(override and override.has_draft),
         "live": live_url or original,
         "logo": original in logos,
+        "favicon": original in favicons,
     }
 
 
@@ -1005,7 +1006,7 @@ def _image_state(site):
 @require_http_methods(["GET", "POST", "DELETE"])
 def api_customer_site_images(request, site_slug):
     """The editor's Images panel. GET ?page=<slug> lists the images on one
-    page (header/footer included, logos flagged first); POST (multipart:
+    page (header/footer included, logos then favicons flagged first); POST (multipart:
     original, file) stages a replacement; DELETE ?original=<url> stages a
     reset to the template's own image. Nothing goes live until
     .../images/publish/. Replacing images is a paid-plan feature."""
@@ -1020,10 +1021,14 @@ def api_customer_site_images(request, site_slug):
         if page is None:
             return JsonResponse({"error": "Page not found."}, status=404)
         logos = site_images.logo_urls(page.document)
+        favicons = site_images.favicon_urls(page.document)
         urls = site_images.image_urls(page.document)
-        urls.sort(key=lambda u: u not in logos)
+        urls.sort(key=lambda u: (u not in logos, u not in favicons))
         return JsonResponse(
-            {**_image_state(site), "images": [_serialize_site_image(u, overrides.get(u), logos) for u in urls]}
+            {
+                **_image_state(site),
+                "images": [_serialize_site_image(u, overrides.get(u), logos, favicons) for u in urls],
+            }
         )
 
     if not site.has_paid_plan:
