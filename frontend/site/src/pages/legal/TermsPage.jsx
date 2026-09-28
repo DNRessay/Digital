@@ -10,6 +10,12 @@ export default function TermsPage() {
       <h2>1. Your account</h2>
       <ul>
         <li>You must be 18 or older, or have authority to act for the business you sign up for.</li>
+        <li>
+          If your business is not registered with the CIPC, we treat you as a <strong>sole trader</strong> — or, where
+          two or more people run it together, as <strong>partners</strong> — and the person or people who sign up are
+          personally our client and responsible under these terms. You can move the account to a registered company
+          later by contacting us.
+        </li>
         <li>Give us accurate details and keep them up to date — domain registries require the real owner's details.</li>
         <li>Keep your password safe. You're responsible for what happens under your account.</li>
       </ul>
