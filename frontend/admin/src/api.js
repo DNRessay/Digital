@@ -90,6 +90,10 @@ export function listSites() {
   return apiFetch('/api/admin/sites/')
 }
 
+export function setSitePlan(slug, pkg) {
+  return apiFetch(`/api/admin/sites/${slug}/plan/`, { method: 'POST', body: { package: pkg } })
+}
+
 export function listBlogPosts() {
   return apiFetch('/api/admin/blog/')
 }

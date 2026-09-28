@@ -341,3 +341,24 @@ def api_admin_sites(request):
         )
     rows.sort(key=lambda r: not r["has_paid_plan"])
     return JsonResponse({"sites": rows})
+
+
+@csrf_exempt
+@admin_token_required
+@require_http_methods(["POST"])
+def api_admin_site_plan(request, site_slug):
+    """Staff set a site's plan by hand (e.g. a comped or offline-paid
+    account): {package: "starter" | "growth" | "business_os" | ""}. A package
+    makes the subscription active; "" puts the site back on the free tier."""
+    site = Site.objects.filter(slug=site_slug).first()
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    package = str(_json_body(request).get("package", ""))
+    if package and package not in dict(Site.PACKAGE_CHOICES):
+        return JsonResponse({"error": "Unknown plan."}, status=400)
+    site.package = package
+    site.subscription_status = Site.SUBSCRIPTION_ACTIVE if package else Site.SUBSCRIPTION_NONE
+    site.save(update_fields=["package", "subscription_status"])
+    return JsonResponse(
+        {"slug": site.slug, "package": site.package, "subscription_status": site.subscription_status, "has_paid_plan": site.has_paid_plan}
+    )

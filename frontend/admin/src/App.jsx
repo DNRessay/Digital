@@ -11,6 +11,7 @@ import {
   listBlogPosts,
   listSites,
   listTemplates,
+  setSitePlan,
   login,
   logout,
   updateBlogPost,
@@ -119,7 +120,47 @@ function Dashboard() {
   )
 }
 
-function SiteCard({ site }) {
+function SitePlan({ site, onChanged }) {
+  const current = site.has_paid_plan ? site.package : ''
+  const [value, setValue] = useState(current)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function save() {
+    const name = value ? PACKAGE_LABELS[value] : 'the free tier'
+    if (!window.confirm(`Move ${site.name} to ${name}? It takes effect immediately, without a PayFast payment.`)) return
+    setBusy(true)
+    setError(null)
+    try {
+      await setSitePlan(site.slug, value)
+      onChanged()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="site-plan">
+      <label htmlFor={`plan-${site.slug}`}>Plan</label>
+      <div className="site-plan-row">
+        <select id={`plan-${site.slug}`} value={value} onChange={(e) => setValue(e.target.value)} disabled={busy}>
+          <option value="">Free (no package)</option>
+          <option value="starter">Starter Site</option>
+          <option value="growth">Growth Hub</option>
+          <option value="business_os">Business OS</option>
+        </select>
+        <button type="button" disabled={busy || value === current} onClick={save}>
+          {busy ? 'Saving…' : 'Change plan'}
+        </button>
+      </div>
+      {error && <div className="error">{error}</div>}
+    </div>
+  )
+}
+
+function SiteCard({ site, onChanged }) {
   const rows = [
     ['Owner', site.owner_email ? `${site.owner} · ${site.owner_email}` : site.owner || '—'],
     ['Template', site.template],
@@ -149,6 +190,7 @@ function SiteCard({ site }) {
           </li>
         ))}
       </ul>
+      <SitePlan site={site} onChanged={onChanged} />
     </details>
   )
 }
@@ -157,11 +199,13 @@ function Sites() {
   const [sites, setSites] = useState(null)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
+  function refresh() {
     listSites()
       .then((data) => setSites(data.sites))
       .catch((err) => setError(err.message))
-  }, [])
+  }
+
+  useEffect(refresh, [])
 
   if (error) return <div className="card error">Could not load sites: {error}</div>
   if (!sites) return <div className="card">Loading sites…</div>
@@ -178,7 +222,7 @@ function Sites() {
           <h2>
             {title} <span className="muted">({list.length})</span>
           </h2>
-          {list.length === 0 ? <p>None yet.</p> : list.map((site) => <SiteCard key={site.slug} site={site} />)}
+          {list.length === 0 ? <p>None yet.</p> : list.map((site) => <SiteCard key={site.slug} site={site} onChanged={refresh} />)}
         </div>
       ))}
     </>

@@ -219,6 +219,12 @@ class Site(models.Model):
         return self.has_paid_plan
 
     @property
+    def whatsapp_bot_available(self):
+        """Connecting the customer's own WhatsApp number (the WhatsApp AI bot)
+        is a Growth Hub / Business OS feature — not on Starter."""
+        return self.has_paid_plan and self.package in (self.PACKAGE_GROWTH, self.PACKAGE_BUSINESS_OS)
+
+    @property
     def ai_assistant_active(self):
         return self.ai_assistant_enabled and self.ai_assistant_available
 
