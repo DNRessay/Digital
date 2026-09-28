@@ -2648,7 +2648,9 @@ function VisualEditor({ site }) {
 
 export default function App() {
   const [status, setStatus] = useState('loading') // loading | anon | ready | error
-  const [authView, setAuthView] = useState('login') // login | register
+  const [authView, setAuthView] = useState(() =>
+    new URLSearchParams(window.location.search).has('signup') ? 'register' : 'login'
+  ) // login | register
   const [displayName, setDisplayName] = useState(null)
   const [username, setUsername] = useState(null)
   const [email, setEmail] = useState(null)

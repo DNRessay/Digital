@@ -1,3 +1,4 @@
+import { SIGNUP_URL } from '../lib/signup.js'
 import SectionLink from '../components/SectionLink.jsx'
 
 const PLANS = [
@@ -98,7 +99,7 @@ const SCHOOL_PLANS = [
   },
 ]
 
-function PlanCard({ plan, cta = 'Get a Quote' }) {
+function PlanCard({ plan, cta = 'Sign up free', to }) {
   return (
     <div className="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay={plan.delay}>
       <div className={`pricing-card${plan.featured ? ' featured' : ''}`}>
@@ -116,7 +117,7 @@ function PlanCard({ plan, cta = 'Get a Quote' }) {
           <div className="pricing-setup">Once-off setup fee <strong>{plan.setup}</strong></div>
         )}
         {plan.note && <div className="pricing-setup">{plan.note}</div>}
-        <SectionLink to="contact" className="btn-pricing">{cta}</SectionLink>
+        {to ? <SectionLink to={to} className="btn-pricing">{cta}</SectionLink> : <a href={SIGNUP_URL} className="btn-pricing">{cta}</a>}
       </div>
     </div>
   )
@@ -129,7 +130,7 @@ export default function Pricing({ standalone = false }) {
       <div className="container section-title" data-aos="fade-up">
         {standalone && <h1 className="visually-hidden">Pricing</h1>}
         <h2>Pricing</h2>
-        <p>Three packages, for any type of business. Every plan includes a free .co.za domain, hosting, security and ongoing support.</p>
+        <p>Sign up free, build your site in the editor, then pick a plan when you're ready to go live. Every paid plan includes a free .co.za domain, hosting, security and ongoing support.</p>
       </div>
 
       <div className="container" data-aos="fade-up" data-aos-delay="100">
@@ -172,7 +173,7 @@ export default function Pricing({ standalone = false }) {
         </div>
 
         <div className="row g-4 justify-content-center">
-          {SCHOOL_PLANS.map((plan) => <PlanCard plan={plan} cta="Request a proposal" key={plan.name} />)}
+          {SCHOOL_PLANS.map((plan) => <PlanCard plan={plan} cta="Request a proposal" to="contact" key={plan.name} />)}
         </div>
 
         <div className="row g-4 mt-3">

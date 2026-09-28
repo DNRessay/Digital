@@ -1,3 +1,4 @@
+import { SIGNUP_URL } from '../lib/signup.js'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import useActiveSection from '../hooks/useActiveSection.js'
@@ -44,7 +45,7 @@ export default function Header() {
           ></i>
         </nav>
 
-        <Link to="/contact" className="btn-getstarted">Get a Quote</Link>
+        <a href={SIGNUP_URL} className="btn-getstarted">Sign up free</a>
 
       </div>
     </header>
