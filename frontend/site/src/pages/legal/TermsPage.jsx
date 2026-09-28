@@ -84,7 +84,17 @@ export default function TermsPage() {
         <li>You own the text, images and other content you add. You give us permission to host and display it so we can run your site.</li>
         <li>
           Don't use Vicinic for anything unlawful, misleading, hateful or infringing, for spam, or to collect other
-          people's personal information without a lawful basis. We may suspend sites that do.
+          people's personal information without a lawful basis.
+        </li>
+        <li>
+          We reserve the right to refuse, suspend or stop hosting any site or content that we reasonably believe is
+          illegal, inappropriate or unprofessional, and to end our services to that customer. Where possible we'll tell
+          you why and give you a chance to fix it first, but we may act immediately where the content is clearly
+          unlawful or harmful.
+        </li>
+        <li>
+          If we end our services, <strong>any domain you paid for (or claimed as your included domain) stays yours</strong>.
+          On request we'll help transfer it to another provider. We won't refund fees for the period already used.
         </li>
         <li>
           Where your site collects visitors' personal information (for example, contact forms or chat), you are the
