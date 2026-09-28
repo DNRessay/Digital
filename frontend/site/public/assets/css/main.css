@@ -2036,6 +2036,26 @@ section:first-of-type,
   color: var(--accent-color);
 }
 
+.portfolio .project-card .project-info h3 a {
+  color: inherit;
+}
+
+.portfolio .project-card .project-info h3 a:hover,
+.portfolio .project-card .project-info .project-meta .project-link {
+  color: var(--accent-color);
+}
+
+.portfolio .project-card .project-info .project-meta {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.portfolio .project-card .project-info .project-meta .project-link {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .portfolio .project-card .project-info .project-meta .year {
   font-size: 13px;
   font-weight: 600;
