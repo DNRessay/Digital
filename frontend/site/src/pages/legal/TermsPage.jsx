@@ -93,6 +93,16 @@ export default function TermsPage() {
           unlawful or harmful.
         </li>
         <li>
+          If your site or content is suspended and you can show us that it is lawful (for example, with licences,
+          permits, registration documents or proof of rights to the content), we'll review it in good faith and work
+          with you to restore the service, with any changes needed to keep it professional.
+        </li>
+        <li>
+          You agree that you won't hold Vicinic liable, or bring a claim against us, for suspending or removing content
+          or services where we acted in good faith on a reasonable belief that it was illegal or harmful — even if it
+          later turns out to be lawful. This doesn't limit any rights you have that the law says can't be excluded.
+        </li>
+        <li>
           If we end our services, <strong>any domain you paid for (or claimed as your included domain) stays yours</strong>.
           On request we'll help transfer it to another provider. We won't refund fees for the period already used.
         </li>
