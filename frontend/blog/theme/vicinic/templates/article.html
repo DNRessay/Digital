@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ article.title | striptags }} | {{ SITENAME }}{% endblock %}
+{% block description %}{{ article.summary | striptags | truncate(160) }}{% endblock %}
+{% block head %}
+  <link rel="canonical" href="{{ SITEURL }}/{{ article.url }}">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="{{ article.title | striptags }}">
+  <meta property="og:description" content="{{ article.summary | striptags | truncate(160) }}">
+  <meta property="og:url" content="{{ SITEURL }}/{{ article.url }}">
+{% endblock %}
+{% block content %}
+<article class="post">
+  <p class="meta"><a href="{{ SITEURL }}/{{ article.category.url }}">{{ article.category }}</a> &middot; <time datetime="{{ article.date.isoformat() }}">{{ article.locale_date }}</time></p>
+  <h1>{{ article.title }}</h1>
+  <div class="post-body">{{ article.content }}</div>
+  {% if article.tags %}
+  <p class="tags">{% for tag in article.tags %}<a href="{{ SITEURL }}/{{ tag.url }}">#{{ tag }}</a>{% endfor %}</p>
+  {% endif %}
+  <aside class="cta">
+    <h2>Ready for your own website?</h2>
+    <p>Pick a template, add your words and pictures, and go live on your own .co.za.</p>
+    <a class="btn" href="{{ PORTAL_URL }}">Create your site</a>
+  </aside>
+</article>
+{% endblock %}

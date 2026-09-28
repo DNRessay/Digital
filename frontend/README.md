@@ -103,3 +103,42 @@ local dev origin (e.g. `http://localhost:5173`) to call the API — but per
 the cross-origin cookie caveat above, this only actually works end-to-end
 over HTTPS, so local testing of its login/upload flow requires the real
 deployed backend.
+
+## `blog` — blog.vicinic.co.za (Pelican)
+
+A static Python blog, separate from the React apps. Posts are Markdown files
+in `blog/content/posts/` with a small header:
+
+```markdown
+Title: Your post title
+Date: 2026-09-28 09:00
+Category: Getting started
+Tags: websites, small business
+Slug: your-post-title
+Summary: One or two sentences shown on the article list and in link previews.
+
+Post text in Markdown…
+```
+
+Local preview:
+
+```bash
+cd frontend/blog
+pip install -r requirements.txt
+pelican content -s pelicanconf.py -o output && pelican --listen -o output   # http://localhost:8000
+```
+
+Cloudflare Pages project settings:
+
+| Setting | Value |
+|---|---|
+| Root directory | `frontend/blog` |
+| Build command | `pip install -r requirements.txt && pelican content -s publishconf.py -o output` |
+| Build output directory | `output` |
+| Environment variable | `PYTHON_VERSION` = `3.11` |
+
+Name the project `vicinic-blog` and don't give it a custom domain: the
+`vicinic` Worker (the router in front of vicinic.co.za) maps
+`blog.vicinic.co.za` to `vicinic-blog.pages.dev`, like `portal.` and
+`console.`. `publishconf.py` builds with `SITEURL=https://blog.vicinic.co.za`
+(override with a `SITEURL` env var) and adds the RSS/Atom feeds.
