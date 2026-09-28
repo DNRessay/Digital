@@ -22,6 +22,10 @@ IMAGE_URL_RE = re.compile(
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 MAX_DIMENSION = 2400
 ALLOWED_FORMATS = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp", "GIF": "gif"}
+COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+LOGO_WORD_RE = re.compile(r"(?<![a-z])logo")
+# A <header>/<nav> inside these is a card or post header, not the site's.
+NOT_SITE_HEADER = {"article", "section", "main", "aside", "footer"}
 
 
 class ImageUploadError(Exception):
@@ -31,7 +35,7 @@ class ImageUploadError(Exception):
 def image_urls(document):
     """Distinct image URLs referenced by a page document, in order."""
     seen, out = set(), []
-    for url in IMAGE_URL_RE.findall(document):
+    for url in IMAGE_URL_RE.findall(COMMENT_RE.sub("", document)):
         if url not in seen:
             seen.add(url)
             out.append(url)
@@ -40,25 +44,38 @@ def image_urls(document):
 
 def logo_urls(document):
     """Best guess at a page's logo image(s): an <img> whose own attributes
-    (src/alt/class/id) or a wrapping element's class/id mention "logo" —
-    the near-universal template convention — else the first image inside
-    the <header>/<nav>."""
+    (src/alt/class/id) or a wrapping element's class/id use the word "logo"
+    — the near-universal template convention — else the first image in the
+    site's own <header>/<nav> (not one belonging to a post or card)."""
     soup = BeautifulSoup(document, "html.parser")
     found = []
     for img in soup.find_all("img", src=True):
         haystack = " ".join(
-            [img.get("src", ""), img.get("alt", ""), " ".join(img.get("class", [])), img.get("id", "")]
+            [img.get("src", ""), img.get("alt", ""), " ".join(img.get("class", [])), img.get("id") or ""]
             + [" ".join(p.get("class", [])) + " " + (p.get("id") or "") for p in img.parents if p.name][:3]
         ).lower()
-        if "logo" in haystack and img["src"] not in found:
+        if LOGO_WORD_RE.search(haystack) and img["src"] not in found:
             found.append(img["src"])
     if not found:
         for container in soup.find_all(["header", "nav"]):
+            if container.find_parent(NOT_SITE_HEADER):
+                continue
             img = container.find("img", src=True)
             if img:
                 found.append(img["src"])
-                break
+            break
     return [url for url in found if IMAGE_URL_RE.fullmatch(url)]
+
+
+def favicon_urls(document):
+    """The browser-tab / home-screen icons from <link rel="icon" ...>."""
+    soup = BeautifulSoup(document, "html.parser")
+    found = []
+    for link in soup.find_all("link", href=True):
+        rels = " ".join(link.get("rel", [])).lower()
+        if "icon" in rels and link["href"] not in found and IMAGE_URL_RE.fullmatch(link["href"]):
+            found.append(link["href"])
+    return found
 
 
 def logo_scale_css(logo_srcs, scale):
