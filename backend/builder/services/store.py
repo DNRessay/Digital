@@ -76,7 +76,7 @@ def create_order(site, body):
         address=str(body.get("address", "")).strip()[:1000],
         items=lines,
         total=total,
-        owner_share=share if site.store_payfast_merchant_id else Decimal("0.00"),
+        owner_share=share if site.store_payfast_merchant_id and site.store_payouts_approved else Decimal("0.00"),
     )
 
 

@@ -222,6 +222,11 @@ class Site(models.Model):
     store_payfast_merchant_id = models.CharField(
         max_length=20, blank=True, help_text="Business OS: the owner's own PayFast merchant ID that receives their share of store sales."
     )
+    store_payouts_approved = models.BooleanField(
+        default=False,
+        help_text="Tick once store_payfast_merchant_id is added to 'Allowed merchants' under Split Payments in Vicinic's "
+        "PayFast dashboard. Until then sales aren't split (Vicinic receives the full amount).",
+    )
     blog_enabled = models.BooleanField(default=True, help_text="Growth+: write blog posts automatically (up to 20 a month).")
     blog_topics = models.TextField(blank=True, help_text="Owner's hints for what the automated blog should cover.")
     bookings_enabled = models.BooleanField(

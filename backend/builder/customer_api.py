@@ -1875,6 +1875,7 @@ def _store_state(site, include_owner_settings):
         "products": [_serialize_product(p) for p in site.products.all()] if site.business_os_available else [],
         "owner_share_percent": dj_settings.STORE_OWNER_SHARE_PERCENT,
         "payouts_connected": bool(site.store_payfast_merchant_id),
+        "payouts_approved": bool(site.store_payfast_merchant_id) and site.store_payouts_approved,
     }
     if include_owner_settings:
         state["payfast_merchant_id"] = site.store_payfast_merchant_id
@@ -1941,8 +1942,20 @@ def api_customer_site_store(request, site_slug):
         merchant_id = str(body.get("payfast_merchant_id", "")).strip()
         if merchant_id and not re.fullmatch(r"\d{5,12}", merchant_id):
             return JsonResponse({"error": "A PayFast merchant ID is a number, like 10012345."}, status=400)
-        site.store_payfast_merchant_id = merchant_id
-        site.save(update_fields=["store_payfast_merchant_id"])
+        if merchant_id != site.store_payfast_merchant_id:
+            site.store_payfast_merchant_id = merchant_id
+            site.store_payouts_approved = False
+            site.save(update_fields=["store_payfast_merchant_id", "store_payouts_approved"])
+            if merchant_id:
+                from .services.notify import notify_admin
+
+                notify_admin(
+                    f"Approve store payouts for {site.name}: add PayFast merchant {merchant_id}",
+                    f"{site.name} ({site.slug}) wants store payouts to PayFast merchant ID {merchant_id}.\n\n"
+                    "1. PayFast dashboard → Settings → Payment Methods → Split Payments → Allowed merchants → add this ID.\n"
+                    "2. Django admin → Sites → this site → tick 'Store payouts approved' and save.\n\n"
+                    "Until then its shop sales are paid to Vicinic in full (no split).",
+                )
         return JsonResponse(_store_state(site, is_owner))
     if site.products.count() >= 500:
         return JsonResponse({"error": "A store can have up to 500 products."}, status=400)

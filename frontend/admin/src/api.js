@@ -98,6 +98,10 @@ export function setSitePlan(slug, pkg) {
   return apiFetch(`/api/admin/sites/${slug}/plan/`, { method: 'POST', body: { package: pkg } })
 }
 
+export function setSitePayouts(slug, approved) {
+  return apiFetch(`/api/admin/sites/${slug}/payouts/`, { method: 'POST', body: { approved } })
+}
+
 export function listBlogPosts() {
   return apiFetch('/api/admin/blog/')
 }
