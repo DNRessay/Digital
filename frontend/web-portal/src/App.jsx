@@ -2061,9 +2061,11 @@ function StorePanel({ site }) {
             </button>
           </div>
           <p className="field-hint">
-            {state.payouts_connected
-              ? 'Payouts connected.'
-              : "Don't have one? Sign up free at payfast.io, then paste your merchant ID here. Until then, sales can't be paid out to you."}
+            {state.payouts_approved
+              ? 'Payouts connected — your share goes straight to your PayFast account.'
+              : state.payouts_connected
+                ? "We're connecting your payouts with PayFast (usually within a day). Your shop still takes orders meanwhile; we settle those sales with you directly."
+                : "Don't have one? Sign up free at payfast.io, then paste your merchant ID here. Until then, sales can't be paid out to you."}
           </p>
         </div>
       )}

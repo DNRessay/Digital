@@ -11,7 +11,7 @@ import {
   listBlogPosts,
   listSites,
   listTemplates,
-  setSitePlan,
+  setSitePlan, setSitePayouts,
   updateTemplateAccess,
   login,
   logout,
@@ -161,6 +161,43 @@ function SitePlan({ site, onChanged }) {
   )
 }
 
+function SitePayouts({ site, onChanged }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  if (!site.store_payfast_merchant_id) return null
+
+  async function toggle() {
+    const approving = !site.store_payouts_approved
+    if (approving && !window.confirm(`Added merchant ${site.store_payfast_merchant_id} to PayFast Split Payments → Allowed merchants?`)) return
+    setBusy(true)
+    setError(null)
+    try {
+      await setSitePayouts(site.slug, approving)
+      onChanged()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="site-plan">
+      <label>Store payouts</label>
+      <div className="site-plan-row">
+        <span>
+          PayFast merchant <strong>{site.store_payfast_merchant_id}</strong> —{' '}
+          {site.store_payouts_approved ? 'split on (95% to owner)' : 'waiting: add it to Allowed merchants, then approve'}
+        </span>
+        <button type="button" disabled={busy} onClick={toggle}>
+          {site.store_payouts_approved ? 'Turn off' : 'Approve'}
+        </button>
+      </div>
+      {error && <div className="error">{error}</div>}
+    </div>
+  )
+}
+
 function SiteCard({ site, onChanged }) {
   const rows = [
     ['Owner', site.owner_email ? `${site.owner} · ${site.owner_email}` : site.owner || '—'],
@@ -192,6 +229,7 @@ function SiteCard({ site, onChanged }) {
         ))}
       </ul>
       <SitePlan site={site} onChanged={onChanged} />
+      <SitePayouts site={site} onChanged={onChanged} />
     </details>
   )
 }

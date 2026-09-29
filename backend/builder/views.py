@@ -679,7 +679,7 @@ def _shop_response(request, site, base_path, chat_url, view, arg=None):
         origin = f"https://{site.custom_domain}" if base_path == "/" and site.custom_domain else request.build_absolute_uri("/").rstrip("/")
         process_url, fields = build_store_order_payload(
             order,
-            site.store_payfast_merchant_id,
+            site.store_payfast_merchant_id if site.store_payouts_approved else "",
             f"{origin}{base_path}shop/thanks/?ref={order.reference}",
             f"{origin}{base_path}shop/cart/",
             f"https://{settings.PLATFORM_ORIGIN_HOST}/api/payfast/notify/",

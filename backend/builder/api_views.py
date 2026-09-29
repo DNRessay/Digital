@@ -354,6 +354,8 @@ def api_admin_sites(request):
                 "whatsapp_connected": bool(site.whatsapp_waba_id and site.whatsapp_phone_number_id),
                 "visitors_30d": site.visitors_30d,
                 "custom_pages": site.custom_page_count,
+                "store_payfast_merchant_id": site.store_payfast_merchant_id,
+                "store_payouts_approved": site.store_payouts_approved,
                 "created_at": site.created_at.isoformat(),
             }
         )
@@ -380,3 +382,19 @@ def api_admin_site_plan(request, site_slug):
     return JsonResponse(
         {"slug": site.slug, "package": site.package, "subscription_status": site.subscription_status, "has_paid_plan": site.has_paid_plan}
     )
+
+
+@csrf_exempt
+@admin_token_required
+@require_http_methods(["POST"])
+def api_admin_site_payouts(request, site_slug):
+    """{approved: bool} — confirms the owner's PayFast merchant ID is on the
+    Split Payments 'Allowed merchants' list, which turns on their 95% split."""
+    site = Site.objects.filter(slug=site_slug).first()
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    if not site.store_payfast_merchant_id:
+        return JsonResponse({"error": "This site has no payout merchant ID."}, status=400)
+    site.store_payouts_approved = bool(_json_body(request).get("approved"))
+    site.save(update_fields=["store_payouts_approved"])
+    return JsonResponse({"slug": site.slug, "store_payouts_approved": site.store_payouts_approved})
