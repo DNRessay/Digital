@@ -30,3 +30,7 @@ app deployed to AWS Lambda — see `backend/README.md`.
   back afterward.
 - Published customer sites (`Site.slug`) are rendered directly by the
   Django backend (`/<slug>/`) — not part of any frontend app.
+
+## License
+
+Proprietary. Copyright (c) 2026 VICINIC (Pty) Ltd. All rights reserved. See [LICENSE](LICENSE).
