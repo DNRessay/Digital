@@ -221,12 +221,16 @@ def admin_blog_suggest(request):
 def admin_blog_generate(request):
     """Commissions a draft from any mix of: a category (the pipeline picks the
     news itself), items picked from Browse, pasted links, and instructions."""
-    body = _json(request)
+    data, status = commission(_json(request))
+    return JsonResponse(data, status=status)
+
+
+def commission(body):
     keys = _category_keys(body.get("category", ""))
     items = [d for d in body.get("items", [])[:8] if isinstance(d, dict) and d.get("title") and d.get("url")]
     urls = [str(u).strip() for u in body.get("urls", [])[:5] if str(u).strip().startswith(("http://", "https://"))]
     if not keys and not items and not urls:
-        return JsonResponse({"error": "Pick a category, some news or paste a link."}, status=400)
+        return {"error": "Pick a category, some news or paste a link."}, 400
     plan = {
         "post_type": "pulse" if body.get("post_type") == "pulse" else "deep",
         "categories": keys,
@@ -235,7 +239,7 @@ def admin_blog_generate(request):
         "instructions": str(body.get("instructions", "")).strip()[:4000],
     }
     label = items[0]["title"] if items else (urls[0] if urls else "New post")
-    return JsonResponse({"post": _serialize(_start(plan, label))}, status=202)
+    return {"post": _serialize(_start(plan, label))}, 202
 
 
 @csrf_exempt
@@ -246,20 +250,25 @@ def admin_blog_post(request, post_id):
     if post is None:
         return JsonResponse({"error": "Post not found."}, status=404)
     if request.method == "PATCH":
-        if post.status in (BlogPost.STATUS_GENERATING, BlogPost.STATUS_FAILED):
-            return JsonResponse({"error": "This post hasn't been written yet."}, status=409)
-        if post.status == BlogPost.STATUS_PUBLISHED:
-            return JsonResponse({"error": "This post is already live — edit it in frontend/blog/content/posts."}, status=409)
-        body = _json(request)
-        for field, limit in (("title", 200), ("summary", 400), ("category", 80), ("tags", 300)):
-            if field in body:
-                setattr(post, field, str(body[field]).strip()[:limit])
-        if "body" in body:
-            post.body = str(body["body"]).strip()
-        if not post.title or not post.body:
-            return JsonResponse({"error": "A post needs a title and a body."}, status=400)
-        post.save()
+        data, status = edit_post(post, _json(request))
+        return JsonResponse(data, status=status)
     return JsonResponse({"post": _serialize(post, full=True)})
+
+
+def edit_post(post, body):
+    if post.status in (BlogPost.STATUS_GENERATING, BlogPost.STATUS_FAILED):
+        return {"error": "This post hasn't been written yet."}, 409
+    if post.status == BlogPost.STATUS_PUBLISHED:
+        return {"error": "This post is already live — edit it in frontend/blog/content/posts."}, 409
+    for field, limit in (("title", 200), ("summary", 400), ("category", 80), ("tags", 300)):
+        if field in body:
+            setattr(post, field, str(body[field]).strip()[:limit])
+    if "body" in body:
+        post.body = str(body["body"]).strip()
+    if not post.title or not post.body:
+        return {"error": "A post needs a title and a body."}, 400
+    post.save()
+    return {"post": _serialize(post, full=True)}, 200
 
 
 @csrf_exempt
@@ -269,18 +278,23 @@ def admin_blog_action(request, post_id, action):
     post = BlogPost.objects.filter(id=post_id).first()
     if post is None:
         return JsonResponse({"error": "Post not found."}, status=404)
+    data, status = apply_action(post, action)
+    return JsonResponse(data, status=status)
+
+
+def apply_action(post, action):
     if post.status == BlogPost.STATUS_PUBLISHED:
-        return JsonResponse({"error": "This post is already live."}, status=409)
+        return {"error": "This post is already live."}, 409
     now = timezone.now()
     if action == "retry":
         if post.status != BlogPost.STATUS_FAILED:
-            return JsonResponse({"error": "Only a failed post can be retried."}, status=400)
+            return {"error": "Only a failed post can be retried."}, 400
         post.status, post.error = BlogPost.STATUS_GENERATING, ""
         post.save(update_fields=["status", "error"])
         blog_jobs.enqueue(post)
-        return JsonResponse({"post": _serialize(post, full=True)})
+        return {"post": _serialize(post, full=True)}, 200
     if post.status in (BlogPost.STATUS_GENERATING, BlogPost.STATUS_FAILED) and action != "reject":
-        return JsonResponse({"error": "This post hasn't been written yet."}, status=409)
+        return {"error": "This post hasn't been written yet."}, 409
     publishing = False
     if action == "approve":
         post.status, post.approved_at = BlogPost.STATUS_APPROVED, now
@@ -291,11 +305,11 @@ def admin_blog_action(request, post_id, action):
     elif action == "resume":
         post.status, post.auto_publish_at = BlogPost.STATUS_DRAFT, now + timedelta(hours=settings.BLOG_REVIEW_HOURS)
     else:
-        return JsonResponse({"error": "Unknown action."}, status=400)
+        return {"error": "Unknown action."}, 400
     post.save()
     if action == "approve":
         publishing = blog_jobs.trigger_publish()
-    return JsonResponse({"post": _serialize(post, full=True), "publishing": publishing})
+    return {"post": _serialize(post, full=True), "publishing": publishing}, 200
 
 
 @csrf_exempt

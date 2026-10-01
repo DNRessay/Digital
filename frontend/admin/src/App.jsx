@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import {
+  API_BASE,
+  createMcpKey,
+  listMcpKeys,
+  revokeMcpKey,
   blogPostAction,
   browseBlogNews,
   generateBlogPost,
@@ -788,6 +792,62 @@ function Templates() {
   )
 }
 
+// Keys that let an assistant (e.g. SEMBLANCE) use this backend's /mcp
+// endpoint: run the blog and read customer sites. Shown once, revocable.
+function ConnectApps() {
+  const [keys, setKeys] = useState([])
+  const [fresh, setFresh] = useState(null)
+  const [error, setError] = useState(null)
+  const mcpUrl = `${API_BASE}/mcp`
+
+  function refresh() {
+    listMcpKeys().then((d) => setKeys(d.keys || [])).catch((e) => setError(e.message))
+  }
+  useEffect(refresh, [])
+
+  async function create() {
+    setError(null)
+    try {
+      setFresh(await createMcpKey('SEMBLANCE'))
+      refresh()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  async function revoke(id) {
+    if (!window.confirm('Revoke this key? Anything using it stops working.')) return
+    await revokeMcpKey(id).catch(() => {})
+    refresh()
+  }
+
+  return (
+    <div className="page">
+      <h2>Connect apps</h2>
+      <p className="muted">
+        Lets SEMBLANCE (or any MCP app) run the blog — browse news, suggest, commission, edit and approve posts — and
+        read customer sites for ads. In SEMBLANCE: Settings → MCP servers → add <code>vicinic</code> with this URL and key.
+      </p>
+      <p><strong>URL:</strong> <code>{mcpUrl}</code></p>
+      <button type="button" onClick={create}>Create key</button>
+      {fresh && (
+        <p>
+          New key (copy it now — it won't be shown again): <code style={{ wordBreak: 'break-all' }}>{fresh.key}</code>
+        </p>
+      )}
+      {error && <p className="error">{error}</p>}
+      <ul>
+        {keys.map((k) => (
+          <li key={k.id}>
+            {k.name} · …{k.hint} · {k.last_used_at ? `used ${new Date(k.last_used_at).toLocaleString()}` : 'never used'}{' '}
+            <button type="button" className="link-button" onClick={() => revoke(k.id)}>Revoke</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export default function App() {
   const [status, setStatus] = useState('loading') // loading | anon | ready | error
   const [loadError, setLoadError] = useState(null)
@@ -833,6 +893,7 @@ export default function App() {
           <NavLink to="/sites">Sites</NavLink>
           <NavLink to="/blog">Blog</NavLink>
           <NavLink to="/templates">Templates</NavLink>
+          <NavLink to="/connect">Connect apps</NavLink>
         </nav>
         <button type="button" className="link-button" onClick={handleLogout}>Sign out</button>
       </aside>
@@ -842,6 +903,7 @@ export default function App() {
           <Route path="/sites" element={<Sites />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/templates" element={<Templates />} />
+          <Route path="/connect" element={<ConnectApps />} />
         </Routes>
       </main>
     </div>

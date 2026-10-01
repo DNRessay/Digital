@@ -779,3 +779,21 @@ class Order(models.Model):
 
     def __str__(self):
         return f"{self.site.slug}: {self.reference}"
+
+
+class McpKey(models.Model):
+    """A key that lets an assistant (e.g. SEMBLANCE) use the /mcp endpoint
+    as its staff owner. Only a hash is stored; the key is shown once."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mcp_keys")
+    name = models.CharField(max_length=80, default="SEMBLANCE")
+    key_hash = models.CharField(max_length=64, unique=True)
+    hint = models.CharField(max_length=8, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.user} · {self.name} (…{self.hint})"

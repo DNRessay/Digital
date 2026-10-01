@@ -3,7 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from builder import api_views, blog_api, customer_api, payfast_views, whatsapp_views
+from builder import api_views, blog_api, customer_api, mcp, payfast_views, whatsapp_views
 from builder import views as builder_views
 
 urlpatterns = [
@@ -19,6 +19,9 @@ urlpatterns = [
     path("api/admin/sites/", api_views.api_admin_sites, name="api-admin-sites"),
     path("api/admin/sites/<slug:site_slug>/plan/", api_views.api_admin_site_plan, name="api-admin-site-plan"),
     path("api/admin/sites/<slug:site_slug>/payouts/", api_views.api_admin_site_payouts, name="api-admin-site-payouts"),
+    path("mcp/", mcp.mcp, name="mcp"),
+    path("api/admin/mcp-keys/", mcp.mcp_keys, name="api-admin-mcp-keys"),
+    path("api/admin/mcp-keys/<int:key_id>/", mcp.mcp_key_delete, name="api-admin-mcp-key-delete"),
     path("api/admin/blog/", blog_api.admin_blog_posts, name="api-admin-blog"),
     path("api/admin/blog/browse/", blog_api.admin_blog_browse, name="api-admin-blog-browse"),
     path("api/admin/blog/suggest/", blog_api.admin_blog_suggest, name="api-admin-blog-suggest"),

@@ -129,3 +129,15 @@ export function suggestBlogIdeas(category, items, instructions) {
 export function generateBlogPost(request) {
   return apiFetch('/api/admin/blog/generate/', { method: 'POST', body: request })
 }
+
+export function listMcpKeys() {
+  return apiFetch('/api/admin/mcp-keys/')
+}
+
+export function createMcpKey(name) {
+  return apiFetch('/api/admin/mcp-keys/', { method: 'POST', body: { name } })
+}
+
+export function revokeMcpKey(id) {
+  return apiFetch(`/api/admin/mcp-keys/${id}/`, { method: 'DELETE' })
+}
