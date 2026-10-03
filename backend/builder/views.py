@@ -646,13 +646,13 @@ def _page_or_custom(site, page_slug, edit_mode):
     return starter, custom
 
 
-def _blog_page(site, post_slug, base_path):
-    """(starter TemplatePage, (title, inner html)) for the site's blog, or Http404."""
+def _blog_page(site, post_slug, base_path, page=1):
+    """(starter TemplatePage, (title, inner html)) for the site's blog, or Http404. `page` is ?page= of the list."""
     starter = site_pages.starter_page(site.template)
     if starter is None or not site.growth_features_available:
         raise Http404("No blog.")
     if post_slug is None:
-        return starter, ("Blog", site_blog.list_html(site, base_path))
+        return starter, ("Blog", site_blog.list_html(site, base_path, page))
     post = site.posts.filter(slug=post_slug, published=True).first()
     if post is None:
         raise Http404("No such post.")
@@ -734,7 +734,7 @@ def site_page(request, slug, page_slug):
     site = get_object_or_404(Site, slug=slug, is_published=True)
     edit_mode = request.GET.get("vicinic_edit") == "1"
     if page_slug == "blog" and not SitePage.objects.filter(site=site, slug="blog").exists():
-        page, blog = _blog_page(site, None, f"/{slug}/")
+        page, blog = _blog_page(site, None, f"/{slug}/", request.GET.get("page"))
         chat_url = reverse("builder:site-ai-chat", args=[slug])
         return _track_visit(request, site, _render_site_page(site, page, edit_mode=edit_mode, chat_url=chat_url, blog_page=blog))
     page, custom = _page_or_custom(site, page_slug, edit_mode)
@@ -760,7 +760,7 @@ def custom_domain_home(request):
 def custom_domain_page(request, page_slug):
     site = request.custom_domain_site
     if page_slug == "blog" and not SitePage.objects.filter(site=site, slug="blog").exists():
-        page, blog = _blog_page(site, None, "/")
+        page, blog = _blog_page(site, None, "/", request.GET.get("page"))
         return _track_visit(
             request, site, _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat"), base_path="/", blog_page=blog)
         )

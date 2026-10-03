@@ -113,6 +113,7 @@ jobs:
           AWS_HUGGINGFACE_MODEL: ${{ secrets.HUGGINGFACE_MODEL }}
           AWS_HOSTAFRICA_API_EMAIL: ${{ secrets.HOSTAFRICA_API_EMAIL }}
           AWS_HOSTAFRICA_API_KEY: ${{ secrets.HOSTAFRICA_API_KEY }}
+          AWS_BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
           AWS_WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
           AWS_WHATSAPP_APP_ID: ${{ secrets.WHATSAPP_APP_ID }}
           AWS_WHATSAPP_CONFIG_ID: ${{ secrets.WHATSAPP_CONFIG_ID }}
@@ -159,6 +160,7 @@ jobs:
           [ -n "${AWS_HUGGINGFACE_MODEL}" ] && OVERRIDES+=("HuggingFaceModel=${AWS_HUGGINGFACE_MODEL}")
           [ -n "${AWS_HOSTAFRICA_API_EMAIL}" ] && OVERRIDES+=("HostAfricaApiEmail=${AWS_HOSTAFRICA_API_EMAIL}")
           [ -n "${AWS_HOSTAFRICA_API_KEY}" ] && OVERRIDES+=("HostAfricaApiKey=${AWS_HOSTAFRICA_API_KEY}")
+          [ -n "${AWS_BREVO_API_KEY}" ] && OVERRIDES+=("BrevoApiKey=${AWS_BREVO_API_KEY}")
           [ -n "${AWS_GROQ_API_KEYS}" ] && OVERRIDES+=("GroqApiKeys=${AWS_GROQ_API_KEYS}")
           [ -n "${AWS_SERPAPI_KEY}" ] && OVERRIDES+=("SerpApiKey=${AWS_SERPAPI_KEY}")
           [ -n "${AWS_NASA_API_KEY}" ] && OVERRIDES+=("NasaApiKey=${AWS_NASA_API_KEY}")

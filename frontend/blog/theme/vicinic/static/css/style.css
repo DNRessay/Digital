@@ -126,12 +126,24 @@ nav a:hover { color: var(--accent); }
 }
 .cta h2 { margin-top: 0; }
 
-.pager { display: flex; justify-content: space-between; align-items: center; padding: 32px 0; color: var(--muted); }
+.pager { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 32px 0; color: var(--muted); }
+.pager a {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--heading); text-decoration: none; font-weight: 600;
+}
+.pager a:hover { border-color: var(--accent); }
+.pager span { font-size: 14px; white-space: nowrap; }
+@media (max-width: 640px) {
+  .pager { flex-wrap: wrap; justify-content: center; }
+  .pager span { order: -1; width: 100%; text-align: center; }
+  .pager a { flex: 1; justify-content: center; }
+}
 
 .site-footer { border-top: 1px solid var(--line); margin-top: 56px; padding: 24px 0; color: var(--muted); font-size: 14px; }
 
 @media (max-width: 640px) {
-  nav a:not(.btn) { display: none; }
+  /* Only the header menu folds away on phones — the pager below the posts is a <nav> too. */
+  .site-header nav a:not(.btn) { display: none; }
   .brand img { height: 24px; }
 }
 

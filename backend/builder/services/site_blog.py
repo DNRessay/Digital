@@ -145,8 +145,21 @@ def _date(post):
     return f"{timezone.localtime(post.created_at):%d %B %Y}".lstrip("0")
 
 
-def list_html(site, base_path):
-    posts = site.posts.filter(published=True)[:60]
+PER_PAGE = 9
+
+
+def _page_number(raw) -> int:
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        return 1
+
+
+def list_html(site, base_path, page=1):
+    published = site.posts.filter(published=True)
+    pages = max(1, -(-published.count() // PER_PAGE))
+    page = min(_page_number(page), pages)
+    posts = published[(page - 1) * PER_PAGE: page * PER_PAGE]
     if not posts:
         cards = '<p class="text-muted">No posts yet — check back soon.</p>'
     else:
@@ -159,10 +172,17 @@ def list_html(site, base_path):
             "</div></div></div>"
             for p in posts
         )
+    pager = ""
+    if pages > 1:
+        link = lambda n, label: (f'<a class="btn btn-outline-secondary flex-fill" href="{base_path}blog/'  # noqa: E731
+                                 f'{f"?page={n}" if n > 1 else ""}">{label}</a>')
+        pager = ('<nav class="d-flex flex-wrap gap-2 align-items-center justify-content-center mt-5" aria-label="Blog pages">'
+                 f'<span class="w-100 text-center text-muted small">Page {page} of {pages}</span>'
+                 f'{link(page - 1, "← Newer") if page > 1 else ""}{link(page + 1, "Older →") if page < pages else ""}</nav>')
     return (
         '<section class="py-5 bg-light vicinic-page-title"><div class="container">'
         f'<h1 class="mb-0">Blog</h1><p class="lead mb-0">News and tips from {html_lib.escape(site.name)}</p></div></section>'
-        f'<section class="py-5"><div class="container"><div class="row g-4">{cards}</div></div></section>'
+        f'<section class="py-5"><div class="container"><div class="row g-4">{cards}</div>{pager}</div></section>'
     )
 
 
