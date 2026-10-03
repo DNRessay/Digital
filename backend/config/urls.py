@@ -3,7 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from builder import api_views, blog_api, customer_api, mcp, payfast_views, whatsapp_views
+from builder import api_views, blog_api, customer_api, mcp, mcp_connect, payfast_views, whatsapp_views
 from builder import views as builder_views
 
 urlpatterns = [
@@ -20,6 +20,15 @@ urlpatterns = [
     path("api/admin/sites/<slug:site_slug>/plan/", api_views.api_admin_site_plan, name="api-admin-site-plan"),
     path("api/admin/sites/<slug:site_slug>/payouts/", api_views.api_admin_site_payouts, name="api-admin-site-payouts"),
     path("mcp/", mcp.mcp, name="mcp"),
+    # Sign-in for Claude's custom connectors (builder/mcp_connect.py).
+    path(".well-known/oauth-protected-resource/", mcp_connect.protected_resource),
+    path(".well-known/oauth-protected-resource/mcp/", mcp_connect.protected_resource),
+    path(".well-known/oauth-authorization-server/", mcp_connect.authorization_server),
+    path(".well-known/oauth-authorization-server/mcp/", mcp_connect.authorization_server),
+    path("oauth/register/", mcp_connect.register),
+    path("oauth/authorize/", mcp_connect.authorize),
+    path("oauth/token/", mcp_connect.token),
+    path("oauth/client/", mcp_connect.client),
     path("api/admin/mcp-keys/", mcp.mcp_keys, name="api-admin-mcp-keys"),
     path("api/admin/mcp-keys/<int:key_id>/", mcp.mcp_key_delete, name="api-admin-mcp-key-delete"),
     path("api/admin/blog/", blog_api.admin_blog_posts, name="api-admin-blog"),

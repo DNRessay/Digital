@@ -5,7 +5,9 @@ and read a site's business details for ads.
 
 Access is by MCP key: made by staff (POST /api/admin/mcp-keys/), shown
 once, stored hashed, revocable. Connect with the backend URL + "/mcp" and
-the key as a Bearer token. Every key belongs to a staff user."""
+the key as a Bearer token — or add the URL as a custom connector in Claude
+and sign in with a staff login (mcp_connect.py), which makes the key. Every
+key belongs to a staff user."""
 import hashlib
 import json
 import logging
@@ -208,7 +210,12 @@ def mcp(request):
         response["Allow"] = "POST"
         return response
     if _key_user(request) is None:
-        return JsonResponse({"error": "A staff MCP key is required."}, status=401)
+        # The header points MCP clients (e.g. Claude's custom connectors) at the sign-in (mcp_connect.py).
+        from .mcp_connect import base_url
+        from .mcp_oauth import www_authenticate
+        response = JsonResponse({"error": "A staff MCP key is required — or sign in from your MCP client."}, status=401)
+        response["WWW-Authenticate"] = www_authenticate(base_url(request))
+        return response
     try:
         payload = json.loads(request.body or b"")
     except json.JSONDecodeError:
