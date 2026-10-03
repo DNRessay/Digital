@@ -142,6 +142,9 @@ ADMIN_NOTIFY_EMAIL = os.environ.get("ADMIN_NOTIFY_EMAIL", "")
 # Every email is sent from the verified vicinic.co.za domain (DKIM-signed), never a personal Gmail:
 # mail "from" @gmail.com through SES fails DMARC alignment, and SES reviewers deny production access for it.
 SES_FROM_EMAIL = os.environ.get("SES_FROM_EMAIL", "Vicinic <noreply@vicinic.co.za>")
+# Email providers tried in order (builder/services/notify.py). Brevo first while SES is in sandbox mode.
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
+EMAIL_PROVIDERS = [p.strip() for p in os.environ.get("EMAIL_PROVIDERS", "brevo,ses").split(",") if p.strip()]
 SES_REGION = os.environ.get("SES_REGION") or os.environ.get("AWS_REGION", "eu-west-1")
 
 # PayFast (builder/services/payfast.py) — removes a Site's "Powered by

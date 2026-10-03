@@ -1,12 +1,78 @@
-"""Email via Amazon SES, using the Lambda's own IAM role — no SMTP credentials. Everything is sent from
-SES_FROM_EMAIL on the verified vicinic.co.za domain; alerts go to ADMIN_NOTIFY_EMAIL. While SES is in
-sandbox mode only verified addresses receive mail."""
+"""Email from SES_FROM_EMAIL on the verified vicinic.co.za domain, through the providers in
+EMAIL_PROVIDERS, in order, until one accepts it:
+
+  brevo — Brevo's transactional API (BREVO_API_KEY; 300 emails/day free). Used first while SES is still
+          in sandbox mode, where only verified addresses receive mail.
+  ses   — Amazon SES via the Lambda's own IAM role (no credentials).
+
+A provider that is down, rate-limited or not configured is skipped; one that rejects the message
+itself (bad address) is not retried elsewhere. Alerts go to ADMIN_NOTIFY_EMAIL."""
 import logging
+from email.utils import parseaddr
 
 import boto3
+import requests
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+
+
+class _Rejected(Exception):
+    """The provider refused this message itself (e.g. an invalid address) — another provider won't help."""
+
+
+def _brevo(source, to, subject, body, reply_to):
+    if not settings.BREVO_API_KEY:
+        return False
+    name, email = parseaddr(source)
+    payload = {"sender": {"name": name or "Vicinic", "email": email}, "to": [{"email": to}],
+               "subject": subject, "textContent": body}
+    if reply_to:
+        payload["replyTo"] = {"email": reply_to}
+    try:
+        r = requests.post(BREVO_URL, json=payload, timeout=10,
+                          headers={"api-key": settings.BREVO_API_KEY, "accept": "application/json"})
+    except requests.RequestException as exc:
+        logger.warning("Brevo unreachable: %s", exc)
+        return False
+    if r.status_code < 300:
+        return True
+    if r.status_code in (400, 422) and "sender" not in r.text.lower():
+        raise _Rejected(f"Brevo {r.status_code}: {r.text[:300]}")
+    logger.warning("Brevo refused (%s): %s", r.status_code, r.text[:300])
+    return False
+
+
+def _ses(source, to, subject, body, reply_to):
+    params = {"Source": source, "Destination": {"ToAddresses": [to]},
+              "Message": {"Subject": {"Data": subject}, "Body": {"Text": {"Data": body}}}}
+    if reply_to:
+        params["ReplyToAddresses"] = [reply_to]
+    try:
+        boto3.client("ses", region_name=settings.SES_REGION).send_email(**params)
+        return True
+    except Exception as exc:
+        logger.warning("SES refused: %s", exc)
+        return False
+
+
+PROVIDERS = {"brevo": _brevo, "ses": _ses}
+
+
+def _send(to, subject, body, reply_to=None):
+    source = settings.SES_FROM_EMAIL or settings.ADMIN_NOTIFY_EMAIL
+    for name in settings.EMAIL_PROVIDERS:
+        provider = PROVIDERS.get(name)
+        if not provider:
+            continue
+        try:
+            if provider(source, to, subject, body, reply_to):
+                return True
+        except _Rejected as exc:
+            logger.error("Email to %s rejected: %s", to, exc)
+            return False
+    return False
 
 
 def notify_admin(subject, body):
@@ -16,36 +82,18 @@ def notify_admin(subject, body):
     if not to:
         logger.error("ADMIN_NOTIFY_EMAIL not set — dropped notification: %s\n%s", subject, body)
         return False
-    try:
-        boto3.client("ses", region_name=settings.SES_REGION).send_email(
-            Source=settings.SES_FROM_EMAIL or to,
-            Destination={"ToAddresses": [to]},
-            Message={"Subject": {"Data": subject}, "Body": {"Text": {"Data": body}}},
-        )
+    if _send(to, subject, body):
         return True
-    except Exception:
-        logger.exception("Could not send admin notification: %s\n%s", subject, body)
-        return False
+    logger.error("Could not send admin notification: %s\n%s", subject, body)
+    return False
 
 
 def send_email(to, subject, body, reply_to=None):
     """Emails a customer (e.g. a site owner about a new enquiry) from the
-    Vicinic identity. While SES is in sandbox mode only verified addresses
-    receive mail — the enquiry is still saved either way. Never raises."""
-    source = settings.SES_FROM_EMAIL or settings.ADMIN_NOTIFY_EMAIL
-    if not source or not to:
+    Vicinic identity — the enquiry is still saved either way. Never raises."""
+    if not to or not (settings.SES_FROM_EMAIL or settings.ADMIN_NOTIFY_EMAIL):
         return False
-    params = {
-        "Source": source,
-        "Destination": {"ToAddresses": [to]},
-        "Message": {"Subject": {"Data": subject[:200]}, "Body": {"Text": {"Data": body}}},
-    }
-    reply_to = reply_to or settings.ADMIN_NOTIFY_EMAIL
-    if reply_to:
-        params["ReplyToAddresses"] = [reply_to]
-    try:
-        boto3.client("ses", region_name=settings.SES_REGION).send_email(**params)
+    if _send(to, subject[:200], body, reply_to or settings.ADMIN_NOTIFY_EMAIL):
         return True
-    except Exception:
-        logger.exception("Could not email %s: %s", to, subject)
-        return False
+    logger.error("Could not email %s: %s", to, subject)
+    return False

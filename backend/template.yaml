@@ -118,6 +118,15 @@ Parameters:
     Type: String
     Default: "Vicinic <noreply@vicinic.co.za>"
     Description: Sender for every email (alerts and customer mail) — an address on SesFromDomain
+  BrevoApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Brevo transactional API key (SMTP & API → API keys) — tried before SES while SES is in sandbox
+  EmailProviders:
+    Type: String
+    Default: "brevo,ses"
+    Description: Email providers to try, in order (builder/services/notify.py)
   SesFromDomain:
     Type: String
     Default: "vicinic.co.za"
@@ -200,6 +209,8 @@ Resources:
           WHATSAPP_VERIFY_TOKEN: !Ref WhatsAppVerifyToken
           ADMIN_NOTIFY_EMAIL: !Ref AdminNotifyEmail
           SES_FROM_EMAIL: !Ref SesFromEmail
+          BREVO_API_KEY: !Ref BrevoApiKey
+          EMAIL_PROVIDERS: !Ref EmailProviders
           GROQ_API_KEYS: !Ref GroqApiKeys
           SERPAPI_KEY: !Ref SerpApiKey
           NASA_API_KEY: !Ref NasaApiKey
