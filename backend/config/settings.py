@@ -139,6 +139,9 @@ CONTACT_RECIPIENT_EMAIL = os.environ.get("CONTACT_RECIPIENT_EMAIL", "")
 # Operational alerts to the Vicinic team (builder/services/notify.py, via SES)
 # — e.g. a paid .co.za order waiting to be registered by hand.
 ADMIN_NOTIFY_EMAIL = os.environ.get("ADMIN_NOTIFY_EMAIL", "")
+# Every email is sent from the verified vicinic.co.za domain (DKIM-signed), never a personal Gmail:
+# mail "from" @gmail.com through SES fails DMARC alignment, and SES reviewers deny production access for it.
+SES_FROM_EMAIL = os.environ.get("SES_FROM_EMAIL", "Vicinic <noreply@vicinic.co.za>")
 SES_REGION = os.environ.get("SES_REGION") or os.environ.get("AWS_REGION", "eu-west-1")
 
 # PayFast (builder/services/payfast.py) — removes a Site's "Powered by

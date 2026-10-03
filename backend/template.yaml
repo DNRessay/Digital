@@ -114,6 +114,14 @@ Parameters:
     Type: String
     Default: "mmehgoss@gmail.com"
     Description: Where operational alerts go (e.g. paid .co.za orders to register by hand) — must be a verified SES identity
+  SesFromEmail:
+    Type: String
+    Default: "Vicinic <noreply@vicinic.co.za>"
+    Description: Sender for every email (alerts and customer mail) — an address on SesFromDomain
+  SesFromDomain:
+    Type: String
+    Default: "vicinic.co.za"
+    Description: The verified SES domain identity (DKIM) SesFromEmail sends as
   Stage:
     Type: String
     Default: prod
@@ -191,6 +199,7 @@ Resources:
           WHATSAPP_CONFIG_ID: !Ref WhatsAppConfigId
           WHATSAPP_VERIFY_TOKEN: !Ref WhatsAppVerifyToken
           ADMIN_NOTIFY_EMAIL: !Ref AdminNotifyEmail
+          SES_FROM_EMAIL: !Ref SesFromEmail
           GROQ_API_KEYS: !Ref GroqApiKeys
           SERPAPI_KEY: !Ref SerpApiKey
           NASA_API_KEY: !Ref NasaApiKey
@@ -207,6 +216,8 @@ Resources:
             BucketName: !Ref TemplateAssetsBucket
         - SESCrudPolicy:
             IdentityName: !Ref AdminNotifyEmail
+        - SESCrudPolicy:
+            IdentityName: !Ref SesFromDomain
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: BUFFERED
