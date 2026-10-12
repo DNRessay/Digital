@@ -3714,6 +3714,7 @@ section:first-of-type,
 }
 
 .contact .form-card .php-email-form .input-group-custom .input-wrapper input,
+.contact .form-card .php-email-form .input-group-custom .input-wrapper select,
 .contact .form-card .php-email-form .input-group-custom .input-wrapper textarea {
   width: 100%;
   height: 56px;
@@ -3732,6 +3733,7 @@ section:first-of-type,
 }
 
 .contact .form-card .php-email-form .input-group-custom .input-wrapper input:focus,
+.contact .form-card .php-email-form .input-group-custom .input-wrapper select:focus,
 .contact .form-card .php-email-form .input-group-custom .input-wrapper textarea:focus {
   outline: none;
   background: var(--surface-color);
