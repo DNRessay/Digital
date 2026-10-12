@@ -1,10 +1,24 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { getQuotePlan } from '../lib/quote.js'
 
 const WEB3FORMS_ENDPOINT = 'https://api.web3forms.com/submit'
+
+const PLAN_OPTIONS = [
+  { group: 'Business websites', items: ['Starter Site', 'Growth Hub', 'Business OS'] },
+  { group: 'Schools', items: ['Notice Board', 'Communication Hub', 'School Efficiency OS'] },
+  { group: 'Other', items: ['Something custom'] },
+]
 
 export default function Contact({ standalone = false }) {
   const [status, setStatus] = useState('idle') // idle | loading | sent | error
   const [errorText, setErrorText] = useState('')
+  const [plan, setPlan] = useState(getQuotePlan)
+
+  useEffect(() => {
+    const onPlan = (e) => setPlan(e.detail || '')
+    window.addEventListener('quote-plan', onPlan)
+    return () => window.removeEventListener('quote-plan', onPlan)
+  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -22,6 +36,7 @@ export default function Contact({ standalone = false }) {
       if (data.success) {
         setStatus('sent')
         form.reset()
+        setPlan('')
       } else {
         setErrorText(data.message || 'Something went wrong. Please try again.')
         setStatus('error')
@@ -37,8 +52,8 @@ export default function Contact({ standalone = false }) {
 
       <div className="container section-title" data-aos="fade-up">
         {standalone && <h1 className="visually-hidden">Contact</h1>}
-        <h2>Contact</h2>
-        <p>Tell us about your business — we'll recommend the right package</p>
+        <h2>Request a Quote</h2>
+        <p>Tell us what you need — we'll email you a no-obligation quote</p>
       </div>
 
       <div className="container" data-aos="fade-up" data-aos-delay="100">
@@ -107,14 +122,16 @@ export default function Contact({ standalone = false }) {
                   <i className="bi bi-send-fill"></i>
                 </div>
                 <div className="header-text">
-                  <h4>Send Us a Message</h4>
-                  <p>Fill out the form and we'll respond as soon as we can.</p>
+                  <h4>Request a Quote</h4>
+                  <p>Fill out the form and we'll email your quote, usually within a day.</p>
                 </div>
               </div>
 
               <form className="php-email-form" onSubmit={handleSubmit}>
                 {/* Replace with your own key from https://web3forms.com */}
                 <input type="hidden" name="access_key" value="65acf526-d27b-4f78-865b-5a6115838996" />
+                <input type="hidden" name="subject" value={`Quote request${plan ? ` — ${plan}` : ''}`} />
+                <input type="hidden" name="from_name" value="Vicinic website quote form" />
                 {/* Honeypot field — hidden from real users, catches spam bots */}
                 <input type="checkbox" name="botcheck" className="d-none" style={{ display: 'none' }} tabIndex="-1" autoComplete="off" />
 
@@ -139,12 +156,29 @@ export default function Contact({ standalone = false }) {
                     </div>
                   </div>
 
-                  <div className="col-12">
+                  <div className="col-md-6">
                     <div className="input-group-custom">
-                      <label>Subject</label>
+                      <label>Phone / WhatsApp (optional)</label>
                       <div className="input-wrapper">
-                        <i className="bi bi-chat-square-text"></i>
-                        <input type="text" name="subject" placeholder="How can we help?" required />
+                        <i className="bi bi-whatsapp"></i>
+                        <input type="tel" name="phone" placeholder="081 234 5678" autoComplete="tel" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="input-group-custom">
+                      <label>Package</label>
+                      <div className="input-wrapper">
+                        <i className="bi bi-boxes"></i>
+                        <select name="package" value={plan} onChange={(e) => setPlan(e.target.value)}>
+                          <option value="">Not sure yet</option>
+                          {PLAN_OPTIONS.map((g) => (
+                            <optgroup label={g.group} key={g.group}>
+                              {g.items.map((item) => <option value={item} key={item}>{item}</option>)}
+                            </optgroup>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   </div>
@@ -154,7 +188,7 @@ export default function Contact({ standalone = false }) {
                       <label>Your Message</label>
                       <div className="input-wrapper textarea-wrapper">
                         <i className="bi bi-pencil-square"></i>
-                        <textarea name="message" rows="5" placeholder="Tell us about your business..." required></textarea>
+                        <textarea name="message" rows="5" placeholder="What do you need? Tell us about your business, and any deadline or budget." required></textarea>
                       </div>
                     </div>
                   </div>
@@ -163,10 +197,10 @@ export default function Contact({ standalone = false }) {
                 <div className="form-actions">
                   <div className={`loading${status === 'loading' ? ' d-block' : ''}`}>Loading</div>
                   <div className={`error-message${status === 'error' ? ' d-block' : ''}`}>{errorText}</div>
-                  <div className={`sent-message${status === 'sent' ? ' d-block' : ''}`}>Your message has been sent. Thank you!</div>
+                  <div className={`sent-message${status === 'sent' ? ' d-block' : ''}`}>Your quote request has been sent. Thank you! We'll email you shortly.</div>
 
                   <button type="submit" className="btn-submit">
-                    <span>Send Message</span>
+                    <span>Request Quote</span>
                     <i className="bi bi-arrow-right-circle-fill"></i>
                   </button>
                 </div>

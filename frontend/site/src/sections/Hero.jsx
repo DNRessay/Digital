@@ -1,4 +1,4 @@
-import { SIGNUP_URL } from '../lib/signup.js'
+import { SIGNUP_URL, SIGNUP_ENABLED } from '../lib/signup.js'
 import SectionLink from '../components/SectionLink.jsx'
 
 export default function Hero() {
@@ -21,10 +21,17 @@ export default function Hero() {
               <p className="hero-text" data-aos="fade-up" data-aos-delay="350">A professional website plus a WhatsApp line your customers already trust — built, hosted, and supported by us. No hardware, no in-house developer needed.</p>
 
               <div className="hero-cta" data-aos="fade-up" data-aos-delay="400">
-                <a href={SIGNUP_URL} className="cta-button">
-                  <span>Sign up free</span>
-                  <i className="bi bi-arrow-right"></i>
-                </a>
+                {SIGNUP_ENABLED ? (
+                  <a href={SIGNUP_URL} className="cta-button">
+                    <span>Sign up free</span>
+                    <i className="bi bi-arrow-right"></i>
+                  </a>
+                ) : (
+                  <SectionLink to="contact" className="cta-button">
+                    <span>Request a quote</span>
+                    <i className="bi bi-arrow-right"></i>
+                  </SectionLink>
+                )}
                 <SectionLink to="pricing" className="cta-link">
                   <i className="bi bi-tag"></i>
                   <span>See plans</span>

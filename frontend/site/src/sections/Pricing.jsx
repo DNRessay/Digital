@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-import { SIGNUP_URL } from '../lib/signup.js'
+import { SIGNUP_URL, SIGNUP_ENABLED } from '../lib/signup.js'
+import { setQuotePlan } from '../lib/quote.js'
 import SectionLink from '../components/SectionLink.jsx'
 import '../styles/legal.css'
 
@@ -106,7 +107,14 @@ const SCHOOL_PLANS = [
   },
 ]
 
-function PlanCard({ plan, cta = plan.cta || 'Sign up free', to = plan.to }) {
+function PlanCard({ plan, cta, to = plan.to }) {
+  if (!SIGNUP_ENABLED) {
+    to = 'contact'
+    cta = cta || (plan.cta === 'Contact sales' ? 'Contact sales' : 'Request a quote')
+  } else {
+    cta = cta || plan.cta || 'Sign up free'
+  }
+
   return (
     <div className="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay={plan.delay}>
       <div className={`pricing-card${plan.featured ? ' featured' : ''}`}>
@@ -133,7 +141,9 @@ function PlanCard({ plan, cta = plan.cta || 'Sign up free', to = plan.to }) {
           <div className="pricing-setup">Once-off setup fee <strong>{plan.setup}</strong></div>
         )}
         {plan.note && <div className="pricing-setup">{plan.note}</div>}
-        {to ? <SectionLink to={to} className="btn-pricing">{cta}</SectionLink> : <a href={SIGNUP_URL} className="btn-pricing">{cta}</a>}
+        {to
+          ? <SectionLink to={to} className="btn-pricing" onClick={() => setQuotePlan(plan.name)}>{cta}</SectionLink>
+          : <a href={SIGNUP_URL} className="btn-pricing">{cta}</a>}
       </div>
     </div>
   )
@@ -146,7 +156,9 @@ export default function Pricing({ standalone = false }) {
       <div className="container section-title" data-aos="fade-up">
         {standalone && <h1 className="visually-hidden">Pricing</h1>}
         <h2>Pricing</h2>
-        <p>Sign up free, build your site in the editor, then pick a plan when you're ready to go live. Every paid plan includes a free .co.za domain (while the name is available — see our <Link to="/terms">terms</Link>), hosting, security and ongoing support.</p>
+        <p>{SIGNUP_ENABLED
+          ? "Sign up free, build your site in the editor, then pick a plan when you're ready to go live."
+          : "Pick a package and request a quote — we'll confirm the details by email and get you set up."} Every paid plan includes a free .co.za domain (while the name is available — see our <Link to="/terms">terms</Link>), hosting, security and ongoing support.</p>
       </div>
 
       <div className="container" data-aos="fade-up" data-aos-delay="100">
