@@ -137,6 +137,23 @@ real money, set `PAYFAST_MERCHANT_ID`/`PAYFAST_MERCHANT_KEY`/
 `PAYFAST_PASSPHRASE` to a real PayFast merchant account's details and
 `PAYFAST_SANDBOX=false` — see `.env.example` and "Deploying" below.
 
+## Paystack (`builder/services/paystack.py`, `builder/paystack_views.py`)
+
+Set `PAYMENT_PROVIDER=paystack` to switch package checkout from PayFast
+(domains and store orders stay on PayFast). Setup fee first, then monthly:
+
+- **Starter**: one once-off charge, nothing recurring.
+- **Growth / Business OS**: customer pays the setup fee (card only); the
+  webhook then creates the monthly plan on that card, starting
+  `PAYSTACK_SUBSCRIPTION_START_DAYS` (30) later.
+- **With `PAYSTACK_SECRET_KEY`**: checkout uses Paystack's API and
+  `POST /api/paystack/webhook/` (set it as the Live Webhook URL) activates
+  the site automatically. Also set `PAYSTACK_PLAN_GROWTH` /
+  `PAYSTACK_PLAN_BUSINESS_OS` to the `PLN_...` codes.
+- **Without a key**: checkout redirects to the Payment Pages in
+  `PAYSTACK_SETUP_PAGES`; point each page's "After Purchase" redirect at its
+  "Subscribe to Plan" page. Sites must be activated by hand in the admin.
+
 ## Customer-facing API (`builder/customer_api.py`, `/api/customer/...`)
 
 **Bearer-token authenticated (`CustomerAuthToken`), not session-cookie

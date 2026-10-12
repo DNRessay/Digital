@@ -225,6 +225,16 @@ export function deleteEmailRoute(siteSlug, routeId) {
   return apiFetch(`/api/customer/sites/${siteSlug}/email-routes/${routeId}/`, { method: 'DELETE' })
 }
 
+// Package checkout: Paystack returns a plain redirect_url, PayFast returns a
+// form to POST (see redirectToPayFast).
+export function redirectToCheckout(data) {
+  if (data.redirect_url) {
+    window.location.href = data.redirect_url
+  } else {
+    redirectToPayFast(data.process_url, data.fields)
+  }
+}
+
 // PayFast needs a real browser form POST (not fetch) to its hosted
 // checkout page — build one on the fly, in the exact field order the
 // backend signed, and submit it.

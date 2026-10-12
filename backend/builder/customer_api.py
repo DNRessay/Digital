@@ -43,6 +43,7 @@ from .services.site_images import ImageUploadError
 from .services.site_links import InvalidLinkError
 from .services.cloudflare import CloudflareError
 from .services.whatsapp import WhatsAppError
+from .services import paystack
 from .services.payfast import PACKAGES, PayFastError, build_checkout_payload, build_domain_purchase_payload
 from .services.site_provisioning import apply_contact_info, provision_missing_slot_values
 
@@ -502,6 +503,19 @@ def api_customer_checkout(request, site_slug):
 
     notify_url = request.build_absolute_uri(reverse("payfast-notify"))
     m_payment_id = f"{site.slug}-{uuid.uuid4().hex[:12]}"
+
+    if settings.PAYMENT_PROVIDER == "paystack":
+        # Setup fee first (Starter: the whole once-off price); the monthly
+        # plan for Growth/Business OS is created by the webhook afterwards.
+        email = site.email or request.customer_user.email
+        try:
+            redirect_url = paystack.checkout_url(site, package_id, email, m_payment_id, return_url, cancel_url)
+        except paystack.PaystackError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+        site.subscription_status = Site.SUBSCRIPTION_PENDING
+        site.package = package_id
+        site.save(update_fields=["subscription_status", "package"])
+        return JsonResponse({"redirect_url": redirect_url})
 
     try:
         process_url, fields = build_checkout_payload(site, package_id, m_payment_id, return_url, cancel_url, notify_url)

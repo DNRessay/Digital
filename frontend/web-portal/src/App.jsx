@@ -33,6 +33,7 @@ import {
   logout,
   publishSiteImages,
   purchaseDomain,
+  redirectToCheckout,
   redirectToPayFast,
   resetSiteImage,
   register,
@@ -400,7 +401,7 @@ function UpgradeCard({ site }) {
     try {
       const base = `${window.location.origin}${window.location.pathname}`
       const data = await checkout(site.slug, packageId, `${base}?checkout=success`, `${base}?checkout=cancelled`)
-      redirectToPayFast(data.process_url, data.fields)
+      redirectToCheckout(data)
       // Browser is navigating away to PayFast now — nothing else to do.
     } catch (err) {
       setError(err.message)
@@ -488,7 +489,7 @@ function StarterNudge({ site, domainPrice, compact = false }) {
     try {
       const base = `${window.location.origin}${window.location.pathname}`
       const data = await checkout(site.slug, 'starter', `${base}?checkout=success#deploy`, `${base}?checkout=cancelled#deploy`)
-      redirectToPayFast(data.process_url, data.fields)
+      redirectToCheckout(data)
     } catch (err) {
       setError(err.message)
       setBusy(false)

@@ -3,7 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from builder import api_views, blog_api, customer_api, mcp, mcp_connect, payfast_views, whatsapp_views
+from builder import api_views, blog_api, customer_api, mcp, mcp_connect, paystack_views, payfast_views, whatsapp_views
 from builder import views as builder_views
 
 urlpatterns = [
@@ -207,6 +207,8 @@ urlpatterns = [
     ),
     # PayFast's own server-to-server webhook — see builder/payfast_views.py.
     path("api/payfast/notify/", payfast_views.payfast_notify, name="payfast-notify"),
+    # Paystack's webhook — see builder/paystack_views.py.
+    path("api/paystack/webhook/", paystack_views.paystack_webhook, name="paystack-webhook"),
     # Meta's webhook for every customer's connected WhatsApp number — see builder/whatsapp_views.py.
     path("api/whatsapp/webhook/", whatsapp_views.whatsapp_webhook, name="whatsapp-webhook"),
     path("template-preview/<slug:template_slug>/", builder_views.template_preview, name="template-preview"),

@@ -157,6 +157,26 @@ PAYFAST_MERCHANT_ID = os.environ.get("PAYFAST_MERCHANT_ID", "10000100")
 PAYFAST_MERCHANT_KEY = os.environ.get("PAYFAST_MERCHANT_KEY", "46f0cd694581a")
 PAYFAST_PASSPHRASE = os.environ.get("PAYFAST_PASSPHRASE", "")
 PAYFAST_SANDBOX = os.environ.get("PAYFAST_SANDBOX", "true").lower() == "true"
+# Which gateway package checkout uses: "payfast" (default) or "paystack"
+# (builder/services/paystack.py). Domain purchases and store orders stay on PayFast.
+PAYMENT_PROVIDER = os.environ.get("PAYMENT_PROVIDER", "payfast")
+PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY", "")
+# Plan codes (PLN_...) from Paystack dashboard > Products > Plans.
+PAYSTACK_PLANS = {
+    "growth": os.environ.get("PAYSTACK_PLAN_GROWTH", ""),
+    "business_os": os.environ.get("PAYSTACK_PLAN_BUSINESS_OS", ""),
+}
+# No-API fallback (used while PAYSTACK_SECRET_KEY is empty): checkout sends the
+# customer to the package's Paystack Payment Page for the setup fee. In the
+# dashboard, each setup page's "After Purchase" redirect goes to its
+# "Subscribe to Plan" page. Sites then need activating by hand in the admin.
+PAYSTACK_SETUP_PAGES = {
+    "starter": "https://paystack.shop/pay/1aekx1o88i",
+    "growth": "https://paystack.shop/pay/xlvih2o1ip",
+    "business_os": "https://paystack.shop/pay/yu428-533c",
+}
+# Monthly billing starts this many days after the setup fee is paid.
+PAYSTACK_SUBSCRIPTION_START_DAYS = int(os.environ.get("PAYSTACK_SUBSCRIPTION_START_DAYS", "30"))
 # Business OS stores: shoppers pay Vicinic's PayFast account and PayFast
 # Split Payments sends this share to the store owner's own PayFast account
 # (Split Payments must be enabled on Vicinic's merchant account).

@@ -42,6 +42,22 @@ Parameters:
     Type: String
     Default: "true"
     AllowedValues: ["true", "false"]
+  PaymentProvider:
+    Type: String
+    Default: "payfast"
+    AllowedValues: ["payfast", "paystack"]
+  PaystackSecretKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+  PaystackPlanGrowth:
+    Type: String
+    Default: ""
+    Description: Paystack plan code (PLN_...) for Growth Hub R349/month
+  PaystackPlanBusinessOs:
+    Type: String
+    Default: ""
+    Description: Paystack plan code (PLN_...) for Business OS R699/month
   CloudflareApiToken:
     Type: String
     Default: ""
@@ -196,6 +212,10 @@ Resources:
           PAYFAST_MERCHANT_KEY: !Ref PayFastMerchantKey
           PAYFAST_PASSPHRASE: !Ref PayFastPassphrase
           PAYFAST_SANDBOX: !Ref PayFastSandbox
+          PAYMENT_PROVIDER: !Ref PaymentProvider
+          PAYSTACK_SECRET_KEY: !Ref PaystackSecretKey
+          PAYSTACK_PLAN_GROWTH: !Ref PaystackPlanGrowth
+          PAYSTACK_PLAN_BUSINESS_OS: !Ref PaystackPlanBusinessOs
           CLOUDFLARE_API_TOKEN: !Ref CloudflareApiToken
           CLOUDFLARE_ACCOUNT_ID: !Ref CloudflareAccountId
           PLATFORM_ORIGIN_HOST: !Ref PlatformOriginHost

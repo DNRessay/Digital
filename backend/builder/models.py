@@ -195,6 +195,8 @@ class Site(models.Model):
         max_length=100, blank=True,
         help_text="PayFast subscription token (for managing/cancelling recurring billing), set once the ITN confirms payment.",
     )
+    paystack_customer_code = models.CharField(max_length=100, blank=True)
+    paystack_subscription_code = models.CharField(max_length=100, blank=True)
 
     DOMAIN_NONE = "none"
     DOMAIN_PENDING = "pending"
