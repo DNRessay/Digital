@@ -226,7 +226,7 @@ export default function Pricing({ standalone = false }) {
                 <tr><td>School photography, logo or crest redesign</td><td>On request</td></tr>
               </tbody>
             </table>
-            <p className="addon-intro mt-2">Upgrade any time — the setup fee you paid is credited toward the higher package. PayFast fees excluded; no VAT charged.</p>
+            <p className="addon-intro mt-2">Upgrade any time — the setup fee you paid is credited toward the higher package. Payment processing fees excluded; no VAT charged.</p>
           </div>
         </div>
 

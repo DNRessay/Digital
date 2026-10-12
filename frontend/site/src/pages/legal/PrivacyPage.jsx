@@ -18,7 +18,7 @@ export default function PrivacyPage() {
         <li><strong>Account details:</strong> name, username, email address and password (stored securely hashed).</li>
         <li><strong>Profile details:</strong> legal or business name, phone number and address — needed to register domains in your name.</li>
         <li><strong>Your site content:</strong> text, images, links, menus and settings you add in the editor.</li>
-        <li><strong>Payment records:</strong> plan, amounts and payment status from PayFast. We never receive your card details.</li>
+        <li><strong>Payment records:</strong> plan, amounts and payment status from PayFast and Paystack. We never receive your card details.</li>
         <li><strong>Messages:</strong> what you send through our contact form, email, the AI chat or WhatsApp.</li>
         <li>
           <strong>Usage data (with your consent):</strong> pages you visit, what you click, referring site, browser and
@@ -44,7 +44,7 @@ export default function PrivacyPage() {
       <ul>
         <li>Amazon Web Services (hosting, Ireland) and Neon (database, United States)</li>
         <li>Cloudflare (network, security, DNS and email routing)</li>
-        <li>PayFast (payments)</li>
+        <li>PayFast and Paystack (payments)</li>
         <li>Domain registrars and registries such as ZADNA/ZACR for .co.za — registrant details may appear in public domain records as the registry requires</li>
         <li>Meta (WhatsApp) and Groq (AI replies), when you use those features</li>
         <li>Web3Forms (delivering contact-form messages)</li>

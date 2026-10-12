@@ -32,7 +32,7 @@ export default function TermsPage() {
           Plans, prices and what each includes are shown on our <Link to="/pricing">Pricing</Link> page. Starter Site is a
           once-off payment. Growth Hub and Business OS have a once-off setup fee plus a monthly fee.
         </li>
-        <li>Payments are processed by PayFast. We never see or store your card details.</li>
+        <li>Payments are processed by PayFast and Paystack. We never see or store your card details.</li>
         <li>Monthly plans renew automatically each month until you cancel.</li>
         <li>
           We may change prices for new purchases at any time. For an existing monthly plan we'll give you at least 30
@@ -121,7 +121,7 @@ export default function TermsPage() {
 
       <h2>8. Third-party services</h2>
       <p>
-        We rely on trusted providers including Amazon Web Services, Cloudflare, Neon, PayFast, domain registrars, Meta
+        We rely on trusted providers including Amazon Web Services, Cloudflare, Neon, PayFast, Paystack, domain registrars, Meta
         (WhatsApp) and Groq (AI). Their availability and policies can affect your service, and some features (such as
         WhatsApp) are also subject to their own terms.
       </p>
