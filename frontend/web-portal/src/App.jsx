@@ -443,7 +443,7 @@ function UpgradeCard({ site }) {
       </select>
 
       <button type="submit" disabled={busy || !packageId}>
-        {busy ? 'Redirecting to PayFast…' : 'Pay with PayFast'}
+        {busy ? 'Redirecting to checkout…' : 'Checkout'}
       </button>
       {packages && packages.some((p) => p.sales_only) && (
         <p className="field-hint">
@@ -513,7 +513,7 @@ function StarterNudge({ site, domainPrice, compact = false }) {
       )}
       <p className="field-hint">No monthly bill. Pay once, then claim your free .co.za.</p>
       {error && <div className="error">{error}</div>}
-      <button type="button" onClick={handleStarter} disabled={busy}>{busy ? 'Redirecting to PayFast…' : 'Get Starter — R250'}</button>
+      <button type="button" onClick={handleStarter} disabled={busy}>{busy ? 'Redirecting to checkout…' : 'Get Starter — R250'}</button>
     </div>
   )
 }
