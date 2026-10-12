@@ -1,4 +1,5 @@
-import { SIGNUP_URL } from '../lib/signup.js'
+import { SIGNUP_URL, SIGNUP_ENABLED } from '../lib/signup.js'
+import SectionLink from './SectionLink.jsx'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import useActiveSection from '../hooks/useActiveSection.js'
@@ -45,7 +46,9 @@ export default function Header() {
           ></i>
         </nav>
 
-        <a href={SIGNUP_URL} className="btn-getstarted">Sign up free</a>
+        {SIGNUP_ENABLED
+          ? <a href={SIGNUP_URL} className="btn-getstarted">Sign up free</a>
+          : <SectionLink to="contact" className="btn-getstarted">Request a quote</SectionLink>}
 
       </div>
     </header>

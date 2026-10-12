@@ -1,4 +1,4 @@
-import { SIGNUP_URL } from '../lib/signup.js'
+import { SIGNUP_URL, SIGNUP_ENABLED } from '../lib/signup.js'
 import { Link } from 'react-router-dom'
 
 export default function Footer() {
@@ -44,8 +44,17 @@ export default function Footer() {
           <div className="col-lg-3 col-md-6">
             <div className="footer-newsletter">
               <h4>Ready to start?</h4>
-              <p>Create your account free, pick a template and edit your site live — upgrade when you're ready.</p>
-              <a href={SIGNUP_URL} className="btn-pricing">Sign up free</a>
+              {SIGNUP_ENABLED ? (
+                <>
+                  <p>Create your account free, pick a template and edit your site live — upgrade when you're ready.</p>
+                  <a href={SIGNUP_URL} className="btn-pricing">Sign up free</a>
+                </>
+              ) : (
+                <>
+                  <p>Tell us what you need and we'll email you a no-obligation quote.</p>
+                  <Link to="/contact" className="btn-pricing">Request a quote</Link>
+                </>
+              )}
             </div>
           </div>
         </div>
