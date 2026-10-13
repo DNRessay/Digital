@@ -12,9 +12,10 @@ const PLANS = [
     delay: 100,
     features: [
       'Free .co.za domain (1 per purchase, if the name is available)',
-      'One website template of your choice, edited live (text, images, logo & links)',
+      'Pick a template and edit text, images, logo & links live',
       'Easy menu editor, plus up to 3 extra pages',
-      'Email forwarding — up to 5 addresses, like you@yourbusiness.co.za',
+      'AI chat assistant that answers your visitors',
+      'Email forwarding — you@yourbusiness.co.za to your inbox',
       'Hosting, SSL & support — no "Powered by" credit',
       'One-time payment — no monthly bill',
     ],
@@ -30,7 +31,6 @@ const PLANS = [
       'Everything in Starter Site',
       'Free .co.za domain included',
       'Up to 10 extra pages',
-      'AI chat assistant that answers your visitors',
       'Automated blog — up to 20 AI-written posts a month, free',
       'WhatsApp AI bot on your own business number',
       'Online booking requests and enquiries, with a customer database',
@@ -226,7 +226,7 @@ export default function Pricing({ standalone = false }) {
                 <tr><td>School photography, logo or crest redesign</td><td>On request</td></tr>
               </tbody>
             </table>
-            <p className="addon-intro mt-2">Upgrade any time — the setup fee you paid is credited toward the higher package. Payment processing fees excluded; no VAT charged.</p>
+            <p className="addon-intro mt-2">Upgrade any time — the setup fee you paid is credited toward the higher package. PayFast fees excluded; no VAT charged.</p>
           </div>
         </div>
 
