@@ -126,3 +126,47 @@
   color: var(--accent-color);
   border: 1px solid color-mix(in srgb, var(--accent-color) 50%, transparent);
 }
+
+/* New-company landing page */
+.legal .nc-box {
+  margin: 32px 0;
+  padding: 22px 24px;
+  border: 1px solid color-mix(in srgb, var(--default-color) 18%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent-color) 6%, transparent);
+}
+
+.legal .nc-box h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+
+.legal .nc-btn {
+  display: inline-block;
+  padding: 10px 22px;
+  margin-right: 14px;
+  border-radius: 8px;
+  background: var(--accent-color);
+  color: var(--contrast-color);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.legal .nc-link {
+  font-weight: 600;
+}
+
+.legal .nc-faq {
+  border-bottom: 1px solid color-mix(in srgb, var(--default-color) 15%, transparent);
+  padding: 12px 0;
+}
+
+.legal .nc-faq summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.legal .nc-faq p {
+  margin: 10px 0 0;
+}

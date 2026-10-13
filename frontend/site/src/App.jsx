@@ -10,6 +10,7 @@ import NotFound from './pages/NotFound.jsx'
 import TermsPage from './pages/legal/TermsPage.jsx'
 import PrivacyPage from './pages/legal/PrivacyPage.jsx'
 import CookiesPage from './pages/legal/CookiesPage.jsx'
+import NewCompanyPage from './pages/NewCompanyPage.jsx'
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="pricing" element={<PricingPage />} />
         <Route path="portfolio" element={<PortfolioPage />} />
         <Route path="contact" element={<ContactPage />} />
+        <Route path="new-company-checklist" element={<NewCompanyPage />} />
         <Route path="terms" element={<TermsPage />} />
         <Route path="privacy" element={<PrivacyPage />} />
         <Route path="cookies" element={<CookiesPage />} />

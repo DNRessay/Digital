@@ -27,6 +27,7 @@ export default function Footer() {
               <li><Link to="/services">Services</Link></li>
               <li><Link to="/pricing">Pricing</Link></li>
               <li><Link to="/portfolio">Portfolio</Link></li>
+              <li><Link to="/new-company-checklist">New company checklist</Link></li>
               <li><a href="https://blog.vicinic.co.za">Blog</a></li>
             </ul>
           </div>

@@ -7,7 +7,7 @@ const pages = JSON.parse(readFileSync('src/seo.json', 'utf8'))
 const html = readFileSync('dist/index.html', 'utf8')
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
 
-function render(path, { title, description }) {
+function render(path, { title, description, jsonld }) {
   const url = `${ORIGIN}${path}`
   return html
     .replace(/<title>[^<]*<\/title>/, `<title>${esc(title)}</title>`)
@@ -16,6 +16,7 @@ function render(path, { title, description }) {
     .replace(/(<meta property="og:title" content=")[^"]*/, `$1${esc(title)}`)
     .replace(/(<meta property="og:description" content=")[^"]*/, `$1${esc(description)}`)
     .replace(/(<meta property="og:url" content=")[^"]*/, `$1${url}`)
+    .replace('</head>', () => (jsonld ? `<script type="application/ld+json">${JSON.stringify(jsonld)}</script>\n</head>` : '</head>'))
 }
 
 for (const [path, meta] of Object.entries(pages)) {
