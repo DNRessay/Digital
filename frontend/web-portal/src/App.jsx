@@ -506,9 +506,9 @@ function StarterNudge({ site, domainPrice, compact = false }) {
       {!compact && (
         <ul>
           <li>No "Powered by Vicinic" credit</li>
-          <li>AI chat assistant for your visitors</li>
+          <li>One website template of your choice</li>
           <li>Up to 3 extra pages, plus image and logo editing</li>
-          <li>Email forwarding — you@yourbusiness.co.za</li>
+          <li>Email forwarding — up to 5 addresses, like you@yourbusiness.co.za</li>
         </ul>
       )}
       <p className="field-hint">No monthly bill. Pay once, then claim your free .co.za.</p>
