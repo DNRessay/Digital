@@ -244,8 +244,8 @@ class Site(models.Model):
 
     @property
     def ai_assistant_available(self):
-        """The AI chat assistant is a paid-plan feature (any plan)."""
-        return self.has_paid_plan
+        """The AI chat assistant is a Growth Hub / Business OS feature — not on Starter."""
+        return self.has_paid_plan and self.package in (self.PACKAGE_GROWTH, self.PACKAGE_BUSINESS_OS)
 
     @property
     def whatsapp_bot_available(self):

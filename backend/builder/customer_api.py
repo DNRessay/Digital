@@ -196,8 +196,12 @@ def _get_site_or_none(user, site_slug):
 STAFF_LIMITS = {Site.PACKAGE_GROWTH: 5, Site.PACKAGE_BUSINESS_OS: 20}
 
 
+# Email forwarding addresses per package; missing = unlimited.
+EMAIL_ROUTE_LIMITS = {Site.PACKAGE_STARTER: 5}
+
+
 def _email_routing_error(site):
-    if not site.ai_assistant_available:
+    if not site.has_paid_plan:
         return JsonResponse({"error": "Email forwarding comes with every paid plan — upgrade to set it up."}, status=403)
     if site.domain_status != Site.DOMAIN_ACTIVE:
         return JsonResponse({"error": "Connect and activate your custom domain first."}, status=400)
@@ -661,6 +665,12 @@ def api_customer_site_email_routes(request, site_slug):
         if not site.email_destinations.filter(email=to_address, verified=True).exists():
             return JsonResponse({"error": f"Add and verify {to_address} under Your inboxes first."}, status=400)
 
+        limit = EMAIL_ROUTE_LIMITS.get(site.package)
+        if limit is not None and site.email_routes.count() >= limit:
+            return JsonResponse(
+                {"error": f"Starter Site includes up to {limit} email addresses — upgrade to Growth Hub for more."}, status=403
+            )
+
         route = EmailRoute(site=site, from_address=from_address, to_address=to_address)
         try:
             route.cloudflare_rule_id = cloudflare.create_routing_rule(site.cloudflare_zone_id, from_address, to_address)
@@ -701,7 +711,13 @@ def api_customer_site_email_routes(request, site_slug):
         except CloudflareError:
             pass
 
-    return JsonResponse({"email_routes": [_serialize_email_route(r) for r in routes], "external_routes": external})
+    return JsonResponse(
+        {
+            "email_routes": [_serialize_email_route(r) for r in routes],
+            "external_routes": external,
+            "limit": EMAIL_ROUTE_LIMITS.get(site.package),
+        }
+    )
 
 
 @csrf_exempt

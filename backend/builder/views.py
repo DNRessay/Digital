@@ -571,7 +571,7 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None
             html = _inject_branding_badge(html)
         chat = chat_url if site.ai_assistant_active else None
         booking = f"{base_path}contact/" if site.growth_features_available and site.bookings_enabled else None
-        if chat or booking or (site.whatsapp_number and site.has_paid_plan):
+        if chat or booking or (site.whatsapp_number and site.whatsapp_bot_available):
             html = _inject_floating_buttons(html, site, chat, booking)
     response = HttpResponse(html)
     if edit_mode:

@@ -900,6 +900,7 @@ function EmailInboxes({ site, destinations, setDestinations }) {
 function EmailRoutingSection({ site, onOpenSearch }) {
   const domainReady = site.domain_status === 'active'
   const [routes, setRoutes] = useState(null)
+  const [routeLimit, setRouteLimit] = useState(null)
   const [externalRoutes, setExternalRoutes] = useState([])
   const [destinations, setDestinations] = useState([])
   const [error, setError] = useState(null)
@@ -922,6 +923,7 @@ function EmailRoutingSection({ site, onOpenSearch }) {
     listEmailRoutes(site.slug)
       .then((data) => {
         setRoutes(data.email_routes)
+        setRouteLimit(data.limit ?? null)
         setExternalRoutes(data.external_routes || [])
       })
       .catch((err) => setError(err.message))
@@ -929,7 +931,7 @@ function EmailRoutingSection({ site, onOpenSearch }) {
 
   const verified = destinations.filter((d) => d.verified)
   const disabled = !domainReady || verified.length === 0
-  const available = site.ai_assistant_available && domainReady
+  const available = site.has_paid_plan && domainReady
 
   async function handleAdd(e) {
     e.preventDefault()
@@ -963,14 +965,17 @@ function EmailRoutingSection({ site, onOpenSearch }) {
   return (
     <div className="card">
       <h2>Email routing</h2>
+      {routeLimit !== null && routes && (
+        <p className="field-hint">{routes.length} of {routeLimit} email addresses used on your plan.</p>
+      )}
       {!available && (
         <div className="notice">
-          {!site.ai_assistant_available
+          {!site.has_paid_plan
             ? 'Email forwarding (e.g. hello@yourbusiness.co.za to your Gmail) comes with every paid plan and your own domain — upgrade above to set it up.'
             : site.free_domain_available
               ? 'Email forwarding needs your own domain — and your plan includes a free .co.za.'
               : 'Email forwarding switches on once your custom domain above is connected and active.'}
-          {site.ai_assistant_available && site.free_domain_available && !site.custom_domain && (
+          {site.has_paid_plan && site.free_domain_available && !site.custom_domain && (
             <>
               {' '}
               <button type="button" className="link-button" onClick={onOpenSearch}>Claim your free .co.za</button>
@@ -1091,7 +1096,7 @@ function AiAssistantSection({ site, onSiteUpdated }) {
         below, plus a "Chat on WhatsApp" link if you add a number.
       </p>
       {!site.ai_assistant_available && (
-        <div className="notice">The AI assistant comes with every paid plan — upgrade above to switch it on.</div>
+        <div className="notice">The AI assistant and WhatsApp bot come with Growth Hub and Business OS — upgrade above to switch them on.</div>
       )}
       {saveError && <div className="error">{saveError}</div>}
 
