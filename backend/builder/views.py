@@ -22,7 +22,7 @@ from .forms import TemplateUploadForm
 from .branding_assets import LOGO_WHITE_DATA_URI
 from .models import Site, SitePage, SiteSlotValue, SiteVisit, Template, TemplatePage
 from .services.ai_assistant import AiAssistantError, ask_assistant
-from .services import enquiries, site_blog, site_links, site_menu, site_pages, store
+from .services import enquiries, site_blog, site_links, site_menu, site_pages, site_seo, store
 from .services.payfast import build_store_order_payload
 from .services.site_images import apply_overrides, logo_scale_css, logo_urls
 from .services.slot_extractor import slot_tag
@@ -518,7 +518,9 @@ def _inject_map_address(html, address):
     return GOOGLE_MAPS_IFRAME_SRC_RE.sub(lambda m: m.group(1) + new_src + m.group(3), html)
 
 
-def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None, custom_page=None, blog_page=None):
+def _render_site_page(
+    site, page, edit_mode=False, chat_url=None, base_path=None, custom_page=None, blog_page=None, seo_path=None, seo_description=None, seo_article=None
+):
     """`page` is the TemplatePage to render; for a customer-added page
     (`custom_page`, a SitePage) it's the template's starter page, whose
     main content gets swapped for the custom page's sections."""
@@ -567,6 +569,13 @@ def _render_site_page(site, page, edit_mode=False, chat_url=None, base_path=None
     if edit_mode:
         html = _inject_editor_bridge(html)
     else:
+        if custom_page:
+            seo_path = f"{base_path}{custom_page.slug}/"
+            seo_description = seo_description or f"{custom_page.title} — {site.name}. {site.tagline}".strip()
+        elif not blog_page:
+            seo_path = base_path
+        if seo_path:
+            html = site_seo.inject(html, site, base_path, seo_path, seo_description, seo_article)
         if site.is_branded:
             html = _inject_branding_badge(html)
         chat = chat_url if site.ai_assistant_active else None
@@ -646,6 +655,17 @@ def _page_or_custom(site, page_slug, edit_mode):
     return starter, custom
 
 
+def _blog_seo(site, post_slug, base_path):
+    if post_slug is None:
+        return {"seo_path": f"{base_path}blog/", "seo_description": f"News, tips and updates from {site.name}."}
+    post = site.posts.filter(slug=post_slug, published=True).first()
+    return {
+        "seo_path": f"{base_path}blog/{post_slug}/",
+        "seo_description": post.summary or post.title,
+        "seo_article": {"title": post.title, "published": post.created_at.isoformat()},
+    }
+
+
 def _blog_page(site, post_slug, base_path, page=1):
     """(starter TemplatePage, (title, inner html)) for the site's blog, or Http404. `page` is ?page= of the list."""
     starter = site_pages.starter_page(site.template)
@@ -719,14 +739,20 @@ def site_blog_post(request, slug, post_slug):
     site = get_object_or_404(Site, slug=slug, is_published=True)
     page, blog = _blog_page(site, post_slug, f"/{slug}/")
     chat_url = reverse("builder:site-ai-chat", args=[slug])
-    return _track_visit(request, site, _render_site_page(site, page, chat_url=chat_url, blog_page=blog))
+    return _track_visit(
+        request, site, _render_site_page(site, page, chat_url=chat_url, blog_page=blog, **_blog_seo(site, post_slug, f"/{slug}/"))
+    )
 
 
 def custom_domain_blog_post(request, post_slug):
     site = request.custom_domain_site
     page, blog = _blog_page(site, post_slug, "/")
     return _track_visit(
-        request, site, _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat"), base_path="/", blog_page=blog)
+        request,
+        site,
+        _render_site_page(
+            site, page, chat_url=reverse("custom-domain-ai-chat"), base_path="/", blog_page=blog, **_blog_seo(site, post_slug, "/")
+        ),
     )
 
 
@@ -736,7 +762,11 @@ def site_page(request, slug, page_slug):
     if page_slug == "blog" and not SitePage.objects.filter(site=site, slug="blog").exists():
         page, blog = _blog_page(site, None, f"/{slug}/", request.GET.get("page"))
         chat_url = reverse("builder:site-ai-chat", args=[slug])
-        return _track_visit(request, site, _render_site_page(site, page, edit_mode=edit_mode, chat_url=chat_url, blog_page=blog))
+        return _track_visit(
+            request,
+            site,
+            _render_site_page(site, page, edit_mode=edit_mode, chat_url=chat_url, blog_page=blog, **_blog_seo(site, None, f"/{slug}/")),
+        )
     page, custom = _page_or_custom(site, page_slug, edit_mode)
     chat_url = reverse("builder:site-ai-chat", args=[slug])
     return _track_visit(
@@ -762,7 +792,11 @@ def custom_domain_page(request, page_slug):
     if page_slug == "blog" and not SitePage.objects.filter(site=site, slug="blog").exists():
         page, blog = _blog_page(site, None, "/", request.GET.get("page"))
         return _track_visit(
-            request, site, _render_site_page(site, page, chat_url=reverse("custom-domain-ai-chat"), base_path="/", blog_page=blog)
+            request,
+            site,
+            _render_site_page(
+                site, page, chat_url=reverse("custom-domain-ai-chat"), base_path="/", blog_page=blog, **_blog_seo(site, None, "/")
+            ),
         )
     page, custom = _page_or_custom(site, page_slug, edit_mode=False)
     return _track_visit(
@@ -866,3 +900,22 @@ def template_manager(request):
         "builder/manager/templates.html",
         {"form": form, "templates": templates, "error": error},
     )
+
+
+def site_sitemap(request, slug):
+    site = get_object_or_404(Site, slug=slug, is_published=True)
+    return HttpResponse(site_seo.sitemap_xml(site, f"/{slug}/"), content_type="application/xml")
+
+
+def custom_domain_sitemap(request):
+    return HttpResponse(site_seo.sitemap_xml(request.custom_domain_site, "/"), content_type="application/xml")
+
+
+def custom_domain_robots(request):
+    return HttpResponse(site_seo.robots_txt(request.custom_domain_site), content_type="text/plain")
+
+
+def custom_domain_indexnow_key(request, key):
+    if key != site_seo.indexnow_key():
+        raise Http404("No such file.")
+    return HttpResponse(key, content_type="text/plain")

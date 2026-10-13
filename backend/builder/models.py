@@ -234,6 +234,11 @@ class Site(models.Model):
     bookings_enabled = models.BooleanField(
         default=True, help_text="Growth+: show the floating 'Book' button so visitors can request a booking."
     )
+    business_type = models.CharField(max_length=80, blank=True, help_text="What kind of site the owner said they want, e.g. 'bakery'.")
+    brief = models.TextField(blank=True, help_text="The owner's short description of the business (onboarding).")
+    offerings = models.JSONField(default=list, blank=True, help_text="Services/products the owner listed at onboarding.")
+    seo_description = models.CharField(max_length=300, blank=True, help_text="Meta description for the home page.")
+    ai_filled_at = models.DateTimeField(null=True, blank=True, help_text="Set once the one-time AI copy fill succeeded; it never runs again.")
     is_published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

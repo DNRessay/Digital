@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ SITENAME }}{% endblock title %}</title>
   <meta name="description" content="{% block description %}{{ SITESUBTITLE }}{% endblock %}">
+  <meta name="robots" content="{% block robots %}index,follow,max-image-preview:large,max-snippet:-1{% endblock %}">
   <link rel="icon" href="/theme/img/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,8 +15,14 @@
   {% block head %}
   <link rel="canonical" href="{{ BLOG_URL }}/{{ output_file | replace('index.html', '') if output_file else '' }}">
   <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_ZA">
   <meta property="og:site_name" content="Vicinic Blog">
+  <meta property="og:title" content="{{ self.title() | striptags }}">
+  <meta property="og:description" content="{{ SITESUBTITLE }}">
+  <meta property="og:url" content="{{ BLOG_URL }}/{{ output_file | replace('index.html', '') if output_file else '' }}">
   <meta property="og:image" content="{{ MAIN_SITE_URL }}/assets/img/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  {% block jsonld %}{% endblock %}
   {% endblock head %}
 </head>
 <body>

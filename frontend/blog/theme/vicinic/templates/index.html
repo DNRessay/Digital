@@ -1,4 +1,17 @@
 {% extends "base.html" %}
+{% block jsonld %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Blog",
+    "name": {{ SITENAME | tojson }},
+    "description": {{ SITESUBTITLE | tojson }},
+    "url": "{{ BLOG_URL }}/",
+    "inLanguage": "en-ZA",
+    "publisher": { "@type": "Organization", "name": "Vicinic", "url": "{{ MAIN_SITE_URL }}" }
+  }
+  </script>
+{% endblock %}
 {% block content %}
 {% if not articles_page or articles_page.number == 1 %}
 <section class="intro">
