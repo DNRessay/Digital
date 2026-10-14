@@ -73,11 +73,15 @@ export async function register(name, username, email, password, acceptTerms) {
   return data
 }
 
-export function createSite(siteName, templateSlug) {
+export function createSite(siteName, templateSlug, brief = {}) {
   return apiFetch('/api/customer/sites/', {
     method: 'POST',
-    body: { site_name: siteName, template_slug: templateSlug },
+    body: { site_name: siteName, template_slug: templateSlug, ...brief },
   })
+}
+
+export function retryAiFill(siteSlug) {
+  return apiFetch(`/api/customer/sites/${siteSlug}/ai-fill/`, { method: 'POST' })
 }
 
 export async function logout() {

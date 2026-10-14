@@ -279,7 +279,10 @@ function CreateSite({ onCreated }) {
   const [templatesError, setTemplatesError] = useState(null)
   const [siteName, setSiteName] = useState('')
   const [templateSlug, setTemplateSlug] = useState('')
-  const [step, setStep] = useState('name') // name | template
+  const [step, setStep] = useState('name') // name | brief | template
+  const [businessType, setBusinessType] = useState('')
+  const [brief, setBrief] = useState('')
+  const [offeringsText, setOfferingsText] = useState('')
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
 
@@ -297,7 +300,19 @@ function CreateSite({ onCreated }) {
     setBusy(true)
     setError(null)
     try {
-      await createSite(siteName, templateSlug)
+      const offerings = offeringsText
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [name, ...rest] = line.split(':')
+          return { name: name.trim(), description: rest.join(':').trim() }
+        })
+      await createSite(siteName, templateSlug, {
+        business_type: businessType.trim(),
+        brief: brief.trim(),
+        offerings,
+      })
       onCreated()
     } catch (err) {
       setError(err.message)
@@ -314,7 +329,7 @@ function CreateSite({ onCreated }) {
         className="card"
         onSubmit={(e) => {
           e.preventDefault()
-          setStep('template')
+          setStep('brief')
         }}
       >
         <h2>Create your site</h2>
@@ -326,9 +341,53 @@ function CreateSite({ onCreated }) {
     )
   }
 
+  if (step === 'brief') {
+    return (
+      <form
+        className="card"
+        onSubmit={(e) => {
+          e.preventDefault()
+          setStep('template')
+        }}
+      >
+        <button type="button" className="link-button" onClick={() => setStep('name')}>← Back</button>
+        <h2>Tell us about {siteName.trim()}</h2>
+        <p>We'll use this once to write your first draft, so your site opens with real words instead of placeholder text. You can edit everything afterwards.</p>
+        <label htmlFor="business-type">What kind of site do you need?</label>
+        <input
+          id="business-type"
+          type="text"
+          placeholder="e.g. bakery, plumbing company, school, salon"
+          value={businessType}
+          onChange={(e) => setBusinessType(e.target.value)}
+          maxLength={80}
+        />
+        <label htmlFor="brief">Short description of your business</label>
+        <textarea
+          id="brief"
+          rows={4}
+          placeholder="What you do, who your customers are, and where you work."
+          value={brief}
+          onChange={(e) => setBrief(e.target.value)}
+          maxLength={1500}
+        />
+        <label htmlFor="offerings">Services or products to show (one per line)</label>
+        <textarea
+          id="offerings"
+          rows={5}
+          placeholder={'Wedding cakes: custom designs for any budget\nSourdough loaves\nDelivery in Pretoria'}
+          value={offeringsText}
+          onChange={(e) => setOfferingsText(e.target.value)}
+        />
+        <p className="field-hint">Optional — add "name: short description" if you like. Skip this and you'll get the template's sample text.</p>
+        <button type="submit">Next</button>
+      </form>
+    )
+  }
+
   return (
     <form className="card" onSubmit={handleSubmit}>
-      <button type="button" className="link-button" onClick={() => setStep('name')}>← Back</button>
+      <button type="button" className="link-button" onClick={() => setStep('brief')}>← Back</button>
       <h2>Pick a look for {siteName.trim()}</h2>
       <p>Swipe through the templates — every bit of text is yours to edit once it's set up.</p>
       {error && <div className="error">{error}</div>}
@@ -357,7 +416,7 @@ function CreateSite({ onCreated }) {
       )}
 
       <button type="submit" disabled={busy || noTemplates || !templateSlug}>
-        {busy ? 'Creating your site…' : 'Create site'}
+        {busy ? (brief.trim() || offeringsText.trim() ? 'Writing your site…' : 'Creating your site…') : 'Create site'}
       </button>
     </form>
   )

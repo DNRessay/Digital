@@ -53,6 +53,7 @@ urlpatterns = [
     path("api/customer/templates/", customer_api.api_customer_templates, name="api-customer-templates"),
     path("api/customer/packages/", customer_api.api_customer_packages, name="api-customer-packages"),
     path("api/customer/sites/", customer_api.api_customer_sites, name="api-customer-sites"),
+    path("api/customer/sites/<slug:site_slug>/ai-fill/", customer_api.api_customer_site_ai_fill, name="api-customer-site-ai-fill"),
     path(
         "api/customer/sites/<slug:site_slug>/",
         customer_api.api_customer_site_update,

@@ -45,6 +45,8 @@ from .services.cloudflare import CloudflareError
 from .services.whatsapp import WhatsAppError
 from .services import paystack
 from .services.payfast import PACKAGES, PayFastError, build_checkout_payload, build_domain_purchase_payload
+from .services import site_onboarding, site_seo
+from .services.ai_assistant import AiAssistantError
 from .services.site_provisioning import apply_contact_info, provision_missing_slot_values
 
 HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -132,6 +134,11 @@ def _serialize_user(user):
     }
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 def _serialize_site(site):
     return {
         "slug": site.slug,
@@ -162,6 +169,8 @@ def _serialize_site(site):
         "growth_features_available": site.growth_features_available,
         "business_os_available": site.business_os_available,
         "bookings_enabled": site.bookings_enabled,
+        "business_type": site.business_type,
+        "ai_filled": bool(site.ai_filled_at),
     }
 
 
@@ -370,16 +379,67 @@ def api_customer_sites(request):
     if Site.objects.filter(slug=site_slug).exists():
         return JsonResponse({"error": f'A site named "{site_name}" already exists — pick a different name.'}, status=409)
 
+    business_type = str(body.get("business_type", "")).strip()[:80]
+    brief = str(body.get("brief", "")).strip()[:1500]
+    offerings = _clean_offerings(body.get("offerings"))
+
     try:
         with transaction.atomic():
             site = Site.objects.create(
                 name=site_name, slug=site_slug, template=template, owner=request.customer_user, is_published=True,
+                business_type=business_type, brief=brief, offerings=offerings,
             )
             provision_missing_slot_values(site)
     except IntegrityError:
         return JsonResponse({"error": "That site name was just taken — try again."}, status=409)
 
-    return JsonResponse({"site": _serialize_site(site)}, status=201)
+    ai_status = "skipped"
+    if brief or offerings:
+        ai_status = _run_ai_fill(site)
+    return JsonResponse({"site": _serialize_site(site), "ai_fill": ai_status}, status=201)
+
+
+def _clean_offerings(raw):
+    out = []
+    for item in raw if isinstance(raw, list) else []:
+        if isinstance(item, str):
+            item = {"name": item}
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()[:80]
+        if name:
+            out.append({"name": name, "description": str(item.get("description", "")).strip()[:200]})
+        if len(out) >= 12:
+            break
+    return out
+
+
+def _run_ai_fill(site):
+    try:
+        done = site_onboarding.fill_site_copy(site)
+    except AiAssistantError:
+        return "failed"
+    except Exception:
+        logger.exception("AI fill crashed for site %s", site.slug)
+        return "failed"
+    if done:
+        site_seo.ping_indexnow(site)
+    return "done" if done else "skipped"
+
+
+@csrf_exempt
+@customer_token_required
+@require_http_methods(["POST"])
+def api_customer_site_ai_fill(request, site_slug):
+    """Retry for the one-time AI copy fill — only works until it has succeeded once."""
+    site = _get_owned_site_or_none(request.customer_user, site_slug)
+    if site is None:
+        return JsonResponse({"error": "Site not found."}, status=404)
+    if site.ai_filled_at:
+        return JsonResponse({"error": "Your site's text was already generated."}, status=409)
+    if not (site.brief or site.offerings):
+        return JsonResponse({"error": "Add a short description of your business first."}, status=400)
+    return JsonResponse({"ai_fill": _run_ai_fill(site), "site": _serialize_site(site)})
 
 
 @csrf_exempt
