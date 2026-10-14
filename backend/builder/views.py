@@ -22,7 +22,7 @@ from .forms import TemplateUploadForm
 from .branding_assets import LOGO_WHITE_DATA_URI
 from .models import Site, SitePage, SiteSlotValue, SiteVisit, Template, TemplatePage
 from .services.ai_assistant import AiAssistantError, ask_assistant
-from .services import enquiries, site_blog, site_links, site_menu, site_pages, site_seo, store
+from .services import enquiries, site_blog, site_links, site_menu, site_pages, site_seo, store, template_fallback_css
 from .services.payfast import build_store_order_payload
 from .services.site_images import apply_overrides, logo_scale_css, logo_urls
 from .services.slot_extractor import slot_tag
@@ -534,7 +534,7 @@ def _render_site_page(
     source = site_pages.document_with_marker(page.document) if custom_page or blog_page else page.document
     document = site_links.apply(source, link_overrides, annotate=edit_mode, base_path=base_path)
     template = django_engine.from_string(document)
-    html = template.render(context)
+    html = template_fallback_css.apply(template.render(context), site.template.slug)
     if custom_page:
         html = site_pages.fill(html, custom_page, site.name, edit_mode)
     elif blog_page:
@@ -627,7 +627,8 @@ def template_preview(request, template_slug):
     context = {"site": preview_site}
     for slot in list(template.slots.filter(page__isnull=True)) + list(page.slots.all()):
         context[slot.key] = slot.default_text
-    response = HttpResponse(django_engine.from_string(page.document).render(context))
+    html = template_fallback_css.apply(django_engine.from_string(page.document).render(context), template.slug)
+    response = HttpResponse(html)
     response.xframe_options_exempt = True
     return response
 
