@@ -2,7 +2,7 @@ name: Backend CI & Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [claude/viincci-digital-website-b1m1zn]
     paths:
       - "backend/**"
       - "frontend/**"
@@ -35,7 +35,7 @@ jobs:
 
   deploy:
     needs: test
-    if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && github.event_name == 'push')
+    if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/claude/viincci-digital-website-b1m1zn' && github.event_name == 'push')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

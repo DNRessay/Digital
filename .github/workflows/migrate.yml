@@ -6,7 +6,7 @@ name: Migrate database
 
 on:
   push:
-    branches: [main, claude/viincci-digital-website-b1m1zn]
+    branches: [claude/viincci-digital-website-b1m1zn]
     paths:
       - "backend/builder/migrations/**"
       - ".github/workflows/migrate.yml"
