@@ -1,0 +1,45 @@
+name: Migrate database
+
+# Runs `manage.py migrate` against the production database (the DATABASE_URL
+# secret). Starts by itself when a migration changes, or by hand:
+# Actions > Migrate database > Run workflow.
+
+on:
+  push:
+    branches: [claude/viincci-digital-website-b1m1zn]
+    paths:
+      - "backend/builder/migrations/**"
+      - ".github/workflows/migrate.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Show pending migrations
+        working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python manage.py showmigrations builder | tail -5
+
+      - name: Migrate
+        working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python manage.py migrate --noinput

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block jsonld %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Blog",
+    "name": {{ SITENAME | tojson }},
+    "description": {{ SITESUBTITLE | tojson }},
+    "url": "{{ BLOG_URL }}/",
+    "inLanguage": "en-ZA",
+    "publisher": { "@type": "Organization", "name": "Vicinic", "url": "{{ MAIN_SITE_URL }}" }
+  }
+  </script>
+{% endblock %}
+{% block content %}
+{% if not articles_page or articles_page.number == 1 %}
+<section class="intro">
+  <h1>{{ SITENAME }}</h1>
+  <p>{{ SITESUBTITLE }}</p>
+  <form class="search-form" action="/search/" role="search">
+    <input type="search" name="q" placeholder="Search articles…" aria-label="Search articles">
+  </form>
+</section>
+{% endif %}
+<div class="grid">
+  {% for article in articles_page.object_list %}
+  <article class="card">
+    <p class="meta"><a href="/{{ article.category.url }}">{{ article.category }}</a> &middot; <time datetime="{{ article.date.isoformat() }}">{{ article.locale_date }}</time></p>
+    <h2><a href="/{{ article.url }}">{{ article.title }}</a></h2>
+    <p>{{ article.summary | striptags | truncate(180) }}</p>
+    <a class="more" href="/{{ article.url }}">Read more &rarr;</a>
+  </article>
+  {% endfor %}
+</div>
+{% if articles_page and articles_page.has_other_pages() %}
+<nav class="pager">
+  {% if articles_page.has_previous() %}<a href="/{{ articles_previous_page.url | replace('index.html', '') }}">&larr; Newer</a>{% endif %}
+  <span>Page {{ articles_page.number }} of {{ articles_paginator.num_pages }}</span>
+  {% if articles_page.has_next() %}<a href="/{{ articles_next_page.url }}">Older &rarr;</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

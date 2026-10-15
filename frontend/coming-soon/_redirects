@@ -1,0 +1,4 @@
+# Cloudflare Pages redirects for this standalone placeholder site.
+# Change the target below to switch what the root URL shows —
+# /coming-soon/ before launch, /maintenance/ during downtime.
+/  /coming-soon/  302

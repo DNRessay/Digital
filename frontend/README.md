@@ -1,0 +1,175 @@
+# Frontend apps
+
+Three separate apps, each its own Cloudflare Pages project pointed at a
+different subdirectory of this same repo (monorepo-style — Cloudflare
+Pages supports this via each project's own "Root directory" setting).
+
+| App          | Purpose                                                          | Stack                  | Status                |
+| ------------ | ----------------------------------------------------------------- | ---------------------- | --------------------- |
+| `site`       | Marketing site (vicinic.co.za)                                      | Vite + React           | Existing, live        |
+| `admin`      | Internal dashboard — template manager (real), sites/overview (placeholder) | Vite + React | Partly functional     |
+| `web-portal` | Customer editor (edit your own site's slot text)                  | Vite + React           | Functional — real API |
+
+`admin` used to be split across two apps (`admin` — a placeholder shell,
+and `portal` — the real template manager); they were merged into one so
+there's a single internal app instead of two to keep in sync. `portal`'s
+upload/list template functionality is now `admin`'s `/templates` route.
+
+All three are Vite apps and need a build (`npm run build` → `dist/`).
+
+## Deploying each app to Cloudflare Pages
+
+For each app, create a **separate** Cloudflare Pages project (Workers &
+Pages → Create → Pages → connect this repo), then in that project's
+build settings, with **Root directory (advanced)** set to `frontend/<app>`:
+
+- **`site` / `admin` / `web-portal`**: Build command `npm run build`, output directory `dist`
+
+Do **not** add a `wrangler.toml` to any of these apps — its mere presence
+overrides the dashboard's build command field, which breaks git-integration
+deploys.
+
+### Client-side routing (`admin`, `site`) needs a `404.html` fallback
+
+Both apps use React Router (`BrowserRouter`), so a direct visit or refresh
+on a client-side route (e.g. `admin`'s `/templates`, `site`'s `/about`)
+needs the server to fall back to `index.html` and let the router take it
+from there. The classic fix is a `public/_redirects` file with
+`/* /index.html 200` — both apps still have one — but Cloudflare Pages'
+own build-time validator now rejects that exact rule as an "infinite loop"
+(it collides with Cloudflare's automatic trailing-slash/`.html`-stripping
+behavior) and silently drops it entirely, which would otherwise 404 every
+deep link in production. Each app's `package.json` has a `postbuild` step
+instead (`node -e "require('fs').copyFileSync('dist/index.html','dist/404.html')"`)
+— Cloudflare's static asset server serves `404.html` for any unmatched
+path by default, so the SPA shell loads either way and the router renders
+the right page client-side. `web-portal` doesn't need this — no client-side
+routes, so the root path it always serves is enough.
+
+> **If you have a live Cloudflare Pages project for `site` from before this
+> app went back to Vite+React**, update its build command back to
+> `npm run build` and its output directory back to `dist` — it was
+> previously set to an empty build command and `/` output for a brief
+> plain-static-HTML version of this app, which no longer applies.
+
+### Environment variables per app
+
+- **admin**, **web-portal**: `VITE_API_BASE_URL` — the backend's Lambda
+  Function URL, no trailing slash (see each app's `.env.example`).
+- **site**: no env vars — the Web3Forms access key is a hardcoded value in
+  `src/sections/Contact.jsx`'s form markup (see `frontend/site/README.md` —
+  Web3Forms keys are meant to be public/embedded client-side).
+
+### Backend-side: registering each app's origin
+
+Once an app is deployed, add its Cloudflare Pages URL (and any custom
+domain) to the backend's `FRONTEND_ORIGINS` env var (comma-separated) —
+see `backend/.env.example`. Without this, the backend's CORS config will
+reject that app's API calls even though the app itself loads fine.
+
+## Auth: both apps use bearer tokens, not session cookies
+
+`admin` and `web-portal` both authenticate via a token (`CustomerAuthToken`
+— see `backend/README.md`'s section on it) returned from a login endpoint,
+stored in `localStorage`, and sent as an `Authorization` header — no
+cookies, no CSRF, no HTTPS requirement for local testing.
+
+`admin` didn't start out this way — it originally sent the browser's
+Django session cookie cross-origin (`credentials: 'include'`), the same
+approach `web-portal` briefly used before hitting the problem this section
+used to describe: a same-origin login works fine (cookies always attach to
+a real page load), but the SPA's own subsequent cross-origin `fetch()`
+calls can come back looking logged-out anyway, because browsers
+increasingly refuse to attach a cross-site cookie to a fetch even with
+`SameSite=None; Secure` set correctly (Safari's ITP, and increasingly
+Chrome too). `admin` hit this in practice — bearer tokens sidestep it
+entirely, which is why both apps use the same pattern now.
+
+## Local development
+
+Each app is a normal Vite project:
+
+```bash
+cd frontend/<app>
+npm install
+npm run dev
+```
+
+**`web-portal`** works cross-origin against any backend (local or
+deployed) — just set `VITE_API_BASE_URL` (see its `.env.example`).
+
+**`admin`** needs the backend's `FRONTEND_ORIGINS` env var to include your
+local dev origin (e.g. `http://localhost:5173`) to call the API — but per
+the cross-origin cookie caveat above, this only actually works end-to-end
+over HTTPS, so local testing of its login/upload flow requires the real
+deployed backend.
+
+## `blog` — blog.vicinic.co.za (Pelican)
+
+A static Python blog, separate from the React apps. Posts are Markdown files
+in `blog/content/posts/` with a small header:
+
+```markdown
+Title: Your post title
+Date: 2026-09-28 09:00
+Category: Getting started
+Tags: websites, small business
+Slug: your-post-title
+Summary: One or two sentences shown on the article list and in link previews.
+
+Post text in Markdown…
+```
+
+Local preview:
+
+```bash
+cd frontend/blog
+pip install -r requirements.txt
+pelican content -s pelicanconf.py -o output && pelican --listen -o output   # http://localhost:8000
+```
+
+Cloudflare Pages project settings:
+
+| Setting | Value |
+|---|---|
+| Root directory | `frontend/blog` |
+| Build command | `pip install -r requirements.txt && pelican content -s publishconf.py -o output` |
+| Build output directory | `output` |
+| Environment variable | `PYTHON_VERSION` = `3.11` |
+
+Name the project `vicinic-blog` and don't give it a custom domain: the
+`vicinic` Worker (the router in front of vicinic.co.za) maps
+`blog.vicinic.co.za` to `vicinic-blog.pages.dev`, like `portal.` and
+`console.`. `publishconf.py` builds with `SITEURL=https://blog.vicinic.co.za`
+(override with a `SITEURL` env var) and adds the RSS/Atom feeds.
+
+### AI drafts (ported from Bloggify)
+
+The research engine lives in `backend/blog_research/` (sources, Groq, PDF
+reading). Categories, sources and evergreen topics are in `topics.yaml`. It
+runs as a background self-invoke of the backend Lambda.
+
+**Admin → Blog → Write a post**: pick a category. You can then:
+- tap **Show latest news** to see fresh research papers and news, and tick up
+  to 5 (the first one leads the post);
+- tap **Suggest post ideas** to get ideas built on papers, news, or the
+  category's evergreen topics, then tap **Use this idea**;
+- paste paper or article links (arXiv, PDFs, any article);
+- tell the AI what you want.
+
+Then tap **Write draft**. It takes a few minutes. Every draft (yours and the
+Mon/Wed/Fri ones from the `Blog` workflow) waits for review. Approve, edit,
+hold or reject it; anything left alone is approved after `BLOG_REVIEW_HOURS`
+(48). Tapping **Approve** starts the workflow's publish job straight away.
+That job commits the post to `blog/content/posts`, which rebuilds the blog.
+A once-a-day run (06:23 SA time) catches auto-approved drafts; opening the
+Blog tab publishes them too. You can run it by hand from Actions → Blog → Run
+workflow (`job` = `draft` or `publish`).
+
+Repo secrets: `GROQ_API_KEYS` (comma-separated, rotated on rate limits),
+plus optional `SERPAPI_KEY` (Google News), `NASA_API_KEY` (APOD) and
+`BLOG_DISPATCH_TOKEN`: a fine-grained GitHub token for this repo with
+*Actions: Read and write*, which lets Approve publish at once. They
+reach the Lambda through the backend deploy, so run a backend deploy after
+changing them. The workflow authenticates with a token derived from
+`DJANGO_SECRET_KEY`.

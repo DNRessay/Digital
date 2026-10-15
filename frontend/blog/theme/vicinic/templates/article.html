@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ article.title | striptags }} | {{ SITENAME }}{% endblock %}
+{% block description %}{{ article.summary | striptags | truncate(160) }}{% endblock %}
+{% block head %}
+  {% set url = BLOG_URL ~ '/' ~ article.url %}
+  {% set desc = article.summary | striptags | truncate(160) %}
+  <link rel="canonical" href="{{ url }}">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Vicinic Blog">
+  <meta property="og:title" content="{{ article.title | striptags }}">
+  <meta property="og:description" content="{{ desc }}">
+  <meta property="og:url" content="{{ url }}">
+  <meta property="og:image" content="{{ MAIN_SITE_URL }}/assets/img/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta property="og:locale" content="en_ZA">
+  <meta property="article:published_time" content="{{ article.date.isoformat() }}">
+  <meta property="article:modified_time" content="{{ (article.modified or article.date).isoformat() }}">
+  <meta property="article:section" content="{{ article.category }}">
+  {% if article.tags %}<meta name="keywords" content="{{ article.tags | join(', ') }}">{% endif %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": {{ article.title | striptags | tojson }},
+    "description": {{ desc | tojson }},
+    "datePublished": "{{ article.date.isoformat() }}",
+    "dateModified": "{{ (article.modified or article.date).isoformat() }}",
+    "mainEntityOfPage": "{{ url }}",
+    "articleSection": {{ article.category | string | tojson }},
+    "inLanguage": "en-ZA",
+    "image": "{{ MAIN_SITE_URL }}/assets/img/og-image.png",
+    "author": { "@type": "Organization", "name": "Vicinic", "url": "{{ MAIN_SITE_URL }}" },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Vicinic",
+      "logo": { "@type": "ImageObject", "url": "{{ MAIN_SITE_URL }}/assets/img/logo.png" }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Blog", "item": "{{ BLOG_URL }}/" },
+      { "@type": "ListItem", "position": 2, "name": {{ article.category | string | tojson }}, "item": "{{ BLOG_URL }}/{{ article.category.url }}" },
+      { "@type": "ListItem", "position": 3, "name": {{ article.title | striptags | tojson }}, "item": "{{ url }}" }
+    ]
+  }
+  </script>
+{% endblock %}
+{% block content %}
+<article class="post">
+  <p class="meta"><a href="/{{ article.category.url }}">{{ article.category }}</a> &middot; <time datetime="{{ article.date.isoformat() }}">{{ article.locale_date }}</time></p>
+  <h1>{{ article.title }}</h1>
+  <div class="post-body">{{ article.content }}</div>
+  {% if article.tags %}
+  <p class="tags">{% for tag in article.tags %}<a href="/{{ tag.url }}">#{{ tag }}</a>{% endfor %}</p>
+  {% endif %}
+  <aside class="cta">
+    <h2>Ready for your own website?</h2>
+    <p>Pick a template, add your words and pictures, and go live on your own .co.za.</p>
+    <a class="btn" href="{{ PORTAL_URL }}">Create your site</a>
+  </aside>
+</article>
+{% endblock %}

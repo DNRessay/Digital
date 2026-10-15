@@ -1,6 +1,6 @@
-node_modules/
-dist/
-.aws-sam/
-__pycache__/
+node_modules
+dist
 .env
-samconfig.toml
+.env.local
+*.log
+.DS_Store

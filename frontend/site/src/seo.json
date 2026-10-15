@@ -1,0 +1,88 @@
+{
+  "/": {
+    "title": "Vicinic — Websites & WhatsApp Systems for Small Businesses in South Africa",
+    "description": "Build your business website free with Vicinic: pick a template, edit it live, add an AI chat assistant and WhatsApp bot. Free .co.za domain on paid plans. Hosted, secured and supported in South Africa."
+  },
+  "/about": {
+    "title": "About Vicinic — South African Website Builder",
+    "description": "Vicinic is a registered South African digital studio helping small businesses and schools get online affordably, with hosting, security and support included."
+  },
+  "/services": {
+    "title": "Services — Websites, WhatsApp Bots & AI Chat | Vicinic",
+    "description": "Professional websites, an AI chat assistant, WhatsApp business bots, domains and email forwarding for South African small businesses and schools."
+  },
+  "/pricing": {
+    "title": "Pricing — Websites from R250 once-off | Vicinic",
+    "description": "Starter Site R250 once-off, Growth Hub R349/month, Business OS R699/month. Free .co.za domain on paid plans. School packages from R2,500. Sign up free."
+  },
+  "/portfolio": {
+    "title": "Portfolio — Projects Built by Vicinic",
+    "description": "The Vicinic Site Editor, website AI chat and WhatsApp bots, Templify, Bloggify, BHKA Bot and Semblance — systems we've designed and shipped."
+  },
+  "/contact": {
+    "title": "Contact Vicinic — Get Your Business Online",
+    "description": "Questions about a website, WhatsApp bot or school platform? Contact Vicinic in Tshwane, South Africa."
+  },
+  "/new-company-checklist": {
+    "title": "Just Registered a Company with CIPC? Next Steps & Website | Vicinic",
+    "description": "New company registered with CIPC? A plain checklist for officers, directors, SARS, banking and compliance — then get your website and .co.za email from R250 once-off.",
+    "jsonld": {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What should I do first after registering a company with CIPC?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Appoint a public officer for SARS, link the company to your SARS eFiling profile, open a business bank account in the company's name and check your Memorandum of Incorporation. Then set up your website and business email so customers can find and trust you."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I change directors or officers at CIPC?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "When a director or officer is appointed, resigns or changes their details, the company notifies CIPC using the CoR39 notice, normally online through CIPC's eServices. Do it when the change happens rather than waiting for the annual return."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I need a website for my new company?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "It isn't a legal requirement, but customers, banks and suppliers expect one. A website and an email address on your own .co.za domain make a new company look established. If you sell online, South African law expects you to show your company name, registration number and physical address on the site."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much does a website for a new company cost?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Vicinic's Starter Site is R250 once-off with a free .co.za domain, one template of your choice, up to 3 extra pages and email forwarding for up to 5 addresses. There is no monthly bill. Growth Hub (R349/month plus a setup fee) adds AI chat, WhatsApp, bookings and a blog."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does Vicinic register companies with CIPC?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Vicinic builds and hosts websites. To register a company use CIPC's BizPortal or an accountant, then come to Vicinic to get your business online."
+          }
+        }
+      ]
+    }
+  },
+  "/terms": {
+    "title": "Terms of Service — Vicinic",
+    "description": "The terms for using Vicinic's website builder, hosting, domains and related services."
+  },
+  "/privacy": {
+    "title": "Privacy Policy (POPIA) — Vicinic",
+    "description": "How Vicinic collects, uses and protects personal information under South Africa's POPIA."
+  },
+  "/cookies": {
+    "title": "Cookie Policy — Vicinic",
+    "description": "Which cookies Vicinic uses and how to manage your choice."
+  }
+}
