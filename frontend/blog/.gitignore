@@ -1,5 +1,0 @@
-output/
-__pycache__/
-*.pid
-
-research/.published.json
