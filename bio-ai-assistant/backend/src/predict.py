@@ -41,7 +41,7 @@ def score(seq, ligand, plddt):
     size_fit = math.exp(-(((ligand["mw"] - 380) / 200) ** 2))
     prot_h = sum(c in HYDROPHOBIC for c in seq) / max(len(seq), 1)
     complement = 1 - abs(clamp((ligand["logp"] + 1) / 6) - clamp(prot_h / 0.6))
-    confidence = clamp(plddt / 100) if plddt else 0.5
+    confidence = clamp(plddt / 100) if plddt is not None else 0.5
     affinity = 100 * (0.35 * size_fit + 0.25 * complement + 0.20 * druglike + 0.20 * confidence)
     return {
         "binding_affinity_pct": round(affinity, 1),
