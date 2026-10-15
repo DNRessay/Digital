@@ -293,7 +293,19 @@ def _upsert_phase_rule(zone_id, phase, rule):
 
 def route_zone_to_origin(zone_id, origin_host):
     """Idempotent — safe to re-run on a zone that already has these rules;
-    any other rule already in these phases is kept."""
+    any other rule already in these phases is kept. Host-header override is an
+    Enterprise-only Cloudflare feature; on other plans this returns False and the
+    vicinic-proxy Worker (route on the customer zone) does the same job instead."""
+    try:
+        _apply_origin_rules(zone_id, origin_host)
+    except CloudflareError as exc:
+        if "not entitled" not in str(exc).lower():
+            raise
+        return False
+    return True
+
+
+def _apply_origin_rules(zone_id, origin_host):
     _upsert_phase_rule(
         zone_id,
         "http_request_origin",
