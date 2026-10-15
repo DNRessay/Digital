@@ -12,40 +12,40 @@ South African shop owners, freelancers and side‑hustlers are constantly lookin
 The Shopify guide on influencer marketing for small business (2026) highlights that partnering with micro‑influencers – creators with 1 000‑10 000 followers – can deliver a higher ROI than big‑budget ads because they charge less and enjoy tighter community trust. For South African businesses, the guide notes that local influencers often have niche audiences (e.g., township fashion, local foodies) that align perfectly with small‑business offerings.
 
 **What this means for you:**
-- Start by scouting Instagram or TikTok creators who post about your neighbourhood or product category. Look for engagement rates above 5 % (likes + comments ÷ followers). 
-- Offer a simple trade: free product or a small commission on sales tracked via a unique discount code. 
+- Start by scouting Instagram or TikTok creators who post about your neighbourhood or product category. Look for engagement rates above 5 % (likes + comments ÷ followers).
+- Offer a simple trade: free product or a small commission on sales tracked via a unique discount code.
 - Keep the partnership short – a single post or story – to test performance before committing to a longer campaign.
 
 ## Kasi Businesses Still Struggle with Marketing Budgets
 The Media Online reports that many kasi (township) businesses cite marketing as their biggest hurdle, citing limited cash flow and lack of digital know‑how. While the article doesn’t give exact figures, it confirms that traditional word‑of‑mouth still dominates, and few owners have tried paid online ads.
 
 **What this means for you:**
-- Leverage free channels first: create a Google My Business profile, claim your Facebook Page, and ask happy customers to leave reviews. These platforms improve local SEO (search‑engine visibility) at no cost. 
-- Use WhatsApp Business to broadcast promotions to existing contacts – it’s a tool most South Africans already use daily. 
+- Leverage free channels first: create a Google My Business profile, claim your Facebook Page, and ask happy customers to leave reviews. These platforms improve local SEO (search‑engine visibility) at no cost.
+- Use WhatsApp Business to broadcast promotions to existing contacts – it’s a tool most South Africans already use daily.
 - If you can spare a modest budget (R500‑R1 000), run a hyper‑local Facebook ad targeting a 5‑km radius around your shop; the platform’s ad manager lets you set a daily spend as low as R20.
 
 ## Creator Economy Shifts Toward Services, Not Just Brand Deals
 Mail & Guardian notes that South Africa’s creator economy is moving beyond one‑off brand deals toward recurring services such as content creation packages, affiliate programs and even consulting for small businesses. Creators are packaging their expertise (e.g., video editing, copywriting) and selling it directly to SMEs.
 
 **What this means for you:**
-- Instead of paying a creator just to mention your product, negotiate a retainer for a monthly batch of reels, posts and captions. Consistency builds brand recall faster than sporadic shout‑outs. 
-- Explore affiliate partnerships: give creators a unique link that earns them a commission on every sale they drive. This aligns incentives and reduces upfront cost. 
+- Instead of paying a creator just to mention your product, negotiate a retainer for a monthly batch of reels, posts and captions. Consistency builds brand recall faster than sporadic shout‑outs.
+- Explore affiliate partnerships: give creators a unique link that earns them a commission on every sale they drive. This aligns incentives and reduces upfront cost.
 - If you have a skill (design, photography, copy), consider offering it as a service to other local businesses – you can become a micro‑agency and diversify income.
 
 ## 702 MTN Small Business Awards Celebrate Innovation (3rd Year)
 Bizcommunity reports the return of the 702 MTN Small Business Awards, now in its third year, recognising businesses that excel in digital transformation, customer experience and community impact. Winners receive cash prizes, mentorship and media exposure.
 
 **What this means for you:**
-- Even if you don’t win, applying forces you to audit your own operations – a useful exercise for spotting gaps. 
-- Use the nomination form to craft a concise “elevator pitch” about what makes your business unique; you can reuse this copy on your website and social media. 
+- Even if you don’t win, applying forces you to audit your own operations – a useful exercise for spotting gaps.
+- Use the nomination form to craft a concise “elevator pitch” about what makes your business unique; you can reuse this copy on your website and social media.
 - Keep an eye on the mentorship component – MTN often pairs finalists with seasoned marketers who can help you refine your online strategy.
 
 ## Hidden Infrastructure Boosts SA Small‑Business Growth
 Daily Maverick’s piece on the “hidden infrastructure” behind South Africa’s small‑business surge points to three key enablers: fintech platforms that provide quick loans, logistics networks that enable same‑day delivery, and government‑backed training programmes that upskill owners in digital marketing.
 
 **What this means for you:**
-- If you need cash to fund a marketing push, compare fintech options (e.g., Jumo, TymeBank) for short‑term, low‑interest loans rather than traditional banks. 
-- Partner with local courier services that offer affordable, trackable delivery – faster shipping improves customer satisfaction and encourages repeat orders. 
+- If you need cash to fund a marketing push, compare fintech options (e.g., Jumo, TymeBank) for short‑term, low‑interest loans rather than traditional banks.
+- Partner with local courier services that offer affordable, trackable delivery – faster shipping improves customer satisfaction and encourages repeat orders.
 - Enrol in free or low‑cost online courses offered by the Department of Small Business Development; many focus on building a Facebook ad campaign or setting up an e‑commerce store.
 
 ## What to watch

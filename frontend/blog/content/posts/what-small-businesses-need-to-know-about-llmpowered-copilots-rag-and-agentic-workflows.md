@@ -62,11 +62,11 @@ That exact flow matches the **router‑worker copilot** pattern **augmented with
 * **Vendor lock‑in** – Some “copilot” platforms hide the router‑worker logic, making it hard to migrate later. Prefer open‑source or low‑code tools that let you export the workflow.
 
 ## What to do next
-- **Identify a repeatable task** (e.g., updating product ads, answering common FAQs). 
-- **Choose a copilot platform** that advertises a router‑worker architecture and supports RAG. 
-- **Upload your key documents** (catalog, policy FAQ) to a searchable vector store. 
-- **Create a simple router prompt** that maps user intent to a worker action. 
-- **Add a guardrail check** to validate the worker’s output. 
+- **Identify a repeatable task** (e.g., updating product ads, answering common FAQs).
+- **Choose a copilot platform** that advertises a router‑worker architecture and supports RAG.
+- **Upload your key documents** (catalog, policy FAQ) to a searchable vector store.
+- **Create a simple router prompt** that maps user intent to a worker action.
+- **Add a guardrail check** to validate the worker’s output.
 - **Run a pilot** with 5‑10 real queries, monitor cost and accuracy, then roll out to the whole team.
 
 ## Sources
